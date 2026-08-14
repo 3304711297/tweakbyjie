@@ -1,0 +1,8 @@
+# Temp files
+_tmp_*
+*.tmp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
