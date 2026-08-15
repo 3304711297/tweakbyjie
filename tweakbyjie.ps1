@@ -14,6 +14,10 @@
 #   输入 5 回车 = 优化服务项继续工作（禁用可安全禁用的服务，
 #                 Xbox / 蓝牙 / 嵌入模式服务改成手动），
 #                 完成后 5 秒自动重启（按 Q 取消）
+#   输入 6 回车 = 应用超性能电源计划（子选项 1：先备份当前电源计划到脚本所在目录，
+#                 再导入并应用仓库自带的 ultimate-performance.pow；
+#                 子选项 2：恢复之前备份的电源计划），
+#                 完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -135,11 +139,13 @@ Write-Host "   4. 关闭安全中心（禁用 Windows Defender / SmartScreen，�
 Write-Host "      Disable Security Center (Defender & SmartScreen policies, optional deletion step)" -ForegroundColor Gray
 Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务，Xbox/蓝牙/嵌入模式改成手动）" -ForegroundColor White
 Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
+Write-Host "   6. 应用超性能电源计划（备份当前计划后导入并应用，子选项 2 可恢复备份）" -ForegroundColor White
+Write-Host "      Apply Ultimate Performance Power Plan (backup current, import & apply, restorable)" -ForegroundColor Gray
 Write-Host ""
 Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
 Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
 Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4 或 5 并回车 (Enter 1, 2, 3, 4 or 5)"
+$choice = Read-Host "请输入 1、2、3、4、5 或 6 并回车 (Enter 1, 2, 3, 4, 5 or 6)"
 
 if ($choice -eq "1") {
 
@@ -759,9 +765,119 @@ if ($choice -eq "1") {
     # Auto restart in 5 seconds (press Q to cancel)
     Start-RestartCountdown -Seconds 5
 
+} elseif ($choice -eq "6") {
+
+    # ======================= Part 6: 应用超性能电源计划 =======================
+    # 独立步骤：备份当前电源计划 -> 导入并应用仓库自带的超性能计划 / 或恢复备份
+    Write-Host ""
+    Write-Host "============ [Part 6] 应用超性能电源计划 / Ultimate Performance Power Plan ============" -ForegroundColor Cyan
+    Write-Host ""
+
+    $planFile   = Join-Path $PSScriptRoot "ultimate-performance.pow"
+    $backupFile = Join-Path $PSScriptRoot "power-backup.pow"
+
+    Write-Host "  1. 备份当前电源计划，然后导入并应用超性能电源计划" -ForegroundColor White
+    Write-Host "  2. 恢复之前备份的电源计划" -ForegroundColor White
+    $pChoice = Read-Host "请输入 1 或 2 并回车 (Enter 1 or 2)"
+
+    if ($pChoice -eq "1") {
+
+        if (-not (Test-Path $planFile)) {
+            Write-Host "[FAIL] 未找到 ultimate-performance.pow（需与本脚本放在同一目录）" -ForegroundColor Red
+            $fail++
+        } else {
+
+            # 1) Backup current active scheme (keep the earliest backup)
+            if (Test-Path $backupFile) {
+                Write-Host "[SKIP] 备份文件已存在，不覆盖（保护最初的原计划备份）: $backupFile" -ForegroundColor Yellow
+                $skip++
+            } else {
+                try {
+                    $activeOut = & powercfg.exe /getactivescheme 2>$null
+                    if ($activeOut -match '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})') {
+                        $activeGuid = $Matches[1]
+                    } else {
+                        throw "无法解析当前电源计划 GUID"
+                    }
+                    & powercfg.exe /export $backupFile $activeGuid *> $null
+                    if ($LASTEXITCODE -ne 0) { throw "powercfg /export exit code $LASTEXITCODE" }
+                    Write-Host "[OK] 当前电源计划已备份: $backupFile ($activeGuid)"
+                    $ok++
+                } catch {
+                    Write-Host "[FAIL] 备份当前电源计划 : $($_.Exception.Message)" -ForegroundColor Red
+                    $fail++
+                }
+            }
+
+            # 2) Import bundled plan and apply
+            if (Test-Path $backupFile) {
+                try {
+                    $importOut = & powercfg.exe /import $planFile 2>$null
+                    if ($importOut -match '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})') {
+                        $newGuid = $Matches[1]
+                    } else {
+                        throw "无法解析导入后的计划 GUID（ultimate-performance.pow 可能已损坏）"
+                    }
+                    & powercfg.exe /setactive $newGuid *> $null
+                    if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
+                    Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)"
+                    $ok++
+                } catch {
+                    Write-Host "[FAIL] 导入/应用超性能电源计划 : $($_.Exception.Message)" -ForegroundColor Red
+                    $fail++
+                }
+            } else {
+                Write-Host "[SKIP] 备份失败，为安全起见跳过应用超性能计划" -ForegroundColor Yellow
+                $skip++
+            }
+        }
+
+    } elseif ($pChoice -eq "2") {
+
+        # Restore previously backed-up scheme
+        if (-not (Test-Path $backupFile)) {
+            Write-Host "[FAIL] 未找到备份文件 power-backup.pow（请先执行子选项 1 生成备份）" -ForegroundColor Red
+            $fail++
+        } else {
+            try {
+                $importOut = & powercfg.exe /import $backupFile 2>$null
+                if ($importOut -match '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})') {
+                    $newGuid = $Matches[1]
+                } else {
+                    throw "无法解析导入后的计划 GUID（power-backup.pow 可能已损坏）"
+                }
+                & powercfg.exe /setactive $newGuid *> $null
+                if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
+                Write-Host "[OK] 已恢复备份的电源计划 ($newGuid)"
+                $ok++
+            } catch {
+                Write-Host "[FAIL] 恢复备份的电源计划 : $($_.Exception.Message)" -ForegroundColor Red
+                $fail++
+            }
+        }
+
+    } else {
+        Write-Host "[ERROR] 无效输入：$pChoice 。请输入 1 或 2 / Invalid input. Enter 1 or 2." -ForegroundColor Red
+    }
+
+    # Summary
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host " Finished (Part 6 - Ultimate Performance Power Plan)" -ForegroundColor Cyan
+    Write-Host " OK : $ok" -ForegroundColor Green
+    Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " SKIP : $skip" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "提示：可用 powercfg /getactivescheme 查看当前电源计划；" -ForegroundColor Yellow
+    Write-Host "如需恢复原计划，再次运行本脚本并选择 6 -> 2。" -ForegroundColor Yellow
+
+    # Auto restart in 5 seconds (press Q to cancel)
+    Start-RestartCountdown -Seconds 5
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4 或 5 / Invalid input. Enter 1, 2, 3, 4 or 5." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5 或 6 / Invalid input. Enter 1, 2, 3, 4, 5 or 6." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
