@@ -24,6 +24,8 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 | `tweakbyjie.ps1` | 主优化脚本（菜单版） | ✅ 可逆（注册表值/服务启动类型可恢复） |
 | `defender-removal.ps1` | Defender 物理移除（高级） | ❌ 不可逆（删键/删文件，需重装系统恢复） |
 
+> 想了解每个脚本具体修改了哪些注册表、BCDEdit 启动项和服务？详见 **[优化详情参考 (OPTIMIZATION-DETAILS.md)](./OPTIMIZATION-DETAILS.md)**。
+
 ---
 
 ## tweakbyjie.ps1 — 功能菜单
@@ -34,6 +36,7 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 | **2** | 开启测试模式 | `bcdedit` testsigning / debug / dbgsettings local / nointegritychecks，桌面右下角出现"测试模式"水印属正常 |
 | **3** | 关闭测试模式 | 删除 testsigning / debug 启动项（保留 nointegritychecks），水印消失 |
 | **4** | 关闭安全中心 | 写入 Windows Defender 策略注册表（父键 / Real-Time Protection / Spynet / Signature Updates / Scan / MpEngine / NIS / Exploit Guard / 通知抑制等）+ SmartScreen 全套关闭（系统级 / Explorer / Edge / Store 应用）。执行后可选择是否进行**删除类优化**（输入 `Y` 执行 / `N` 跳过）：停止并禁用 17 个 Defender 相关服务、删除 Defender 计划任务、删除 SecurityHealth 自启动项、移除安全中心界面 SecHealthUI |
+| **5** | 优化服务项继续工作 | 停止并禁用 29 个可安全禁用的服务（诊断四件套 DPS/WdiServiceHost/WdiSystemHost/diagsvc、DialogBlockingService、TrkWks、AppVClient、键盘筛选器、NetTcpPortSharing、脱机文件、ssh-agent、PhoneSvc、兼容性助手 PCA、远程注册表、路由远程访问、传感器×2、共享电脑、UE-V、钱包、预览体验、WSAIFabricSvc、WAP 推送、数据使用量、自动时区、打印后台处理、Windows 搜索、SysMain、Edge 更新×2）+ 将 7 个服务改成**手动**（Xbox 配件管理、Xbox Live 身份验证/网络服务/游戏保存、蓝牙支持、嵌入模式、BITS） |
 
 每个选项执行完成后 **5 秒自动重启**（期间按 `Q` 取消）。
 
@@ -49,7 +52,7 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
 ```
 
-4. 输入选项编号（1/2/3/4）并回车
+4. 输入选项编号（1/2/3/4/5）并回车
 
 ---
 

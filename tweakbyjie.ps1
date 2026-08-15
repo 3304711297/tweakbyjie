@@ -11,6 +11,9 @@
 #   输入 4 回车 = 关闭安全中心（禁用 Windows Defender / SmartScreen 策略），
 #                 随后可选择是否执行删除类优化（Y=执行 / N=跳过），
 #                 完成后 5 秒自动重启（按 Q 取消）
+#   输入 5 回车 = 优化服务项继续工作（禁用可安全禁用的服务，
+#                 Xbox / 蓝牙 / 嵌入模式服务改成手动），
+#                 完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -130,11 +133,13 @@ Write-Host "   3. 关闭测试模式（删除 testsigning / debug 启动项，�
 Write-Host "      Disable Test Mode (delete testsigning / debug entries, keep nointegritychecks)" -ForegroundColor Gray
 Write-Host "   4. 关闭安全中心（禁用 Windows Defender / SmartScreen，可选删除类优化）" -ForegroundColor White
 Write-Host "      Disable Security Center (Defender & SmartScreen policies, optional deletion step)" -ForegroundColor Gray
+Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务，Xbox/蓝牙/嵌入模式改成手动）" -ForegroundColor White
+Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
 Write-Host ""
 Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
 Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
 Write-Host ""
-$choice = Read-Host "请输入 1、2、3 或 4 并回车 (Enter 1, 2, 3 or 4)"
+$choice = Read-Host "请输入 1、2、3、4 或 5 并回车 (Enter 1, 2, 3, 4 or 5)"
 
 if ($choice -eq "1") {
 
@@ -244,19 +249,7 @@ if ($choice -eq "1") {
         $fail++
     }
 
-    # 17 BITS -> Manual
-    Write-Host ""
-    Write-Host "[BITS]" -ForegroundColor Cyan
-    try {
-        Set-Service -Name BITS -StartupType Manual -ErrorAction Stop
-        Write-Host "[OK] BITS StartupType = Manual"
-        $ok++
-    } catch {
-        Write-Host "[FAIL] BITS : $($_.Exception.Message)" -ForegroundColor Red
-        $fail++
-    }
-
-    # 18 TRIM
+    # 17 TRIM
     Write-Host ""
     Write-Host "[TRIM]" -ForegroundColor Cyan
     try {
@@ -268,7 +261,7 @@ if ($choice -eq "1") {
         $fail++
     }
 
-    # 19 BCDEdit Optimization
+    # 18 BCDEdit Optimization
     Write-Host ""
     Write-Host "[BCDEdit Tweaks]" -ForegroundColor Cyan
 
@@ -682,9 +675,93 @@ if ($choice -eq "1") {
     # Auto restart in 5 seconds (press Q to cancel)
     Start-RestartCountdown -Seconds 5
 
+} elseif ($choice -eq "5") {
+
+    # ======================= Part 5: 优化服务项 =======================
+    # 独立步骤：禁用可安全禁用的服务 + 将 Xbox / 蓝牙 / 嵌入模式服务恢复为手动
+    Write-Host ""
+    Write-Host "============ [Part 5] 优化服务项继续工作 / Service Optimization ============" -ForegroundColor Cyan
+    Write-Host ""
+
+    # 1) Disable safe-to-disable services
+    Write-Host "[Safe Services: stop + disable]" -ForegroundColor Cyan
+    $safeServices = @(
+        "DPS","WdiServiceHost","WdiSystemHost","diagsvc",
+        "DialogBlockingService","TrkWks","AppVClient","MsKeyboardFilter",
+        "NetTcpPortSharing","CscService","ssh-agent","PhoneSvc","PcaSvc",
+        "RemoteRegistry","RemoteAccess","SensorDataService","SensrSvc",
+        "shpamsvc","UevAgentService","WalletService","wisvc","WSAIFabricSvc",
+        "dmwappushservice","DusmSvc","tzautoupdate",
+        "Spooler","WSearch","SysMain","edgeupdate","edgeupdatem"
+    )
+    foreach ($svc in $safeServices) {
+        $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
+        if ($svcObj) {
+            try {
+                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+                Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
+                Write-Host "[OK] Service $svc stopped and disabled"
+                $ok++
+            } catch {
+                & sc.exe config $svc start= disabled *> $null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] Service $svc disabled (stop rejected: protected service)"
+                    $ok++
+                } else {
+                    Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
+                    $fail++
+                }
+            }
+        } else {
+            Write-Host "[SKIP] Service $svc not found" -ForegroundColor Yellow
+            $skip++
+        }
+    }
+
+    # 2) Set Xbox / Bluetooth / Embedded / BITS services to Manual
+    Write-Host ""
+    Write-Host "[Manual Services: Xbox / Bluetooth / Embedded / BITS]" -ForegroundColor Cyan
+    $manualServices = @(
+        "XboxGipSvc","XblAuthManager","XboxNetApiSvc","XblGameSave","bthserv","embeddedmode","BITS"
+    )
+    foreach ($svc in $manualServices) {
+        $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
+        if ($svcObj) {
+            try {
+                Set-Service -Name $svc -StartupType Manual -ErrorAction Stop
+                Write-Host "[OK] Service $svc StartupType = Manual"
+                $ok++
+            } catch {
+                & sc.exe config $svc start= demand *> $null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] Service $svc StartupType = Manual (sc.exe)"
+                    $ok++
+                } else {
+                    Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
+                    $fail++
+                }
+            }
+        } else {
+            Write-Host "[SKIP] Service $svc not found" -ForegroundColor Yellow
+            $skip++
+        }
+    }
+
+    # Summary
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host " Finished (Part 5 - Service Optimization)" -ForegroundColor Cyan
+    Write-Host " OK : $ok" -ForegroundColor Green
+    Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " SKIP : $skip" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
+
+    # Auto restart in 5 seconds (press Q to cancel)
+    Start-RestartCountdown -Seconds 5
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3 或 4 / Invalid input. Enter 1, 2, 3 or 4." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4 或 5 / Invalid input. Enter 1, 2, 3, 4 or 5." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
