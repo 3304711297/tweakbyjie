@@ -33,13 +33,14 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 
 | 选项 | 功能 | 说明 |
 |---|---|---|
-| **1** | 系统优化 | GameDVR、VBS/HVCI、多媒体调度（NetworkThrottlingIndex/SystemResponsiveness）、CPU 优先级分离、Meltdown/Spectre 缓解关闭、HAGS、MPO 关闭、Games 任务调度、Prefetch 关闭、DWM、NTFS 8.3、游戏模式、内存压缩、BITS→手动、TRIM、BCDEdit 优化（hypervisor/时钟节拍/NX/完整性检查等）、视觉效果自定义（仅保留平滑屏幕字体边缘与任务栏动画，其余动画/阴影/缩略图全关；辅助功能视觉效果四项：滚动条/透明/动画关、通知 5 秒） |
+| **1** | 系统优化 | GameDVR、VBS/HVCI/Credential Guard 关闭（含组策略层）、多媒体调度（NetworkThrottlingIndex/SystemResponsiveness）、CPU 优先级分离、Meltdown/Spectre 缓解关闭、HAGS、MPO 关闭、Games 任务调度、Prefetch 关闭、DWM、NTFS 8.3、游戏模式、内存压缩、BITS→手动、TRIM、BCDEdit 优化（hypervisor/时钟节拍/NX/完整性检查等）、视觉效果自定义（仅保留平滑屏幕字体边缘与任务栏动画，其余动画/阴影/缩略图全关；辅助功能视觉效果四项：滚动条/透明/动画关、通知 5 秒） |
 | **2** | 开启测试模式 | `bcdedit` testsigning / debug / dbgsettings local / nointegritychecks，桌面右下角出现"测试模式"水印属正常 |
 | **3** | 关闭测试模式 | 删除 testsigning / debug 启动项（保留 nointegritychecks），水印消失 |
 | **4** | 关闭安全中心 | 写入 Windows Defender 策略注册表（父键 / Real-Time Protection / Spynet / Signature Updates / Scan / MpEngine / NIS / Exploit Guard / 通知抑制等）+ SmartScreen 全套关闭（系统级 / Explorer / Edge / Store 应用）。执行后可选择是否进行**删除类优化**（输入 `Y` 执行 / `N` 跳过）：停止并禁用 17 个 Defender 相关服务、删除 Defender 计划任务、删除 SecurityHealth 自启动项、移除安全中心界面 SecHealthUI |
 | **5** | 优化服务项继续工作 | 停止并禁用 29 个可安全禁用的服务（诊断四件套 DPS/WdiServiceHost/WdiSystemHost/diagsvc、DialogBlockingService、TrkWks、AppVClient、键盘筛选器、NetTcpPortSharing、脱机文件、ssh-agent、PhoneSvc、兼容性助手 PCA、远程注册表、路由远程访问、传感器×2、共享电脑、UE-V、钱包、预览体验、WSAIFabricSvc、WAP 推送、数据使用量、自动时区、打印后台处理、Windows 搜索、SysMain、Edge 更新×2）+ 将 7 个服务改成**手动**（Xbox 配件管理、Xbox Live 身份验证/网络服务/游戏保存、蓝牙支持、嵌入模式、BITS） |
 | **6** | 应用超性能电源计划 | 子选项 1：先将当前正在使用的电源计划备份到脚本所在目录（`power-backup.pow`，已存在则不覆盖），再导入并应用仓库自带的 `ultimate-performance.pow`（CPU 全程满频、全链路不节电）；子选项 2：恢复之前备份的电源计划 |
-| **7** | 启用原生 NVMe 驱动 | 子选项 0：只读检查当前状态（覆盖值/加固/驱动文件/加载状态并给出结论）；子选项 1：写入 3 个 Velocity 功能覆盖值，提前启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（替换 NVMe 盘的通用 `disk.sys`），并写入 2 条安全模式加固项（防止启用后进不去安全模式），重启后生效；子选项 2：删除覆盖值还原。需 25H2（build 26200+）与 NVMe 硬盘（评论区实测 24H2 十月更新批次无法启用） |
+| **7** | 启用原生 NVMe 驱动 | 子选项 0：只读检查当前状态（覆盖值/加固/驱动文件/加载状态并给出结论）；子选项 1：写入 3 个 Velocity 功能覆盖值，提前启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（替换 NVMe 盘的通用 `disk.sys`），并写入 2 条安全模式加固项（防止启用后进不去安全模式），重启后生效；子选项 2：删除覆盖值还原。需 25H2（build 26200+）与 NVMe 硬盘（实测 24H2 十月更新批次无法启用） |
+| **8** | 清除 Device Guard EFI 锁定 | 应对 UEFI 锁定场景（选项 1 已关注册表，但安全中心/msinfo32 仍显示"内存完整性/凭据保护"开启）。子选项 1：先做 **BitLocker 预检查**（检测到任一分区保护已开启则拒绝执行，避免清除 EFI 变量触发 BitLocker 恢复模式），再挂载 EFI 分区复制 `SecConfig.efi` 并配置**一次性引导项**，重启开机时会出现确认界面，需按屏幕提示按键（通常 F3）确认禁用；子选项 2：删除引导项、清空引导序列、卸载 EFI 盘符（不重启） |
 
 每个选项执行完成后 **5 秒自动重启**（期间按 `Q` 取消）。
 
@@ -55,7 +56,7 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
 ```
 
-4. 输入选项编号（1/2/3/4/5/6）并回车
+4. 输入选项编号（1、2、3、4、5、6、7 或 8）并回车
 
 ---
 
@@ -64,6 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
 - **选项 1** 包含高风险 BCDEdit 设置（`nx AlwaysOff`、关闭驱动完整性检查、关闭 VBS），会显著降低系统安全性
 - **选项 4** 会完全禁用 Windows Defender 实时保护与 SmartScreen，执行后系统将失去内置防病毒防护，请自行安装第三方安全软件或确认风险
 - 删除类优化（选项 4 的 Y 分支）会移除安全中心界面和 Defender 服务，恢复需要重建相关组件
+- **选项 8** 是关闭 Device Guard 的"硬手段"（清除 EFI 变量）。已内置 BitLocker 预检查（保护开启即拒绝执行），但重启开机时会出现确认界面，**需按屏幕提示手动按键（通常 F3）确认**，否则本次不生效；错过可重跑
 - **仅供了解风险的用户在个人设备上使用**；请勿在生产环境或受管理的公司设备上运行
 - 建议运行前创建系统还原点
 
@@ -106,6 +108,7 @@ powershell -ExecutionPolicy Bypass -File .\defender-removal.ps1
 
 - **tweakbyjie.ps1 选项 1 优化**：BCDEdit 项可用 `bcdedit /deletevalue <名称>` 删除（如 `bcdedit /set nx OptIn`、`bcdedit /deletevalue testsigning`）；注册表项可将对应值改回 `0` 或删除
 - **tweakbyjie.ps1 选项 4**：删除 `HKLM\SOFTWARE\Policies\Microsoft\Windows Defender` 下的禁用值，将服务启动类型恢复为 `Manual`/`Automatic`，在 Windows 安全中心中重新开启实时保护；被移除的 SecHealthUI 可通过 `Get-AppxPackage -AllUsers Microsoft.SecHealthUI` 检查并重装应用
+- **tweakbyjie.ps1 选项 8**：子选项 2 可删除一次性引导项并卸载 EFI 盘符；EFI 变量清除后如需恢复 Device Guard，可在 Windows 安全中心 → 内核隔离 中重新开启内存完整性（需硬件支持）
 - **defender-removal.ps1**：不可逆。需重装 Windows 或运行 `DISM /Online /Cleanup-Image /RestoreHealth` + `sfc /scannow` 修复系统组件
 
 ---

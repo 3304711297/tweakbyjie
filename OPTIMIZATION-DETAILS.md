@@ -33,12 +33,17 @@
 |---|---|---|---|---|
 | `HKCU:\Software\Microsoft\GameBar` | UseNexusForGameBarEnabled | DWORD | 0 | 关闭 GameBar Nexus |
 
-#### 04 VBS / HVCI 关闭
+#### 04 VBS / HVCI / Credential Guard 关闭（Device Guard）
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
-| `HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity` | Enabled | DWORD | 0 | 关闭 HVCI（基于虚拟化的代码完整性） |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity` | Enabled | DWORD | 0 | 关闭 HVCI（基于虚拟化的代码完整性，即"内核隔离-内存完整性"） |
 | `HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard` | EnableVirtualizationBasedSecurity | DWORD | 0 | 关闭 VBS（基于虚拟化的安全） |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\LSA` | LsaCfgFlags | DWORD | 0 | 关闭 Credential Guard（凭据保护） |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | EnableVirtualizationBasedSecurity | DWORD | 0 | 组策略层关闭 VBS（优先级高于 Control\DeviceGuard，防止组策略下发导致设置被无视） |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | RequirePlatformSecurityFeatures | DWORD | 0 | 组策略层清除 VBS 平台安全特性要求 |
+
+> 这三项与上面两项需**同时**置 0（保持配置一致），只改一半可能造成状态不一致。若注册表全部关闭后安全中心/msinfo32 仍显示开启，属于 UEFI 锁定，需用选项 8 的 SecConfig.efi 方法清除 EFI 变量。
 
 #### 05 多媒体调度
 
@@ -594,7 +599,38 @@
 
 **验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）即已生效。
 
-> 来源：机械革命优化频道《启用 Windows 原生 NVMe 驱动程序》。评论区实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
+> 实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
+
+---
+
+### Part 8：清除 Device Guard EFI 锁定（选项 8）
+
+应对 **UEFI 锁定**场景：选项 1 已通过注册表关闭 VBS/HVCI/Credential Guard，但 Windows 安全中心或 `msinfo32`（系统摘要 → 基于虚拟化的安全性）仍显示"内核隔离-内存完整性"或"凭据保护"处于开启状态——此时 Device Guard 配置被锁在 EFI 变量里，注册表改不动，需用本选项的"硬手段"清除。
+
+> 等效替代：微软官方 DG_Readiness_Tool（`DG_Readiness_Tool_v3.5.ps1 -Disable -AutoReboot`，重启后按 Win+F3 确认）。
+
+**BitLocker 预检查**：清除 EFI 变量会改变 TPM 度量值，若 BitLocker 保护已开启，下次开机可能被要求输入 48 位恢复密钥（即"进入 BitLocker 恢复模式"，防篡改保护被触发，并非数据丢失，但没备份恢复密钥会被锁在门外）。子选项 1 执行前会查询 `Get-BitLockerVolume`，检测到任一分区 `ProtectionStatus=On` 即拒绝执行并提示先暂停保护（`Suspend-BitLocker`，可维持数次重启）或解密。BitLocker 未开启的机器无此风险。
+
+**子选项 1：执行**
+
+| 步骤 | 命令/操作 | 作用 |
+|---|---|---|
+| 1 | `Get-BitLockerVolume` 检查 | 任一分区保护开启则拒绝执行（防触发恢复模式） |
+| 2 | 从 X/Y/Z/V/W/U 取空闲盘符，`mountvol <盘符>: /s` | 挂载 EFI 分区 |
+| 3 | 复制 `%SystemRoot%\System32\SecConfig.efi` 到 `<盘符>:\EFI\Microsoft\Boot\` | 放置 EFI 变量清除工具 |
+| 4 | `bcdedit /delete {0cb3b571-2f2e-4343-a879-d86a476d7215} /f` | 先删除可能残留的旧引导项（保证可重复执行） |
+| 5 | `bcdedit /create {0cb3b571-2f2e-4343-a879-d86a476d7215} /d DebugTool /application osloader` | 创建引导项 |
+| 6 | `bcdedit /set {0cb3b571-2f2e-4343-a879-d86a476d7215} path \EFI\Microsoft\Boot\SecConfig.efi` | 引导项指向 SecConfig.efi |
+| 7 | `bcdedit /set {0cb3b571-2f2e-4343-a879-d86a476d7215} device partition=<盘符>:` | 引导项设备分区 |
+| 8 | `bcdedit /set {0cb3b571-2f2e-4343-a879-d86a476d7215} loadoptions DISABLE-LSA-ISO` | 清除 Credential Guard（LSA 隔离）EFI 变量 |
+| 9 | `bcdedit /set {bootmgr} bootsequence {0cb3b571-2f2e-4343-a879-d86a476d7215}` | 设为**下次开机一次性**引导（bootsequence 自动消耗，不会永久占用引导顺序） |
+| 10 | `mountvol <盘符>: /d` | 卸载 EFI 分区 |
+
+执行后脚本 5 秒自动重启（按 Q 取消）。**重启开机会出现确认界面，需按屏幕提示按键（通常为 F3）确认禁用**；错过或拒绝则本次不生效（一次性引导项不会再次出现，可重跑本选项）。
+
+**子选项 2：清理**：删除上述 BCD 引导项、清空 `{bootmgr}` 的 bootsequence、卸载残留的 EFI 分区盘符；无需重启。适用于执行过子选项 1 但尚未重启就想撤销，或配置中途失败后的收拾。
+
+**验证方式**：重启确认后，`msinfo32` → 系统摘要 → 基于虚拟化的安全性，应显示"未启用"；Windows 安全中心 → 内核隔离 → 内存完整性应显示"关"。
 
 ---
 

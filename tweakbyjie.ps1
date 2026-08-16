@@ -23,6 +23,11 @@
 #                 硬盘；子选项 0：只读查看当前状态；子选项 1：写入 3 个 Velocity
 #                 功能覆盖值 + 2 条安全模式加固；子选项 2：删除覆盖值还原为系统默认），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
+#   输入 8 回车 = 清除 Device Guard EFI 锁定（应对 UEFI 锁定：注册表已关但安全中心仍
+#                 显示内存完整性/凭据保护开启；先做 BitLocker 预检查，再挂载 EFI 分区
+#                 复制 SecConfig.efi 并配置一次性引导项，重启开机时需按屏幕提示按键确认；
+#                 子选项 2：删除引导项并卸载 EFI 盘符），
+#                 执行后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -160,13 +165,15 @@ Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务�
 Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
 Write-Host "   6. 应用超性能电源计划（备份当前计划后导入并应用，子选项 2 可恢复备份）" -ForegroundColor White
 Write-Host "      Apply Ultimate Performance Power Plan (backup current, import & apply, restorable)" -ForegroundColor Gray
-Write-Host "   7. 启用原生 NVMe 驱动（写入 Velocity 覆盖 + 安全模式加固，子选项 2 可还原）" -ForegroundColor White
-Write-Host "      Enable native NVMe driver nvmedisk.sys (velocity overrides + safe boot fix, restorable)" -ForegroundColor Gray
-Write-Host ""
-Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
-Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
-Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4、5、6 或 7 并回车 (Enter 1, 2, 3, 4, 5, 6 or 7)"
+    Write-Host "   7. 启用原生 NVMe 驱动（写入 Velocity 覆盖 + 安全模式加固，子选项 2 可还原）" -ForegroundColor White
+    Write-Host "      Enable native NVMe driver nvmedisk.sys (velocity overrides + safe boot fix, restorable)" -ForegroundColor Gray
+    Write-Host "   8. 清除 Device Guard EFI 锁定（SecConfig.efi 应对 UEFI 锁定，含 BitLocker 预检查）" -ForegroundColor White
+    Write-Host "      Clear Device Guard UEFI lock via SecConfig.efi (BitLocker pre-check included)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
+    Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
+    Write-Host ""
+$choice = Read-Host "请输入 1、2、3、4、5、6、7 或 8 并回车 (Enter 1, 2, 3, 4, 5, 6, 7 or 8)"
 
 if ($choice -eq "1") {
 
@@ -215,9 +222,12 @@ if ($choice -eq "1") {
     # 03 GameBar
     Set-RegDword "HKCU:\Software\Microsoft\GameBar" "UseNexusForGameBarEnabled" 0 "UseNexusForGameBarEnabled"
 
-    # 04 VBS / HVCI
+    # 04 VBS / HVCI / Credential Guard（Device Guard）
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" "Enabled" 0 "HVCI Enabled"
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "EnableVirtualizationBasedSecurity" 0 "VBS EnableVirtualizationBasedSecurity"
+    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\LSA" "LsaCfgFlags" 0 "Credential Guard LsaCfgFlags"
+    Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" "EnableVirtualizationBasedSecurity" 0 "DeviceGuard 策略层 VBS"
+    Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" "RequirePlatformSecurityFeatures" 0 "DeviceGuard 策略层平台安全特性"
 
     # 05 Multimedia
     Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" "0xFFFFFFFF" "NetworkThrottlingIndex"
@@ -1014,7 +1024,7 @@ if ($choice -eq "1") {
             $proceed = $true
             if ($buildNum -lt 26200) {
                 Write-Host ""
-                Write-Host "[WARNING] build $buildNum 低于 26200（25H2）。评论区实测：24H2（26100.x，含十月更新批次 26100.2454）无法启用，仅 25H2（26200+）支持" -ForegroundColor Yellow
+                Write-Host "[WARNING] build $buildNum 低于 26200（25H2）。实测：24H2（26100.x，含十月更新批次 26100.2454）无法启用，仅 25H2（26200+）支持" -ForegroundColor Yellow
                 $confirmNvme = Read-Host "仍要继续吗？(Y = 继续 / N = 取消)"
                 if ($confirmNvme -notin @('Y', 'y')) { $proceed = $false }
             }
@@ -1094,9 +1104,213 @@ if ($choice -eq "1") {
         }
     }
 
+} elseif ($choice -eq "8") {
+
+    # ======================= Part 8: 清除 Device Guard EFI 锁定 =======================
+    # 应对 UEFI 锁定：选项 1 已通过注册表关闭 VBS/HVCI/Credential Guard，
+    # 但 安全中心 / msinfo32 仍显示"内存完整性"或"凭据保护"开启时，
+    # 用 SecConfig.efi 引导清除 EFI 变量（硬手段，等效于官方 DG_Readiness_Tool）。
+    Write-Host ""
+    Write-Host "============ [Part 8] 清除 Device Guard EFI 锁定 / Clear DG UEFI Lock (SecConfig.efi) ============" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host " 适用场景：UEFI 锁定 —— 已运行选项 1（注册表关闭），但 安全中心/msinfo32 仍显示" -ForegroundColor Yellow
+    Write-Host "            内核隔离-内存完整性 或 凭据保护 处于开启状态。" -ForegroundColor Yellow
+    Write-Host " 原理：把 SecConfig.efi 设为一次性引导项，开机进入后清除 Device Guard 的 EFI 变量。" -ForegroundColor Yellow
+    Write-Host ""
+
+    $dgGuid = '{0cb3b571-2f2e-4343-a879-d86a476d7215}'
+
+    Write-Host "  1. 执行（BitLocker 预检查 -> 挂载 EFI 分区 -> 复制 SecConfig.efi -> 配置一次性引导项）" -ForegroundColor White
+    Write-Host "  2. 清理（删除一次性引导项、清空引导序列、卸载 EFI 分区盘符；不重启）" -ForegroundColor White
+    $gChoice = Read-Host "请输入 1 或 2 并回车 (Enter 1 or 2)"
+
+    if ($gChoice -eq "1") {
+
+        Write-Host ""
+        Write-Host " [WARNING] 执行后重启时，开机会出现一个确认界面，需按屏幕提示按键（通常为 F3）确认" -ForegroundColor Yellow
+        Write-Host "           禁用 Credential Guard；错过或拒绝则本次不生效（一次性引导项不会再次出现，可重跑）。" -ForegroundColor Yellow
+        Write-Host " [WARNING] 若机器开启了 BitLocker，清除 EFI 变量会改变 TPM 度量值，可能触发恢复模式" -ForegroundColor Yellow
+        Write-Host "           （要求输入 48 位恢复密钥）。本选项已内置 BitLocker 预检查，检测到已开启会拒绝执行。" -ForegroundColor Yellow
+        $confirmDg = Read-Host "确定执行吗？(Y = 执行 / N = 取消)"
+        if ($confirmDg -notin @('Y','y')) {
+            Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
+        } else {
+
+            # 1) BitLocker 预检查：任一分区保护开启则拒绝执行
+            $blBlocked = $false
+            try {
+                $blOn = @(Get-BitLockerVolume -ErrorAction Stop | Where-Object { $_.ProtectionStatus -eq 'On' })
+                if ($blOn.Count -gt 0) {
+                    $blBlocked = $true
+                    Write-Host "[FAIL] 检测到 BitLocker 保护已开启，为避免触发恢复模式，已拒绝执行：" -ForegroundColor Red
+                    foreach ($v in $blOn) {
+                        Write-Host ("        {0}  {1}" -f $v.MountPoint, $v.VolumeStatus) -ForegroundColor Red
+                    }
+                    Write-Host "        请先暂停保护（Suspend-BitLocker，可维持数次重启）或彻底解密后再运行本选项" -ForegroundColor Yellow
+                    $fail++
+                } else {
+                    Write-Host "[OK] BitLocker 预检查通过（未开启保护，无恢复模式风险）"
+                    $ok++
+                }
+            } catch {
+                Write-Host "[WARN] 无法查询 BitLocker 状态：$($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "        请自行确认 BitLocker 已关闭/解密后再继续" -ForegroundColor Yellow
+            }
+
+            if (-not $blBlocked) {
+
+                # 2) SecConfig.efi 源文件检查
+                $secSrc = Join-Path $env:SystemRoot 'System32\SecConfig.efi'
+                if (-not (Test-Path $secSrc)) {
+                    Write-Host "[FAIL] 未找到 $secSrc，当前系统不带此文件，无法执行" -ForegroundColor Red
+                    $fail++
+                } else {
+
+                    # 3) 选择空闲盘符并挂载 EFI 分区
+                    $efiLetter = $null
+                    foreach ($l in @('X','Y','Z','V','W','U')) {
+                        if (-not (Test-Path "$($l):\")) { $efiLetter = $l; break }
+                    }
+                    if (-not $efiLetter) {
+                        Write-Host "[FAIL] 找不到空闲盘符（X/Y/Z/V/W/U 均被占用）" -ForegroundColor Red
+                        $fail++
+                    } else {
+                        $mounted = $false
+                        try {
+                            & mountvol.exe "$($efiLetter):" /s *> $null
+                            if ($LASTEXITCODE -ne 0) { throw "mountvol exit code $LASTEXITCODE" }
+                            $mounted = $true
+                            Write-Host "[OK] EFI 分区已挂载到 $($efiLetter):"
+                            $ok++
+                        } catch {
+                            Write-Host "[FAIL] 挂载 EFI 分区失败（本机可能非 UEFI 启动）：$($_.Exception.Message)" -ForegroundColor Red
+                            $fail++
+                        }
+
+                        if ($mounted) {
+
+                            # 4) 复制 SecConfig.efi 到 EFI 分区（复制成功才配置引导项）
+                            $copyOk = $false
+                            try {
+                                $bootDir = "$($efiLetter):\EFI\Microsoft\Boot"
+                                if (-not (Test-Path $bootDir)) { New-Item -ItemType Directory -Path $bootDir -Force | Out-Null }
+                                Copy-Item $secSrc (Join-Path $bootDir 'SecConfig.efi') -Force -ErrorAction Stop
+                                $copyOk = $true
+                                Write-Host "[OK] SecConfig.efi 已复制到 $bootDir"
+                                $ok++
+                            } catch {
+                                Write-Host "[FAIL] 复制 SecConfig.efi : $($_.Exception.Message)" -ForegroundColor Red
+                                $fail++
+                            }
+
+                            if ($copyOk) {
+
+                                # 5) 配置一次性引导项（先删除可能残留的旧项，保证可重复执行）
+                                & bcdedit.exe /delete $dgGuid /f *> $null
+                                Invoke-BcdEdit "/create $dgGuid /d DebugTool /application osloader" "创建 BCD 引导项 (DebugTool)"
+                                Invoke-BcdEdit "/set $dgGuid path \EFI\Microsoft\Boot\SecConfig.efi" "引导项路径 SecConfig.efi"
+                                Invoke-BcdEdit "/set $dgGuid device partition=$($efiLetter):" "引导项设备分区 $($efiLetter):"
+                                Invoke-BcdEdit "/set $dgGuid loadoptions DISABLE-LSA-ISO" "LoadOptions = DISABLE-LSA-ISO"
+                                Invoke-BcdEdit "/set {bootmgr} bootsequence $dgGuid" "设为下次开机一次性引导"
+                            }
+
+                            # 6) 卸载 EFI 分区
+                            & mountvol.exe "$($efiLetter):" /d *> $null
+                            if ($LASTEXITCODE -eq 0) {
+                                Write-Host "[OK] EFI 分区已卸载（$($efiLetter):）"
+                                $ok++
+                            } else {
+                                Write-Host "[WARN] EFI 分区卸载失败，可稍后手动执行: mountvol $($efiLetter): /d" -ForegroundColor Yellow
+                            }
+
+                            if ($copyOk) {
+                                # Summary
+                                Write-Host ""
+                                Write-Host "============================================================" -ForegroundColor Cyan
+                                Write-Host " Finished (Part 8 - Clear DG UEFI Lock)" -ForegroundColor Cyan
+                                Write-Host " OK : $ok" -ForegroundColor Green
+                                Write-Host " FAIL : $fail" -ForegroundColor Red
+                                Write-Host "============================================================" -ForegroundColor Cyan
+                                Write-Host ""
+                                Write-Host " 重启开机会出现确认界面，请按屏幕提示按键（通常为 F3）确认禁用！" -ForegroundColor Yellow
+                                Write-Host " 重启确认后可用 msinfo32 -> 系统摘要 -> 基于虚拟化的安全性 验证是否已关闭。" -ForegroundColor Yellow
+
+                                # Auto restart in 5 seconds (press Q to cancel)
+                                Start-RestartCountdown -Seconds 5
+                            } else {
+                                Write-Host ""
+                                Write-Host "[提示] SecConfig.efi 复制失败，未配置任何引导项，无需重启" -ForegroundColor Yellow
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($blBlocked) {
+                Write-Host ""
+                Write-Host "[提示] 未做任何修改（不重启）" -ForegroundColor Yellow
+            }
+        }
+
+    } elseif ($gChoice -eq "2") {
+
+        # 1) 删除一次性引导项（如存在）
+        & bcdedit.exe /enum $dgGuid *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Invoke-BcdEdit "/delete $dgGuid /f" "删除 BCD 引导项 (DebugTool)"
+        } else {
+            Write-Host "[SKIP] BCD 引导项不存在（无需删除）" -ForegroundColor Yellow
+            $skip++
+        }
+
+        # 2) 清空 {bootmgr} 的 bootsequence（如仍指向该引导项）
+        $bmEnum = & bcdedit.exe /enum '{bootmgr}' 2>$null
+        if ($LASTEXITCODE -eq 0 -and ($bmEnum -join "`n") -match 'bootsequence') {
+            Invoke-BcdEdit "/deletevalue {bootmgr} bootsequence" "清空一次性引导序列"
+        } else {
+            Write-Host "[SKIP] bootsequence 未设置（无需清理）" -ForegroundColor Yellow
+            $skip++
+        }
+
+        # 3) 卸载残留的 EFI 分区盘符（仅当该盘符下存在脚本复制的 SecConfig.efi）
+        $unmounted = 0
+        foreach ($l in @('X','Y','Z','V','W','U')) {
+            if (Test-Path "$($l):\EFI\Microsoft\Boot\SecConfig.efi") {
+                & mountvol.exe "$($l):" /d *> $null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] 已卸载 EFI 分区盘符 $($l):"
+                    $ok++
+                    $unmounted++
+                } else {
+                    Write-Host "[FAIL] 卸载 $($l): 失败，可手动执行: mountvol $($l): /d" -ForegroundColor Red
+                    $fail++
+                    $unmounted++
+                }
+            }
+        }
+        if ($unmounted -eq 0) {
+            Write-Host "[SKIP] 无残留的 EFI 分区挂载" -ForegroundColor Yellow
+            $skip++
+        }
+
+        # Summary（无需重启）
+        Write-Host ""
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host " Finished (Part 8 - Cleanup)" -ForegroundColor Cyan
+        Write-Host " OK : $ok" -ForegroundColor Green
+        Write-Host " FAIL : $fail" -ForegroundColor Red
+        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "提示：清理完成，无需重启。" -ForegroundColor Yellow
+
+    } else {
+        Write-Host "[ERROR] 无效输入：$gChoice 。请输入 1 或 2 / Invalid input. Enter 1 or 2." -ForegroundColor Red
+    }
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6 或 7 / Invalid input. Enter 1, 2, 3, 4, 5, 6 or 7." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7 或 8 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7 or 8." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
