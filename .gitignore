@@ -6,3 +6,12 @@ _tmp_*
 # OS
 .DS_Store
 Thumbs.db
+
+# Registry hive transaction logs (reg load side effects)
+*.LOG1
+*.LOG2
+*.TM.blf
+*.regtrans-ms
+
+# ZCode session data
+.zcode/

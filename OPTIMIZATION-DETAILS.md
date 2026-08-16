@@ -144,6 +144,32 @@
 | `bcdedit /set tpmbootentropy ForceDisable` | 禁用 TPM 启动熵 | ⚠️ 中 |
 | `bcdedit /set nointegritychecks on` | 关闭驱动程序完整性检查 | ⚠️ 高 |
 
+#### 19 视觉效果自定义
+
+对应「系统属性 → 高级 → 性能设置 → 视觉效果 → 自定义」：仅开启**平滑屏幕字体边缘**与**任务栏中的动画**，其余项全部关闭；
+另含「设置 → 辅助功能 → 视觉效果」四项：始终显示滚动条关 / 透明效果关 / 动画效果关 / 在此时间后关闭通知 5 秒。
+
+| 注册表路径 | 值名 | 类型 | 值 | 对应设置项 | 状态 |
+|---|---|---|---|---|---|
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects` | VisualFXSetting | DWORD | 3 | 视觉效果模式 | 自定义 |
+| `HKCU:\Control Panel\Desktop` | FontSmoothing | SZ | 2 | 平滑屏幕字体边缘 | ✅ 开 |
+| `HKCU:\Control Panel\Desktop` | FontSmoothingType | DWORD | 2 | 字体平滑类型（ClearType） | ✅ 开 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | TaskbarAnimations | DWORD | 1 | 任务栏中的动画 | ✅ 开 |
+| `HKCU:\Control Panel\Desktop` | UserPreferencesMask | BINARY | `90,12,01,80,10,00,00,00` | 菜单/组合框/列表框/工具提示动画、单击后淡出菜单、指针阴影、窗口下阴影 | ❌ 关 |
+| `HKCU:\Control Panel\Desktop\WindowMetrics` | MinAnimate | SZ | 0 | 在最大化/最小化时显示窗口动画 | ❌ 关 |
+| `HKCU:\Control Panel\Desktop` | DragFullWindows | SZ | 0 | 拖动时显示窗口内容 | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | ListviewAlphaSelect | DWORD | 0 | 显示亚透明的选择长方形 | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | ListviewShadow | DWORD | 0 | 在桌面上为图标标签使用阴影 | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced` | IconsOnly | DWORD | 1 | 显示缩略图而不是图标（1=只显示图标） | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\DWM` | AlwaysHibernateThumbnails | DWORD | 0 | 保存任务栏缩略图预览 | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` | EnableTransparency | DWORD | 0 | 透明效果（想保留透明改回 1） | ❌ 关 |
+| `HKCU:\Control Panel\Accessibility` | DynamicScrollbars | DWORD | 1 | 始终显示滚动条（1=自动隐藏=关，0=始终显示） | ❌ 关 |
+| `HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects` | AnimationEffects | DWORD | 0 | 辅助功能「动画效果」 | ❌ 关 |
+| `HKCU:\Control Panel\Accessibility` | MessageDuration | DWORD | 5 | 在此时间后关闭通知（秒） | 5 秒 |
+
+> `UserPreferencesMask` 为「最佳性能」基线掩码（`90,12,01,80,10,00,00,00`）；若想保留「在窗口下显示阴影」，把第 3 字节 `01` 改回 `03` 即可。
+> 视觉效果均为 HKCU 当前用户设置，需注销 / 重启（或重启资源管理器）后完全生效。
+
 ---
 
 ### Part 2：开启测试模式（选项 2）
@@ -541,6 +567,34 @@
 | 电池 | 低电池电量水平 | 6% | 6% |
 
 **整体特征**：CPU 全程满频（最小/最大处理器状态均 100%）、升频激进（1% 负载即触发）、禁用 CPU 节流、PCIe/USB/硬盘/无线全链路不节电、永不睡眠/关屏、风扇主动散热。适合台式游戏机追求最低延迟和最高响应速度，代价是功耗和发热增加，笔记本电池续航会明显缩短。
+
+---
+
+### Part 7：启用原生 NVMe 驱动（选项 7）
+
+通过 Windows Velocity 功能覆盖，提前启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（仅作用于 NVMe 磁盘，USB 等其他总线磁盘仍使用 `disk.sys`）。
+
+> 实现机制与 ViVeTool 等效：本节写入的注册表项正是 `ViVeTool /enable /id:735209102 /id:1853569164 /id:156965516` 底层写入的内容，无需额外下载工具；子选项 2 删除覆盖值，等效于回到"未配置"状态（比 ViVeTool `/disable` 写 0 更干净）。
+
+**前提**：系统 25H2（build 26200）及以上 + 存在 NVMe 磁盘；无 NVMe 磁盘时自动跳过，低版本时提示确认。
+
+**子选项 0：只读状态检查**（不做任何修改）：显示 3 个 Velocity 覆盖值写入情况、安全模式加固有无、`nvmedisk.sys` 文件是否已分发（含版本）、驱动加载状态，并给出结论（已启用运行中 / 已写入待重启 / 未启用 / 该版本无法启用）。适用于启用后确认是否生效（设备管理器"驱动程序文件"列表中 `nvmedisk.sys` 取代 `disk.sys` 即生效）。
+
+**子选项 1：启用**
+
+| 注册表路径 | 值名 | 类型 | 值 | 作用 |
+|---|---|---|---|---|
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 735209102 | DWORD | 1 | Velocity 功能覆盖 |
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 1853569164 | DWORD | 1 | Velocity 功能覆盖 |
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 156965516 | DWORD | 1 | Velocity 功能覆盖 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：nvmedisk 设备类加入最小安全模式加载列表 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：带网络的安全模式加载列表 |
+
+**子选项 2：还原**：删除上述 3 个 Velocity 覆盖值（安全模式加固保留，无副作用），重启后 NVMe 磁盘恢复使用 `disk.sys`。
+
+**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）即已生效。
+
+> 来源：机械革命优化频道《启用 Windows 原生 NVMe 驱动程序》。评论区实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
 
 ---
 

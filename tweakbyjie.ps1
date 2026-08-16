@@ -3,7 +3,8 @@
 # ActivationType is handled separately because the key may be protected.
 #
 # 菜单 / Menu:
-#   输入 1 回车 = 系统优化（原脚本全部内容），完成后 5 秒自动重启（按 Q 取消）
+#   输入 1 回车 = 系统优化（原脚本全部内容 + 视觉效果自定义：仅保留平滑屏幕字体边缘
+#                 与任务栏动画，其余视觉效果全关），完成后 5 秒自动重启（按 Q 取消）
 #   输入 2 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks），
 #                 完成后 5 秒自动重启（按 Q 取消）
 #   输入 3 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks），
@@ -18,6 +19,10 @@
 #                 再导入并应用仓库自带的 ultimate-performance.pow；
 #                 子选项 2：恢复之前备份的电源计划），
 #                 完成后 5 秒自动重启（按 Q 取消）
+#   输入 7 回车 = 启用 Windows 原生 NVMe 驱动 nvmedisk.sys（需 25H2/build 26200+ 与 NVMe
+#                 硬盘；子选项 0：只读查看当前状态；子选项 1：写入 3 个 Velocity
+#                 功能覆盖值 + 2 条安全模式加固；子选项 2：删除覆盖值还原为系统默认），
+#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -68,6 +73,20 @@ function Set-RegString {
         if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
         New-ItemProperty -Path $Path -Name $Name -PropertyType String -Value $Value -Force -ErrorAction Stop | Out-Null
         Write-Host ("[OK] {0} = {1}" -f $Label, $Value)
+        $script:ok++
+    } catch {
+        Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
+        $script:fail++
+    }
+}
+
+function Set-RegBinary {
+    param([string]$Path,[string]$Name,[string]$Hex,[string]$Label)
+    try {
+        $regPath = Convert-RegExePath $Path
+        & reg.exe ADD $regPath /v $Name /t REG_BINARY /d $Hex /f *> $null
+        if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+        Write-Host ("[OK] {0} = {1}" -f $Label, $Hex)
         $script:ok++
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
@@ -141,11 +160,13 @@ Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务�
 Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
 Write-Host "   6. 应用超性能电源计划（备份当前计划后导入并应用，子选项 2 可恢复备份）" -ForegroundColor White
 Write-Host "      Apply Ultimate Performance Power Plan (backup current, import & apply, restorable)" -ForegroundColor Gray
+Write-Host "   7. 启用原生 NVMe 驱动（写入 Velocity 覆盖 + 安全模式加固，子选项 2 可还原）" -ForegroundColor White
+Write-Host "      Enable native NVMe driver nvmedisk.sys (velocity overrides + safe boot fix, restorable)" -ForegroundColor Gray
 Write-Host ""
 Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
 Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
 Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4、5 或 6 并回车 (Enter 1, 2, 3, 4, 5 or 6)"
+$choice = Read-Host "请输入 1、2、3、4、5、6 或 7 并回车 (Enter 1, 2, 3, 4, 5, 6 or 7)"
 
 if ($choice -eq "1") {
 
@@ -287,6 +308,49 @@ if ($choice -eq "1") {
     Invoke-BcdEdit "/set nx AlwaysOff" "NX (DEP) AlwaysOff"
     Invoke-BcdEdit "/set tpmbootentropy ForceDisable" "TPM Boot Entropy Disabled"
     Invoke-BcdEdit "/set nointegritychecks on" "Driver Integrity Checks Disabled"
+
+    # 19 Visual Effects（性能选项-视觉效果-自定义：仅开启平滑屏幕字体边缘 + 任务栏动画；
+    #     另含「设置-辅助功能-视觉效果」四项：始终显示滚动条关 / 透明效果关 / 动画效果关 / 关闭通知 5 秒）
+    Write-Host ""
+    Write-Host "[Visual Effects 自定义 / Custom]" -ForegroundColor Cyan
+
+    # 总开关：3 = 自定义（对话框按以下各项值显示勾选状态）
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 3 "VisualFXSetting = 3 (自定义)"
+
+    # ---- 开启项 ----
+    # 平滑屏幕字体边缘（ClearType）
+    Set-RegString "HKCU:\Control Panel\Desktop" "FontSmoothing" "2" "平滑屏幕字体边缘 ON"
+    Set-RegDword "HKCU:\Control Panel\Desktop" "FontSmoothingType" 2 "Font Smoothing = ClearType"
+    # 任务栏中的动画
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarAnimations" 1 "任务栏动画 ON"
+
+    # ---- 关闭项 ----
+    # 菜单/组合框/列表框/工具提示动画、单击后淡出菜单、指针阴影、窗口下阴影（最佳性能位掩码）
+    Set-RegBinary "HKCU:\Control Panel\Desktop" "UserPreferencesMask" "9012018010000000" "动画/淡入淡出/阴影全关"
+    # 在最大化/最小化时显示窗口动画
+    Set-RegString "HKCU:\Control Panel\Desktop\WindowMetrics" "MinAnimate" "0" "最大/最小化动画 OFF"
+    # 拖动时显示窗口内容
+    Set-RegString "HKCU:\Control Panel\Desktop" "DragFullWindows" "0" "拖动显示窗口内容 OFF"
+    # 显示亚透明的选择长方形
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewAlphaSelect" 0 "半透明选择框 OFF"
+    # 在桌面上为图标标签使用阴影
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewShadow" 0 "图标标签阴影 OFF"
+    # 显示缩略图而不是图标（IconsOnly=1 表示只显示图标）
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "IconsOnly" 1 "缩略图 OFF"
+    # 保存任务栏缩略图预览（不写入缓存）
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\DWM" "AlwaysHibernateThumbnails" 0 "任务栏缩略图缓存 OFF"
+    # 透明效果（如需保留透明改为 1）
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" 0 "透明效果 OFF"
+
+    # ---- 设置 → 辅助功能 → 视觉效果（四项，透明效果已由上面 EnableTransparency 覆盖）----
+    # 始终显示滚动条 = 关（DynamicScrollbars: 1=自动隐藏, 0=始终显示）
+    Set-RegDword "HKCU:\Control Panel\Accessibility" "DynamicScrollbars" 1 "始终显示滚动条 OFF"
+    # 动画效果 = 关
+    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "AnimationEffects" 0 "动画效果(辅助功能) OFF"
+    # 在此时间后关闭通知 = 5 秒
+    Set-RegDword "HKCU:\Control Panel\Accessibility" "MessageDuration" 5 "通知自动关闭时长 = 5 秒"
+
+    Write-Host " 视觉效果为 HKCU 设置，注销 / 重启（或重启资源管理器）后完全生效" -ForegroundColor Yellow
 
     # Summary
     Write-Host ""
@@ -875,9 +939,164 @@ if ($choice -eq "1") {
     # Auto restart in 5 seconds (press Q to cancel)
     Start-RestartCountdown -Seconds 5
 
+} elseif ($choice -eq "7") {
+
+    # ======================= Part 7: 启用原生 NVMe 驱动 =======================
+    # 通过 Velocity 功能覆盖提前启用微软原生 NVMe 磁盘驱动 nvmedisk.sys
+    # （仅作用于 NVMe 磁盘；USB 等其他总线磁盘仍使用 disk.sys）。
+    # 安全模式加固为预防性写入：nvmedisk 设备类默认不在安全模式加载列表，
+    # 不加固可能导致启用后无法进入安全模式。
+    Write-Host ""
+    Write-Host "============ [Part 7] 启用原生 NVMe 驱动 / Native NVMe Driver (nvmedisk.sys) ============" -ForegroundColor Cyan
+    Write-Host ""
+
+    # 前提检查：系统版本（需 25H2 / build 26200 及以上）与 NVMe 磁盘
+    $cvKey = Get-Item 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $buildNum = [int]($cvKey.GetValue('CurrentBuildNumber'))
+    $dispVer = [string]($cvKey.GetValue('DisplayVersion'))
+    $nvmeDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'NVMe' })
+    Write-Host ("系统版本 : $dispVer (build $buildNum)")
+    Write-Host ("NVMe 磁盘 : " + $(if ($nvmeDisks.Count -gt 0) { "检测到 $($nvmeDisks.Count) 块" } else { "未检测到" }))
+
+    if ($nvmeDisks.Count -eq 0) {
+        Write-Host ""
+        Write-Host "[SKIP] 未检测到 NVMe 磁盘，本项无作用，已跳过（不重启）" -ForegroundColor Yellow
+    } else {
+        $fmPath = 'HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides'
+        $sbGuid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}'
+        $velocityIds = @('735209102', '1853569164', '156965516')
+
+        Write-Host ""
+        Write-Host "  0. 查看当前状态（只读检查：覆盖值 / 安全模式加固 / 驱动文件 / 加载状态）" -ForegroundColor White
+        Write-Host "  1. 启用（写入 3 个 Velocity 覆盖值 + 2 条安全模式加固，重启后生效）" -ForegroundColor White
+        Write-Host "  2. 还原（删除 3 个覆盖值，恢复系统默认；安全模式加固保留）" -ForegroundColor White
+        $nChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
+
+        if ($nChoice -eq "0") {
+
+            # 只读状态检查，不做任何修改
+            $fmItem0 = Get-Item $fmPath -ErrorAction SilentlyContinue
+            $velText = @()
+            foreach ($vid in $velocityIds) {
+                if ($fmItem0 -and ($fmItem0.GetValueNames() -contains $vid)) { $velText += "$vid=1" }
+                else { $velText += "$vid=未写入" }
+            }
+            $allWritten = @($velText | Where-Object { $_ -like "*=1" }).Count -eq 3
+            Write-Host ("Velocity 覆盖值 : " + ($velText -join "  "))
+
+            $sbMinOk = Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\$sbGuid"
+            $sbNetOk = Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\$sbGuid"
+            Write-Host ("SafeBoot 加固   : Minimal=" + $(if ($sbMinOk) { "已有" } else { "缺失" }) + "  Network=" + $(if ($sbNetOk) { "已有" } else { "缺失" }))
+
+            $drvFile = "$env:SystemRoot\System32\drivers\nvmedisk.sys"
+            $fileThere = Test-Path $drvFile
+            if ($fileThere) {
+                Write-Host ("nvmedisk.sys 文件: 已分发 (" + (Get-Item $drvFile).VersionInfo.FileVersion + ")")
+            } else {
+                Write-Host "nvmedisk.sys 文件: 未分发（当前系统不带此驱动）"
+            }
+            $drvState = (Get-CimInstance Win32_SystemDriver -Filter "Name='nvmedisk'" -ErrorAction SilentlyContinue).State
+            Write-Host ("nvmedisk 驱动状态: " + $(if ($drvState) { $drvState } else { "未加载" }))
+
+            Write-Host ""
+            if (-not $fileThere) {
+                Write-Host "结论：系统未分发 nvmedisk.sys，当前版本无法启用原生 NVMe 驱动" -ForegroundColor Yellow
+            } elseif ($drvState -eq "Running") {
+                Write-Host "结论：原生 NVMe 驱动已启用并正在运行（NVMe 磁盘已使用 nvmedisk.sys）" -ForegroundColor Green
+            } elseif ($allWritten) {
+                Write-Host "结论：覆盖值已写入，重启后生效；若重启后仍未切换，运行 7 -> 0 再查" -ForegroundColor Yellow
+            } else {
+                Write-Host "结论：未启用（覆盖值未写入）。选择 7 -> 1 启用" -ForegroundColor Yellow
+            }
+
+        } elseif ($nChoice -eq "1") {
+
+            $proceed = $true
+            if ($buildNum -lt 26200) {
+                Write-Host ""
+                Write-Host "[WARNING] build $buildNum 低于 26200（25H2）。评论区实测：24H2（26100.x，含十月更新批次 26100.2454）无法启用，仅 25H2（26200+）支持" -ForegroundColor Yellow
+                $confirmNvme = Read-Host "仍要继续吗？(Y = 继续 / N = 取消)"
+                if ($confirmNvme -notin @('Y', 'y')) { $proceed = $false }
+            }
+
+            if (-not $proceed) {
+                Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
+            } else {
+                # 三个 Velocity 功能覆盖值（启用 nvmedisk.sys 灰度功能）
+                foreach ($vid in $velocityIds) {
+                    Set-RegDword $fmPath $vid 1 "Velocity $vid"
+                }
+
+                # 安全模式加固：将 nvmedisk 设备类加入安全模式加载列表
+                foreach ($mode in @('Minimal', 'Network')) {
+                    $sbReg = Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
+                    & reg.exe ADD $sbReg /ve /d "Storage Disks" /f *> $null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "[OK] SafeBoot $mode 加固 = Storage Disks"
+                        $script:ok++
+                    } else {
+                        Write-Host ("[FAIL] SafeBoot $mode 加固 : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red
+                        $script:fail++
+                    }
+                }
+
+                # Summary
+                Write-Host ""
+                Write-Host "============================================================" -ForegroundColor Cyan
+                Write-Host " Finished (Part 7 - Native NVMe Driver ENABLE)" -ForegroundColor Cyan
+                Write-Host " OK : $ok" -ForegroundColor Green
+                Write-Host " FAIL : $fail" -ForegroundColor Red
+                Write-Host "============================================================" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "重启后生效。可在 设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 确认驱动文件为 nvmedisk.sys" -ForegroundColor Yellow
+                Write-Host "如需还原，再次运行本脚本并选择 7 -> 2。" -ForegroundColor Yellow
+
+                # Auto restart in 5 seconds (press Q to cancel)
+                Start-RestartCountdown -Seconds 5
+            }
+
+        } elseif ($nChoice -eq "2") {
+
+            $fmReg = Convert-RegExePath $fmPath
+            $fmItem = Get-Item $fmPath -ErrorAction SilentlyContinue
+            foreach ($vid in $velocityIds) {
+                if ($fmItem -and ($fmItem.GetValueNames() -contains $vid)) {
+                    & reg.exe DELETE $fmReg /v $vid /f *> $null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "[OK] 已删除 Velocity $vid"
+                        $script:ok++
+                    } else {
+                        Write-Host ("[FAIL] 删除 Velocity $vid : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red
+                        $script:fail++
+                    }
+                } else {
+                    Write-Host "[SKIP] Velocity $vid 不存在（无需删除）" -ForegroundColor Yellow
+                    $script:skip++
+                }
+            }
+            Write-Host "安全模式加固项保留（无副作用，仅让安全模式额外加载存储驱动）" -ForegroundColor Yellow
+
+            # Summary
+            Write-Host ""
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host " Finished (Part 7 - Native NVMe Driver RESTORE)" -ForegroundColor Cyan
+            Write-Host " OK : $ok" -ForegroundColor Green
+            Write-Host " FAIL : $fail" -ForegroundColor Red
+            Write-Host "============================================================" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "重启后恢复为系统默认磁盘驱动 (disk.sys)" -ForegroundColor Yellow
+
+            # Auto restart in 5 seconds (press Q to cancel)
+            Start-RestartCountdown -Seconds 5
+
+        } else {
+            Write-Host "[ERROR] 无效输入：$nChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
+        }
+    }
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5 或 6 / Invalid input. Enter 1, 2, 3, 4, 5 or 6." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6 或 7 / Invalid input. Enter 1, 2, 3, 4, 5, 6 or 7." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }

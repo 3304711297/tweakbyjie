@@ -33,12 +33,13 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 
 | 选项 | 功能 | 说明 |
 |---|---|---|
-| **1** | 系统优化 | GameDVR、VBS/HVCI、多媒体调度（NetworkThrottlingIndex/SystemResponsiveness）、CPU 优先级分离、Meltdown/Spectre 缓解关闭、HAGS、MPO 关闭、Games 任务调度、Prefetch 关闭、DWM、NTFS 8.3、游戏模式、内存压缩、BITS→手动、TRIM、BCDEdit 优化（hypervisor/时钟节拍/NX/完整性检查等） |
+| **1** | 系统优化 | GameDVR、VBS/HVCI、多媒体调度（NetworkThrottlingIndex/SystemResponsiveness）、CPU 优先级分离、Meltdown/Spectre 缓解关闭、HAGS、MPO 关闭、Games 任务调度、Prefetch 关闭、DWM、NTFS 8.3、游戏模式、内存压缩、BITS→手动、TRIM、BCDEdit 优化（hypervisor/时钟节拍/NX/完整性检查等）、视觉效果自定义（仅保留平滑屏幕字体边缘与任务栏动画，其余动画/阴影/缩略图全关；辅助功能视觉效果四项：滚动条/透明/动画关、通知 5 秒） |
 | **2** | 开启测试模式 | `bcdedit` testsigning / debug / dbgsettings local / nointegritychecks，桌面右下角出现"测试模式"水印属正常 |
 | **3** | 关闭测试模式 | 删除 testsigning / debug 启动项（保留 nointegritychecks），水印消失 |
 | **4** | 关闭安全中心 | 写入 Windows Defender 策略注册表（父键 / Real-Time Protection / Spynet / Signature Updates / Scan / MpEngine / NIS / Exploit Guard / 通知抑制等）+ SmartScreen 全套关闭（系统级 / Explorer / Edge / Store 应用）。执行后可选择是否进行**删除类优化**（输入 `Y` 执行 / `N` 跳过）：停止并禁用 17 个 Defender 相关服务、删除 Defender 计划任务、删除 SecurityHealth 自启动项、移除安全中心界面 SecHealthUI |
 | **5** | 优化服务项继续工作 | 停止并禁用 29 个可安全禁用的服务（诊断四件套 DPS/WdiServiceHost/WdiSystemHost/diagsvc、DialogBlockingService、TrkWks、AppVClient、键盘筛选器、NetTcpPortSharing、脱机文件、ssh-agent、PhoneSvc、兼容性助手 PCA、远程注册表、路由远程访问、传感器×2、共享电脑、UE-V、钱包、预览体验、WSAIFabricSvc、WAP 推送、数据使用量、自动时区、打印后台处理、Windows 搜索、SysMain、Edge 更新×2）+ 将 7 个服务改成**手动**（Xbox 配件管理、Xbox Live 身份验证/网络服务/游戏保存、蓝牙支持、嵌入模式、BITS） |
 | **6** | 应用超性能电源计划 | 子选项 1：先将当前正在使用的电源计划备份到脚本所在目录（`power-backup.pow`，已存在则不覆盖），再导入并应用仓库自带的 `ultimate-performance.pow`（CPU 全程满频、全链路不节电）；子选项 2：恢复之前备份的电源计划 |
+| **7** | 启用原生 NVMe 驱动 | 子选项 0：只读检查当前状态（覆盖值/加固/驱动文件/加载状态并给出结论）；子选项 1：写入 3 个 Velocity 功能覆盖值，提前启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（替换 NVMe 盘的通用 `disk.sys`），并写入 2 条安全模式加固项（防止启用后进不去安全模式），重启后生效；子选项 2：删除覆盖值还原。需 25H2（build 26200+）与 NVMe 硬盘（评论区实测 24H2 十月更新批次无法启用） |
 
 每个选项执行完成后 **5 秒自动重启**（期间按 `Q` 取消）。
 
