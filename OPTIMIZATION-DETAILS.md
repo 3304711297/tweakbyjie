@@ -148,6 +148,9 @@
 | `bcdedit /set nx AlwaysOff` | 永久关闭 DEP（数据执行保护） | ⚠️ 高 |
 | `bcdedit /set tpmbootentropy ForceDisable` | 禁用 TPM 启动熵 | ⚠️ 中 |
 | `bcdedit /set nointegritychecks on` | 关闭驱动程序完整性检查 | ⚠️ 高 |
+| `Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart`（检测到已启用才执行，未启用跳过） | 禁用 Hyper-V 功能本体（卸载虚拟机管理栈 vmms / vmcompute / HvHost 等），等效于控制面板"启用或关闭 Windows 功能"取消勾选 Hyper-V，或 `DISM /Online /Disable-Feature /FeatureName:Microsoft-Hyper-V-All`。**不影响** WSL2 / Docker 依赖的 VirtualMachinePlatform / HypervisorPlatform | 低 |
+
+> Hyper-V 关闭的三个层次：① `hypervisorlaunchtype off` 阻止虚拟机监控器启动（bcdedit 层）；② 本表 DISM 行卸载功能本体（可选功能层）；③ 注册表关闭 VBS/HVCI/Credential Guard（见 04 节）。三层全部执行才彻底；如需还原，运行**选项 9**。
 
 #### 19 视觉效果自定义
 
@@ -631,6 +634,57 @@
 **子选项 2：清理**：删除上述 BCD 引导项、清空 `{bootmgr}` 的 bootsequence、卸载残留的 EFI 分区盘符；无需重启。适用于执行过子选项 1 但尚未重启就想撤销，或配置中途失败后的收拾。
 
 **验证方式**：重启确认后，`msinfo32` → 系统摘要 → 基于虚拟化的安全性，应显示"未启用"；Windows 安全中心 → 内核隔离 → 内存完整性应显示"关"。
+
+---
+
+### Part 9：虚拟化还原 / Hyper-V 启用（选项 9）
+
+与选项 1（关闭 VBS / Hyper-V）互为还原，补齐虚拟化开关的另一半。社区教程《Hyper-V 的启用与关闭》（机械革命优化频道）给出的关闭侧三种方法，本仓库选项 1 已全部覆盖；启用侧（尤其是**家庭版没有控制面板入口、需 DISM 启用**）由本选项提供。
+
+**关闭 Hyper-V 的三种方法与本脚本的对应关系**
+
+| 方法 | 命令 / 操作 | 本脚本对应 |
+|---|---|---|
+| 方法一：bcdedit 关闭虚拟机监控器 | `bcdedit /set hypervisorlaunchtype off` | 选项 1（另有 `vsmlaunchtype` / `isolatedcontext`） |
+| 方法二：控制面板卸载功能 | 程序和功能 → 启用或关闭 Windows 功能 → 取消勾选 Hyper-V | 选项 1（DISM 等效执行，检测到已启用才禁用） |
+| 方法三：DISM 卸载功能 | `DISM /Online /Disable-Feature /FeatureName:Microsoft-Hyper-V-All /norestart` | 选项 1（`Disable-WindowsOptionalFeature` 即其 PowerShell 封装） |
+| 配套：关闭内存完整性 / 凭据保护 | Windows 安全中心 → 内核隔离 手动关闭 | 选项 1 注册表层（更彻底）+ 选项 8 EFI 锁定清除 |
+
+**子选项 0：只读状态检查**（不做任何修改）：显示 bcdedit 三个引导项的当前值、Device Guard 注册表关闭值有无、Hyper-V 功能组件状态（附带显示 VirtualMachinePlatform / HypervisorPlatform——WSL2 / Docker 依赖，本脚本从不改动），并给出结论（已被本脚本关闭 / 系统默认状态）。
+
+**子选项 1：还原**——对应选项 1 的虚拟化关闭部分：
+
+| 操作 | 命令 / 对象 | 作用 |
+|---|---|---|
+| bcdedit 还原 | `bcdedit /deletevalue hypervisorlaunchtype` | 恢复虚拟机监控器默认启动（Auto，随需启动） |
+| bcdedit 还原 | `bcdedit /deletevalue vsmlaunchtype` | 恢复 VSM 默认启动 |
+| bcdedit 还原 | `bcdedit /deletevalue isolatedcontext` | 恢复隔离上下文默认 |
+| 注册表还原 | 删除下表 5 个值 | 恢复"未配置"（跟随系统默认），比写回 1（强制开启）更干净 |
+
+| 注册表路径 | 值名 | 选项 1 写入值 | 还原操作 |
+|---|---|---|---|
+| `HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity` | Enabled | 0 | 删除值 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard` | EnableVirtualizationBasedSecurity | 0 | 删除值 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\LSA` | LsaCfgFlags | 0 | 删除值 |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | EnableVirtualizationBasedSecurity | 0 | 删除值 |
+| `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | RequirePlatformSecurityFeatures | 0 | 删除值 |
+
+**子选项 2：完整还原 + 启用 Hyper-V 功能**：先做子选项 1 的全部内容，再执行：
+
+| 命令 | 作用 |
+|---|---|
+| `Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart` | 启用 Hyper-V 功能本体（`-All` 连带全部依赖子功能），重启后生效 |
+
+> **家庭版适用**：家庭版"启用或关闭 Windows 功能"里没有 Hyper-V 一项，但 DISM 层面功能组件仍存在，`Enable-WindowsOptionalFeature`（DISM 的 PowerShell 封装）可以直接启用——这正是社区"家庭版一键开启 Hyper-V"批处理脚本（一串 `DISM /Online /Enable-Feature` 命令）的原理，本脚本与其等效。
+
+**注意事项**：
+
+- 本选项只启用/禁用 Hyper-V 本体（`Microsoft-Hyper-V-All`），从不改动 `VirtualMachinePlatform` / `HypervisorPlatform` / Windows 沙盒等功能：WSL2、Docker Desktop 依赖的是后两者，单独还原虚拟化（子选项 1）后它们即可恢复。
+- 选项 1 的 `hypervisorlaunchtype off` 会连带使 WSL2 / Docker / Windows 沙盒 / 部分安卓模拟器不可用——需要这些功能时用本选项还原。
+- Meltdown/Spectre 缓解关闭（`FeatureSettingsOverride`）、NX / 驱动完整性检查等其余 BCDEdit 项**不在**本选项还原范围（与虚拟化无关，恢复方法见 README）。
+- 若之前执行过选项 8 清除了 EFI 变量，Device Guard 相关开关会回到"未配置"；如需重新开启 VBS/内存完整性，还原后在 Windows 安全中心 → 内核隔离 中手动开启。
+
+**验证方式**：子选项 2 重启后，开始菜单搜索"Hyper-V 管理器"可打开即启用成功；`msinfo32` → 系统摘要 → 基于虚拟化的安全性 可查看 Hyper-V 服务状态；WSL2 可用 `wsl --status` 确认。
 
 ---
 

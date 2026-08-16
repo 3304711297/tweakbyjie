@@ -28,6 +28,12 @@
 #                 复制 SecConfig.efi 并配置一次性引导项，重启开机时需按屏幕提示按键确认；
 #                 子选项 2：删除引导项并卸载 EFI 盘符），
 #                 执行后 5 秒自动重启（按 Q 取消）
+#   输入 9 回车 = 虚拟化还原 / Hyper-V 启用（与选项 1 互为还原：删除 hypervisorlaunchtype /
+#                 vsmlaunchtype / isolatedcontext 引导项，删除 Device Guard 注册表关闭值，
+#                 恢复系统默认；子选项 0：只读查看当前虚拟化状态；子选项 1：仅还原；
+#                 子选项 2：还原并启用 Hyper-V 功能——家庭版无控制面板入口，
+#                 DISM 方式启用同样有效），
+#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -113,6 +119,18 @@ function Invoke-BcdEdit {
     }
 }
 
+# Delete a bcdedit value only when it exists on {current} (avoid FAIL on default entries)
+function Remove-BcdValue {
+    param([string]$ValueName, [string]$Label)
+    $enumOut = & bcdedit.exe /enum '{current}' 2>$null
+    if ($LASTEXITCODE -eq 0 -and (($enumOut -join "`n") -match [regex]::Escape($ValueName))) {
+        Invoke-BcdEdit "/deletevalue $ValueName" $Label
+    } else {
+        Write-Host "[SKIP] $Label 未设置（系统默认，无需还原）" -ForegroundColor Yellow
+        $script:skip++
+    }
+}
+
 # 5-second restart countdown, press Q to cancel
 function Start-RestartCountdown {
     param([int]$Seconds = 5)
@@ -169,11 +187,13 @@ Write-Host "      Apply Ultimate Performance Power Plan (backup current, import 
     Write-Host "      Enable native NVMe driver nvmedisk.sys (velocity overrides + safe boot fix, restorable)" -ForegroundColor Gray
     Write-Host "   8. 清除 Device Guard EFI 锁定（SecConfig.efi 应对 UEFI 锁定，含 BitLocker 预检查）" -ForegroundColor White
     Write-Host "      Clear Device Guard UEFI lock via SecConfig.efi (BitLocker pre-check included)" -ForegroundColor Gray
+    Write-Host "   9. 虚拟化还原 / Hyper-V 启用（还原选项 1 的虚拟化关闭；家庭版 DISM 启用同样有效）" -ForegroundColor White
+    Write-Host "      Virtualization restore & Hyper-V enable (undo option 1; works on Home via DISM)" -ForegroundColor Gray
     Write-Host ""
     Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
     Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
     Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4、5、6、7 或 8 并回车 (Enter 1, 2, 3, 4, 5, 6, 7 or 8)"
+$choice = Read-Host "请输入 1、2、3、4、5、6、7、8 或 9 并回车 (Enter 1, 2, 3, 4, 5, 6, 7, 8 or 9)"
 
 if ($choice -eq "1") {
 
@@ -307,6 +327,26 @@ if ($choice -eq "1") {
     Invoke-BcdEdit "/set isolatedcontext no" "Isolated Context Off"
     Invoke-BcdEdit "/set vsmlaunchtype off" "VSM Launch Type Off"
 
+    # Hyper-V 功能组件禁用（DISM；检测到已启用才执行，未启用自动跳过）。
+    # 只禁用 Hyper-V 本体（Microsoft-Hyper-V-All，即虚拟机管理栈 vmms/vmcompute/HvHost），
+    # 不动 WSL2 / Docker / 沙盒依赖的 VirtualMachinePlatform / HypervisorPlatform。
+    # 等效于控制面板"启用或关闭 Windows 功能"取消勾选 Hyper-V。
+    # 如需还原/重新启用，使用选项 9。
+    try {
+        $hvFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction Stop
+        if ($hvFeature.State -in @('Enabled','EnablePending')) {
+            $null = Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart -ErrorAction Stop
+            Write-Host "[OK] Hyper-V 功能组件已禁用 (Microsoft-Hyper-V-All)"
+            $ok++
+        } else {
+            Write-Host "[SKIP] Hyper-V 功能组件未启用（无需禁用）" -ForegroundColor Yellow
+            $skip++
+        }
+    } catch {
+        Write-Host "[FAIL] Hyper-V 功能组件禁用 : $($_.Exception.Message)" -ForegroundColor Red
+        $fail++
+    }
+
     # Clock/Ticks
     Invoke-BcdEdit "/set useplatformclock no" "Use Platform Clock Off"
     Invoke-BcdEdit "/set useplatformtick no" "Use Platform Tick Off"
@@ -368,6 +408,7 @@ if ($choice -eq "1") {
     Write-Host " Finished (Part 1 - System Optimization)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
     # Auto restart in 5 seconds (press Q to cancel)
@@ -1308,9 +1349,135 @@ if ($choice -eq "1") {
         Write-Host "[ERROR] 无效输入：$gChoice 。请输入 1 或 2 / Invalid input. Enter 1 or 2." -ForegroundColor Red
     }
 
+} elseif ($choice -eq "9") {
+
+    # ======================= Part 9: 虚拟化还原 / Hyper-V 启用 =======================
+    # 与选项 1（关闭 VBS/Hyper-V）互为还原：删除 bcdedit 引导项 + 删除 Device Guard
+    # 注册表关闭值，恢复系统默认；子选项 2 再启用 Hyper-V 功能组件
+    # （家庭版无控制面板入口，DISM 方式启用同样有效）。
+    Write-Host ""
+    Write-Host "============ [Part 9] 虚拟化还原 / Virtualization Restore & Hyper-V Enable ============" -ForegroundColor Cyan
+    Write-Host ""
+
+    # 选项 1 写入的 Device Guard 关闭值（还原 = 删除值，恢复"未配置"的系统默认状态）
+    $dgRegValues = @(
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity'; Name = 'Enabled' },
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard'; Name = 'EnableVirtualizationBasedSecurity' },
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA'; Name = 'LsaCfgFlags' },
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard'; Name = 'EnableVirtualizationBasedSecurity' },
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard'; Name = 'RequirePlatformSecurityFeatures' }
+    )
+
+    Write-Host "  0. 查看当前虚拟化状态（只读：bcdedit 引导项 / Device Guard 注册表 / Hyper-V 功能）" -ForegroundColor White
+    Write-Host "  1. 还原虚拟化（删除 hypervisorlaunchtype / vsmlaunchtype / isolatedcontext 引导项，" -ForegroundColor White
+    Write-Host "     删除 Device Guard 注册表关闭值，恢复系统默认；不改动 Hyper-V 功能安装状态）" -ForegroundColor White
+    Write-Host "  2. 完整还原 + 启用 Hyper-V 功能（先做 1 的全部内容，再启用 Microsoft-Hyper-V-All；" -ForegroundColor White
+    Write-Host "     家庭版同样适用——DISM 方式启用，等价于控制面板勾选 Hyper-V）" -ForegroundColor White
+    $vChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
+
+    if ($vChoice -eq "0") {
+
+        # 只读状态检查，不做任何修改
+        Write-Host ""
+        $bcEnum = (& bcdedit.exe /enum '{current}' 2>$null) -join "`n"
+        $bcHvOff = $false
+        foreach ($vName in @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')) {
+            if ($bcEnum -match ('(?m)^\s*' + [regex]::Escape($vName) + '\s+(\S+)')) {
+                Write-Host ("bcdedit {0,-24} = {1}" -f $vName, $Matches[1])
+                if ($vName -eq 'hypervisorlaunchtype' -and $Matches[1] -eq 'Off') { $bcHvOff = $true }
+            } else {
+                Write-Host ("bcdedit {0,-24} = <未设置（系统默认）>" -f $vName)
+            }
+        }
+
+        $dgAny = $false
+        foreach ($v in $dgRegValues) {
+            $item = Get-Item $v.Path -ErrorAction SilentlyContinue
+            if ($item -and ($item.GetValueNames() -contains $v.Name)) {
+                Write-Host ("注册表 {0} -> {1} = {2}" -f $v.Path, $v.Name, $item.GetValue($v.Name))
+                $dgAny = $true
+            }
+        }
+        if (-not $dgAny) { Write-Host "注册表 Device Guard 关闭值 : 无（未配置或已还原）" }
+
+        Write-Host "Hyper-V 功能组件状态（后两项为 WSL2/Docker 依赖，本脚本从不改动）："
+        foreach ($fn in @('Microsoft-Hyper-V-All','VirtualMachinePlatform','HypervisorPlatform')) {
+            $f = Get-WindowsOptionalFeature -Online -FeatureName $fn -ErrorAction SilentlyContinue
+            if ($f) { Write-Host ("  功能 {0,-26} = {1}" -f $fn, $f.State) }
+        }
+
+        Write-Host ""
+        if ($bcHvOff -or $dgAny) {
+            Write-Host "结论：虚拟化已被本脚本关闭（选项 1 的效果仍在）。选 9 -> 1 可还原，9 -> 2 还原并启用 Hyper-V" -ForegroundColor Yellow
+        } else {
+            Write-Host "结论：虚拟化处于系统默认状态（本脚本未关闭或已还原）" -ForegroundColor Green
+        }
+        Write-Host "提示：VBS 运行状态可用 msinfo32 -> 系统摘要 -> 基于虚拟化的安全性 查看" -ForegroundColor Yellow
+
+    } elseif (($vChoice -eq "1") -or ($vChoice -eq "2")) {
+
+        # 1) 还原 bcdedit 引导项（存在才删除）
+        Remove-BcdValue "hypervisorlaunchtype" "bcdedit hypervisorlaunchtype 还原"
+        Remove-BcdValue "vsmlaunchtype" "bcdedit vsmlaunchtype 还原"
+        Remove-BcdValue "isolatedcontext" "bcdedit isolatedcontext 还原"
+
+        # 2) 删除 Device Guard 注册表关闭值（恢复"未配置"）
+        foreach ($v in $dgRegValues) {
+            $item = Get-Item $v.Path -ErrorAction SilentlyContinue
+            if ($item -and ($item.GetValueNames() -contains $v.Name)) {
+                $regPath = Convert-RegExePath $v.Path
+                & reg.exe DELETE $regPath /v $v.Name /f *> $null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host ("[OK] 已删除注册表值 {0} -> {1}" -f $v.Path, $v.Name)
+                    $ok++
+                } else {
+                    Write-Host ("[FAIL] 删除注册表值 {0} -> {1} : reg.exe exit code $LASTEXITCODE" -f $v.Path, $v.Name) -ForegroundColor Red
+                    $fail++
+                }
+            } else {
+                Write-Host ("[SKIP] 注册表值不存在: {0} -> {1}" -f $v.Path, $v.Name) -ForegroundColor Yellow
+                $skip++
+            }
+        }
+
+        # 3) 子选项 2：启用 Hyper-V 功能组件（-All 连带全部依赖子功能，家庭版同样适用）
+        if ($vChoice -eq "2") {
+            try {
+                $null = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart -ErrorAction Stop
+                Write-Host "[OK] Hyper-V 功能组件已启用 (Microsoft-Hyper-V-All，重启后生效)"
+                $ok++
+            } catch {
+                Write-Host "[FAIL] Hyper-V 功能组件启用 : $($_.Exception.Message)" -ForegroundColor Red
+                $fail++
+            }
+        }
+
+        # Summary
+        $actionLabel = $(if ($vChoice -eq "2") { "Restore + Hyper-V Enable" } else { "Restore" })
+        Write-Host ""
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host " Finished (Part 9 - Virtualization $actionLabel)" -ForegroundColor Cyan
+        Write-Host " OK : $ok" -ForegroundColor Green
+        Write-Host " FAIL : $fail" -ForegroundColor Red
+        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host ""
+        if ($vChoice -eq "2") {
+            Write-Host " 重启后可在开始菜单搜索 Hyper-V 管理器 验证；WSL2 / Docker / Windows 沙盒恢复可用（依赖 hypervisor 正常启动）" -ForegroundColor Yellow
+        } else {
+            Write-Host " 重启后虚拟化恢复系统默认（hypervisor 随需启动）；如需启用 Hyper-V 功能请选 9 -> 2" -ForegroundColor Yellow
+        }
+
+        # Auto restart in 5 seconds (press Q to cancel)
+        Start-RestartCountdown -Seconds 5
+
+    } else {
+        Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
+    }
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7 或 8 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7 or 8." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7、8 或 9 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7, 8 or 9." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
