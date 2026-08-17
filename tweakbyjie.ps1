@@ -628,7 +628,13 @@ if ($choice -eq "1") {
     Verify-BcdValue "hypervisorlaunchtype" "Off" "hypervisorlaunchtype" | Out-Null
     Verify-BcdValue "isolatedcontext" "No" "isolatedcontext" | Out-Null
     Verify-BcdValue "vsmlaunchtype" "Off" "vsmlaunchtype" | Out-Null
+    Verify-BcdValue "useplatformclock" "No" "useplatformclock" | Out-Null
+    Verify-BcdValue "useplatformtick" "No" "useplatformtick" | Out-Null
+    Verify-BcdValue "disabledynamictick" "Yes" "disabledynamictick" | Out-Null
+    Verify-BcdValue "tscsyncpolicy" "Enhanced" "tscsyncpolicy" | Out-Null
     Verify-BcdValue "nx" "AlwaysOff" "nx" | Out-Null
+    Verify-BcdValue "tpmbootentropy" "ForceDisable" "tpmbootentropy" | Out-Null
+    Verify-BcdValue "nointegritychecks" "Yes" "nointegritychecks" | Out-Null
 
     # Summary
     Write-Host ""
@@ -1037,18 +1043,26 @@ if ($choice -eq "1") {
     Write-Host ""
     $part5FailBaseline = $fail
 
-    # 1) Disable safe-to-disable services
-    Write-Host "[Safe Services: stop + disable]" -ForegroundColor Cyan
-    $safeServices = @(
-        "DPS","WdiServiceHost","WdiSystemHost","diagsvc",
+    # 1) Disable service groups
+    # A：通常可在不需要对应功能时禁用
+    Write-Host "[Service Group A: 通常可禁用 / stop + disable]" -ForegroundColor Cyan
+    $groupAServices = @(
         "DialogBlockingService","TrkWks","AppVClient","MsKeyboardFilter",
-        "NetTcpPortSharing","CscService","ssh-agent","PhoneSvc","PcaSvc",
-        "RemoteRegistry","RemoteAccess","SensorDataService","SensrSvc",
-        "shpamsvc","UevAgentService","WalletService","wisvc","WSAIFabricSvc",
-        "dmwappushservice","DusmSvc","tzautoupdate",
-        "Spooler","WSearch","SysMain","edgeupdate","edgeupdatem"
+        "NetTcpPortSharing","CscService","ssh-agent","RemoteRegistry",
+        "RemoteAccess","SensorDataService","SensrSvc","shpamsvc",
+        "UevAgentService","WalletService","wisvc","WSAIFabricSvc",
+        "dmwappushservice","DusmSvc","tzautoupdate","edgeupdate","edgeupdatem"
     )
-    foreach ($svc in $safeServices) {
+
+    # B：按需禁用，可能影响诊断、兼容性、打印、搜索或预读功能
+    Write-Host "[Service Group B: 按需禁用 / stop + disable]" -ForegroundColor Cyan
+    $groupBServices = @(
+        "DPS","WdiServiceHost","WdiSystemHost","diagsvc",
+        "PhoneSvc","PcaSvc","Spooler","WSearch","SysMain"
+    )
+
+    $disableServices = @($groupAServices + $groupBServices)
+    foreach ($svc in $disableServices) {
         $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if ($svcObj) {
             try {
@@ -1103,8 +1117,11 @@ if ($choice -eq "1") {
 
     Write-Host ""
     Write-Host "[Post-Apply Verification / 服务启动类型验证]" -ForegroundColor Cyan
-    foreach ($svc in $safeServices) {
-        Verify-ServiceStartupType $svc "Disabled" $svc | Out-Null
+    foreach ($svc in $groupAServices) {
+        Verify-ServiceStartupType $svc "Disabled" "Group A / $svc" | Out-Null
+    }
+    foreach ($svc in $groupBServices) {
+        Verify-ServiceStartupType $svc "Disabled" "Group B / $svc" | Out-Null
     }
     foreach ($svc in $manualServices) {
         Verify-ServiceStartupType $svc "Manual" $svc | Out-Null

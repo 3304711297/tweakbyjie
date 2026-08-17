@@ -419,40 +419,42 @@
 
 > 选项 5 会在修改后回读目标服务的启动类型；服务不存在显示为跳过，实际类型不符显示 `[VERIFY FAIL]`。出现写入或验证失败时不会自动重启。
 
-#### 29 个服务停止并禁用
+#### 30 个服务分组停止并禁用
 
-| 服务名 | 显示名称 | 说明 |
-|---|---|---|
-| DPS | 诊断策略服务 | 诊断向导依赖，日常无用 |
-| WdiServiceHost | 诊断服务主机 | 诊断向导依赖，日常无用 |
-| WdiSystemHost | 诊断系统主机 | 诊断向导依赖，日常无用 |
-| diagsvc | Diagnostic Execution Service | 执行诊断操作，日常无用 |
-| DialogBlockingService | DialogBlockingService | 系统升级对话框，平时不触发 |
-| TrkWks | 分布式链接跟踪客户端 | 单机无用的 NTFS 链接跟踪 |
-| AppVClient | Microsoft App-V 客户端 | 企业应用虚拟化 |
-| MsKeyboardFilter | Microsoft 键盘筛选器 | 网吧/展示环境的按键锁定 |
-| NetTcpPortSharing | Net.Tcp 端口共享服务 | WCF 开发者功能 |
-| CscService | 脱机文件 | 域环境功能，单机无用 |
-| ssh-agent | OpenSSH 认证代理 | 不用 SSH 密钥就无影响 |
-| PhoneSvc | 电话服务 | 电话/蜂窝链接，桌面端无用 |
-| PcaSvc | 程序兼容性助手 | 仅弹兼容性提示 |
-| RemoteRegistry | 远程注册表 | 禁用反而更安全 |
-| RemoteAccess | 路由和远程访问 | 禁用更安全 |
-| SensorDataService | 传感器数据服务 | 台式机无传感器 |
-| SensrSvc | 传感器监视服务 | 自适应亮度等，台式机无用 |
-| shpamsvc | 共享电脑账户管理器 | 共享电脑模式，个人设备无用 |
-| UevAgentService | 用户体验虚拟化 | 企业设置漫游 |
-| WalletService | WalletService | 基本废弃的钱包服务 |
-| wisvc | Windows 预览体验成员服务 | Insider 计划专用 |
-| WSAIFabricSvc | WSAIFabricSvc | 本地 AI（Copilot+）通信 |
-| dmwappushservice | WAP 推送消息路由服务 | 企业 MDM 设备管理 |
-| DusmSvc | 数据使用量 | 流量统计，宽带无用 |
-| tzautoupdate | 自动时区更新程序 | 手动设时区即可 |
-| Spooler | Print Spooler | 打印后台处理，不打印可禁用 |
-| WSearch | Windows Search | 开始菜单/资源管理器搜索 |
-| SysMain | SysMain | 内存预读服务，SSD 上可禁用 |
-| edgeupdate | Microsoft Edge 更新服务 | Edge 自动更新 |
-| edgeupdatem | Microsoft Edge 更新服务 (Machine) | Edge 自动更新（计算机级） |
+> **A 组（21 个）：** 通常可在不需要对应功能时禁用。**B 组（9 个）：** 按需禁用，可能影响诊断、兼容性、打印、搜索或预读等系统功能。A/B 只是风险分类，不是交互式选择；当前选项 5 仍会执行两组全部服务。服务不存在时跳过，修改后逐项回读启动类型；验证失败不会自动重启。
+
+| 分组 | 服务名 | 显示名称 | 处理建议 |
+|---|---|---|---|
+| B | DPS | 诊断策略服务 | 按需禁用，可能影响 Windows 诊断 |
+| B | WdiServiceHost | 诊断服务主机 | 按需禁用，可能影响 Windows 诊断 |
+| B | WdiSystemHost | 诊断系统主机 | 按需禁用，可能影响 Windows 诊断 |
+| B | diagsvc | Diagnostic Execution Service | 按需禁用，可能影响 Windows 诊断 |
+| A | DialogBlockingService | DialogBlockingService | 不需要对应升级对话框功能时通常可禁用 |
+| A | TrkWks | 分布式链接跟踪客户端 | 单机环境通常可禁用 |
+| A | AppVClient | Microsoft App-V 客户端 | 不使用企业 App-V 时可禁用 |
+| A | MsKeyboardFilter | Microsoft 键盘筛选器 | 非网吧/展示/锁键场景通常可禁用 |
+| A | NetTcpPortSharing | Net.Tcp 端口共享服务 | 不使用相关 WCF 功能时可禁用 |
+| A | CscService | 脱机文件 | 不使用域/脱机文件时可禁用 |
+| A | ssh-agent | OpenSSH 认证代理 | 不使用 SSH 密钥代理时可禁用 |
+| B | PhoneSvc | 电话服务 | 按需禁用，可能影响蜂窝/电话相关功能 |
+| B | PcaSvc | 程序兼容性助手 | 按需禁用，可能影响兼容性提示/修复 |
+| A | RemoteRegistry | 远程注册表 | 通常可禁用；远程注册表管理将不可用 |
+| A | RemoteAccess | 路由和远程访问 | 不使用 RRAS/相关远程访问功能时可禁用 |
+| A | SensorDataService | 传感器数据服务 | 无相关传感器设备时通常可禁用 |
+| A | SensrSvc | 传感器监视服务 | 无相关传感器/自适应功能时通常可禁用 |
+| A | shpamsvc | 共享电脑账户管理器 | 不使用共享电脑模式时可禁用 |
+| A | UevAgentService | 用户体验虚拟化 | 不使用企业 UE-V 时可禁用 |
+| A | WalletService | WalletService | 不使用相关功能时可禁用 |
+| A | wisvc | Windows 预览体验成员服务 | 不参与 Windows Insider 时可禁用 |
+| A | WSAIFabricSvc | WSAIFabricSvc | 不使用对应本地 AI/集成能力时可禁用 |
+| A | dmwappushservice | WAP 推送消息路由服务 | 不使用企业 MDM/推送能力时可禁用 |
+| A | DusmSvc | 数据使用量 | 不需要流量统计时可禁用 |
+| A | tzautoupdate | 自动时区更新程序 | 不需要自动时区更新时可禁用 |
+| B | Spooler | Print Spooler | 按需禁用，不打印时可禁用；需要打印时必须启用 |
+| B | WSearch | Windows Search | 按需禁用，可能影响开始菜单/资源管理器搜索 |
+| B | SysMain | SysMain | 按需禁用，可能影响系统预读/应用启动行为 |
+| A | edgeupdate | Microsoft Edge 更新服务 | 不需要 Edge 自动更新时可禁用 |
+| A | edgeupdatem | Microsoft Edge 更新服务 (Machine) | 不需要 Edge 自动更新时可禁用 |
 
 #### 7 个服务改成手动
 
