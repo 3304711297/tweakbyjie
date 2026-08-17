@@ -6,6 +6,8 @@ mpo-backup.json
 bcd-backup.json
 power-backup.pow
 service-backup.json
+security-mitigation-backup.json
+nvme-backup.json
 
 # OS
 .DS_Store

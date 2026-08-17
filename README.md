@@ -31,20 +31,20 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 
 ## tweakbyjie.ps1 — 功能菜单
 
-脚本采用“**分层执行 + 会话待重启**”设计：一次运行可以连续处理多个模块；普通游戏优化不会自动修改 Hyper-V/VBS、高级 BCD 启动安全项或 MPO。需要重启的修改会进入待重启状态，每个模块结束时可选择立即重启或返回菜单，退出前仍会提醒未完成的重启。
+脚本采用“**分层执行 + 会话待重启**”设计：一次运行可以连续处理多个模块；普通游戏优化不会自动修改 Hyper-V/VBS、高级 BCD 启动安全项或 MPO。需要重启的修改会进入待重启状态，模块结束只提示，退出主菜单时统一询问是否重启。
 
 | 选项 | 功能 | 主要内容 |
 |---|---|---|
-| **1** | 核心游戏 / 系统性能优化 | GameDVR/GameBar、ActivationType、Multimedia 调度、Win32PrioritySeparation=38、搜索设置、Meltdown/Spectre 配置、HAGS、Games 任务、EnablePrefetcher=0、NTFS 8.3、Game Mode、Memory Compression、TRIM、视觉效果。**不包含** Hyper-V/VBS、高级 BCD、MPO。 |
+| **1** | 核心游戏 / 系统性能优化 | 进入三级子菜单：`1` 核心游戏（GameDVR/GameBar、ActivationType、Multimedia 调度、Win32PrioritySeparation=38、HAGS、Games 任务、Game Mode）；`2` 系统行为（搜索、EnablePrefetcher=0、NTFS 8.3、Memory Compression、TRIM、视觉效果）；`3` CPU 安全缓解（FeatureSettingsOverride/Mask=3，带 `security-mitigation-backup.json` 备份和恢复）。**不包含** Hyper-V/VBS、高级 BCD、MPO。 |
 | **2** | 高级 BCD / 计时器与启动安全 | 计时器配置独立执行；`nx`、`tpmbootentropy`、`nointegritychecks` 单独作为高风险子项，并在修改前写入 `bcd-backup.json`。微软文档将部分计时器项和 `tscsyncpolicy` 标注为调试用途；`nointegritychecks` 会关闭完整性检查且 Secure Boot 开启时不能设置。 citeturn323825search1 |
 | **3** | 开启测试模式 | `testsigning / debug / dbgsettings local / nointegritychecks`。 |
 | **4** | 关闭测试模式 | 删除 `testsigning / debug` 启动项，保留 `nointegritychecks`。 |
 | **5** | 关闭安全中心 | Defender / SmartScreen 策略及可选删除类操作。 |
 | **6** | 服务优化 | A/B 功能依赖分组；Xbox、蓝牙、嵌入模式、BITS 改为 Manual；执行后验证启动类型。首次执行前保存 `service-backup.json`，子选项 2 可按快照恢复启动类型。 |
 | **7** | 超性能电源计划 | 备份当前计划后导入/应用，支持恢复备份。 |
-| **8** | 原生 NVMe 驱动 | Velocity / SafeBoot 相关配置。 |
+| **8** | 原生 NVMe 驱动 | Velocity / SafeBoot 相关配置；启用前保存 `nvme-backup.json`，还原时删除 Velocity 覆盖并按快照处理 SafeBoot 项，需重启后验证驱动实际切换。 |
 | **9** | Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 预检查。 |
-| **10** | 虚拟化 / VBS / Hyper-V 管理 | 独立管理 VBS/HVCI/Credential Guard、`hypervisorlaunchtype`、Hyper-V 功能组件；支持查看、关闭、恢复/尝试启用 Hyper-V。微软当前文档给出的完整禁用 Hyper-V 路径包括禁用 `Microsoft-Hyper-V-All` 与设置 `hypervisorlaunchtype off`；Hyper-V 官方安装支持 Pro/Enterprise，不支持 Home。 citeturn323825search0turn323825search8 |
+| **10** | 虚拟化 / VBS / Hyper-V 管理 | 独立管理 VBS/HVCI/Credential Guard、`hypervisorlaunchtype`、Hyper-V 功能组件；支持查看、关闭、删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）。微软当前文档给出的完整禁用 Hyper-V 路径包括禁用 `Microsoft-Hyper-V-All` 与设置 `hypervisorlaunchtype off`；Hyper-V 官方安装支持 Pro/Enterprise，不支持 Home。 citeturn323825search0turn323825search8 |
 | **11** | MPO 设置管理 | 三方案互斥、首次修改前备份、恢复功能；保持为独立排障模块。 |
 
 ## tweakbyjie.ps1 — 使用方法
@@ -69,10 +69,10 @@ powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
 - 删除类优化（选项 5 的 Y 分支）会移除安全中心界面和 Defender 服务，恢复需要重建相关组件
 - **选项 9** 是关闭 Device Guard 的"硬手段"（清除 EFI 变量）。已内置 BitLocker 预检查（保护开启即拒绝执行），但重启开机时会出现确认界面，**需按屏幕提示手动按键（通常 F3）确认**，否则本次不生效；错过可重跑
 - **选项 11** 使用的是未公开的社区 MPO 排障配置，微软和显卡厂商不保证这些值在所有 Windows 版本/驱动中有效；方案 A/B 可能影响窗口化 VRR、视频呈现、DWM 负载或部分叠加层，方案 B 还可能影响个别 DX12 游戏；方案 C 通常比禁用 MPO 保守，但不保证有效或完全没有副作用
-- **选项 11** 首次修改前会在脚本目录创建 `mpo-backup.json`，选项 11 → 4 优先恢复首次修改前状态；请勿手动编辑或删除备份文件，删除后只能清除覆盖值恢复系统默认。脚本每个模块结束时询问是否重启，不再使用 5 秒强制倒计时。
+- **选项 11** 首次修改前会在脚本目录创建 `mpo-backup.json`，选项 11 → 4 优先恢复首次修改前状态；请勿手动编辑或删除备份文件，删除后只能清除覆盖值恢复系统默认。脚本模块结束只提示待重启，退出主菜单时统一询问，不再使用 5 秒强制倒计时。
 - MPO 设置应每次只测试一个方案，重启后分别检查浏览器/视频、G-Sync/FreeSync、多显示器、窗口化游戏、DX12、HDR、录屏和 Steam/Discord 等覆盖层
 - **仅供了解风险的用户在个人设备上使用**；请勿在生产环境或受管理的公司设备上运行
-- 运行选项 2、5、8、9、10、11 前，请确认已有可用的系统/启动恢复方案；脚本只对 BCD、MPO 和部分服务保存快照，不能承诺所有修改精确回滚。
+- 运行选项 1→3、2、5、8、9、10、11 前，请确认已有可用的系统/启动恢复方案；脚本只对 CPU 缓解、BCD、MPO、NVMe SafeBoot 和部分服务保存快照，不能承诺所有修改精确回滚。
 
 ---
 
@@ -111,7 +111,8 @@ powershell -ExecutionPolicy Bypass -File .\defender-removal.ps1
 
 ## 恢复方法
 
-- **tweakbyjie.ps1 选项 2**：高级 BCD 项可用 `bcdedit /deletevalue <名称>` 删除（如 `bcdedit /set nx OptIn`、`bcdedit /deletevalue testsigning`）；注册表项可将对应值改回 `0` 或删除；**虚拟化部分（hypervisorlaunchtype / vsmlaunchtype / isolatedcontext + Device Guard 注册表 + Hyper-V 功能）可直接用选项 10 一键管理/还原**
+- **tweakbyjie.ps1 选项 1 → 3**：CPU 缓解子项按 `security-mitigation-backup.json` 恢复两个 FeatureSettings 值；没有有效快照时拒绝声称已恢复
+- **tweakbyjie.ps1 选项 2**：高级 BCD 项可用 `bcdedit /deletevalue <名称>` 删除（如 `bcdedit /set nx OptIn`、`bcdedit /deletevalue testsigning`）；注册表项可将对应值改回 `0` 或删除；**虚拟化部分（hypervisorlaunchtype / vsmlaunchtype / isolatedcontext + Device Guard 注册表 + Hyper-V 功能）可用选项 10 管理，但恢复不是原始状态精确回滚**
 - **tweakbyjie.ps1 选项 5**：策略禁用和删除类分支没有统一的自动原始状态回滚；需手动删除禁用策略、恢复服务/计划任务并检查 SecHealthUI。
 - **tweakbyjie.ps1 选项 6**：子选项 2 按 `service-backup.json` 恢复目标服务原始启动类型，原本不存在的服务跳过，运行状态不强制恢复
 - **tweakbyjie.ps1 选项 9**：子选项 2 可删除一次性引导项并卸载 EFI 盘符；EFI 变量清除后如需恢复 Device Guard，可在 Windows 安全中心 → 内核隔离 中重新开启内存完整性（需硬件支持）

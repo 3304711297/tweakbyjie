@@ -3,18 +3,18 @@
 # ActivationType is handled separately because the key may be protected.
 #
 # 菜单 / Menu:
-#   输入 1 回车 = 核心游戏 / 系统性能优化（不修改 Hyper-V/VBS/高级 BCD/MPO），执行后返回主菜单
+#   输入 1 回车 = 核心性能分层菜单：核心游戏 / 系统行为 / CPU 安全缓解
 #   输入 2 回车 = 高级 BCD / 计时器与启动安全（独立配置，修改前备份）
 #   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks）
 #   输入 4 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks）
 #   输入 5 回车 = 关闭安全中心（禁用 Windows Defender / SmartScreen 策略，可选删除类优化）
-#   输入 6 回车 = 服务优化（A/B 功能依赖分组，Xbox/蓝牙/嵌入模式/BITS 改为手动）
+#   输入 6 回车 = 服务优化（A/B 功能依赖分组，支持快照恢复）
 #   输入 7 回车 = 超性能电源计划（备份并应用 / 恢复备份）
-#   输入 8 回车 = 原生 NVMe 驱动配置
+#   输入 8 回车 = 原生 NVMe 驱动配置（含 SafeBoot 快照）
 #   输入 9 回车 = 清除 Device Guard EFI 锁定（SecConfig.efi 流程）
-#   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（独立配置）
+#   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（删除脚本覆盖并尝试启用）
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
-#   修改完成后不会逐项自动重启；脚本会进入待重启状态，可连续执行多个模块后统一重启。
+#   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -361,24 +361,158 @@ $script:moduleFailBaseline = 0
 $script:bcdBackupFile = Join-Path $PSScriptRoot 'bcd-backup.json'
 $script:bcdManagedValues = @('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy','nx','tpmbootentropy','nointegritychecks')
 $script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'
+$script:securityMitigationBackupFile = Join-Path $PSScriptRoot 'security-mitigation-backup.json'
+$script:securityMitigationValues = @(
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverride' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverrideMask' }
+)
+$script:nvmeBackupFile = Join-Path $PSScriptRoot 'nvme-backup.json'
+
+function Get-SecurityMitigationSnapshot {
+    param([hashtable]$Definition)
+    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
+    if (-not $present) { return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null } }
+    if ($item.GetValueKind($Definition.Name).ToString() -ne 'DWord') { throw "$($Definition.Name) 不是 DWORD" }
+    [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $true; Value = [uint32]$item.GetValue($Definition.Name) }
+}
+
+function Test-SecurityMitigationBackupSchema {
+    param([object]$Backup)
+    if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    $records = @($Backup.Values)
+    $expected = @($script:securityMitigationValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    $actual = @($records | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    if ($records.Count -ne $expected.Count -or @($actual | Sort-Object -Unique).Count -ne $expected.Count) { return $false }
+    if (@($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
+    foreach ($r in $records) {
+        if ($null -eq $r.Present -or $r.Present -isnot [bool]) { return $false }
+        if ([bool]$r.Present) { try { if ([uint64]$r.Value -gt 0xFFFFFFFF) { return $false } } catch { return $false } }
+        elseif ($null -ne $r.Value) { return $false }
+    }
+    return $true
+}
+
+function Ensure-SecurityMitigationBackup {
+    try {
+        if (Test-Path $script:securityMitigationBackupFile) {
+            $backup = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw 'security-mitigation-backup.json 结构不正确' }
+            return $true
+        }
+        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @($script:securityMitigationValues | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
+        if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw '生成的安全缓解备份未通过结构校验' }
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:securityMitigationBackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-SecurityMitigationBackupSchema $check)) { throw '写入后的安全缓解备份校验失败' }
+        Write-Host "[OK] CPU 安全缓解原始状态已备份：$script:securityMitigationBackupFile" -ForegroundColor Green
+        return $true
+    } catch { Write-Host "[FAIL] CPU 安全缓解备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
+}
+
+function Restore-SecurityMitigationBackup {
+    if (-not (Test-Path $script:securityMitigationBackupFile)) { Write-Host '[FAIL] 未找到 security-mitigation-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
+    try {
+        $backup = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw 'security-mitigation-backup.json 结构不正确' }
+        $allOk = $true
+        foreach ($r in @($backup.Values)) {
+            $before = $script:fail
+            if ([bool]$r.Present) { Set-RegDword $r.Path $r.Name ([uint32]$r.Value) ("恢复 " + $r.Name) }
+            else { Remove-RegDwordValue $r.Path $r.Name ("删除 " + $r.Name + "（恢复原始未设置状态）") }
+            if ($script:fail -gt $before) { $allOk = $false }
+        }
+        if ($allOk) { Write-Host '[OK] CPU 安全缓解已按修改前快照恢复。' -ForegroundColor Green }
+        return $allOk
+    } catch { Write-Host "[FAIL] CPU 安全缓解恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
+}
+
+function Test-NvmeBackupSchema {
+    param([object]$Backup)
+    if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    $records = @($Backup.Values)
+    if ($records.Count -ne 2) { return $false }
+    $expected = @('Minimal','Network')
+    $actual = @($records | ForEach-Object { [string]$_.Mode })
+    if (@($actual | Sort-Object -Unique).Count -ne 2 -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
+    foreach ($r in $records) {
+        if ($null -eq $r.Present) { return $false }
+        if ([bool]$r.Present -and ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data)) { return $false }
+        if (-not [bool]$r.Present -and ($null -ne $r.Kind -or $null -ne $r.Data)) { return $false }
+    }
+    return $true
+}
+
+function Get-NvmeSafeBootSnapshot {
+    param([string]$Guid)
+    foreach ($mode in @('Minimal','Network')) {
+        $path = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$Guid"
+        $item = Get-Item $path -ErrorAction SilentlyContinue
+        if ($item -and ($item.GetValueNames() -contains '')) {
+            $kind = $item.GetValueKind('').ToString()
+            $value = $item.GetValue('')
+            [pscustomobject]@{ Mode = $mode; Path = $path; Present = $true; Kind = $kind; Data = [string]$value }
+        } else {
+            [pscustomobject]@{ Mode = $mode; Path = $path; Present = $false; Kind = $null; Data = $null }
+        }
+    }
+}
+
+function Ensure-NvmeBackup {
+    param([string]$Guid)
+    try {
+        if (Test-Path $script:nvmeBackupFile) {
+            $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确' }
+            return $true
+        }
+        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @(Get-NvmeSafeBootSnapshot $Guid) }
+        if (-not (Test-NvmeBackupSchema $backup)) { throw '生成的 NVMe 备份未通过结构校验' }
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:nvmeBackupFile -Encoding UTF8 -ErrorAction Stop
+        Write-Host "[OK] NVMe SafeBoot 原始状态已备份：$script:nvmeBackupFile" -ForegroundColor Green
+        return $true
+    } catch { Write-Host "[FAIL] NVMe SafeBoot 备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
+}
+
+function Restore-NvmeSafeBootBackup {
+    param([string]$Guid)
+    if (-not (Test-Path $script:nvmeBackupFile)) { Write-Host '[FAIL] 未找到 nvme-backup.json，无法精确恢复 SafeBoot' -ForegroundColor Red; $script:fail++; return $false }
+    try {
+        $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确' }
+        $allOk = $true
+        foreach ($r in @($backup.Values)) {
+            $regPath = Convert-RegExePath $r.Path
+            if ([bool]$r.Present) {
+                & reg.exe ADD $regPath /ve /t REG_SZ /d ([string]$r.Data) /f *> $null
+                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true }
+            } else {
+                & reg.exe DELETE $regPath /ve /f *> $null
+                if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ }
+            }
+        }
+        if ($allOk) { Write-Host '[OK] NVMe SafeBoot 已按原始快照处理。' -ForegroundColor Green }
+        return $allOk
+    } catch { Write-Host "[FAIL] NVMe SafeBoot 恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
+}
 
 function Request-Restart {
-    param([int]$FailBaseline = $script:moduleFailBaseline)
     if (-not $script:rebootRequired) { return }
-    $newFailures = $script:fail -gt $FailBaseline
-    Write-Host ""
-    Write-Host "[重启待处理] 本次会话存在需要重启后生效的修改。" -ForegroundColor Yellow
-    if ($newFailures) {
-        Write-Host "[已阻止] 当前模块存在失败或验证失败，默认不允许重启；请修复后手动重启。" -ForegroundColor Red
-        return
-    }
-    $r = Read-Host "现在重启吗？输入 Y 立即重启；输入 N 返回主菜单"
+    Write-Host '[待重启] 当前模块产生了需要重启后生效的修改；本模块不会单独触发重启。' -ForegroundColor Yellow
+    Write-Host '         可继续执行其他模块，退出主菜单时统一决定是否重启。' -ForegroundColor Yellow
+}
+
+function Invoke-FinalRestartPrompt {
+    if (-not $script:rebootRequired) { Write-Host '[完成] 当前会话没有待重启修改。' -ForegroundColor Green; return }
+    Write-Host ''; Write-Host '============================================================' -ForegroundColor Cyan
+    Write-Host ' 本次会话存在待重启修改 / Restart Pending' -ForegroundColor Yellow
+    if ($script:fail -gt 0) { Write-Host " [警告] 本次会话存在 $($script:fail) 个失败或验证失败项；重启不会自动解决失败项。" -ForegroundColor Red }
+    $r = Read-Host '退出前现在重启吗？输入 Y 立即重启；输入 N 返回系统（默认 N）'
     if ($r -match '^[Yy]$') {
-        Write-Host "[重启] 立即重启 / Restarting now..." -ForegroundColor Red
+        if ($script:fail -gt 0) { $confirm = Read-Host '检测到失败/验证失败，仍要重启吗？输入 Y 确认；其他键取消'; if ($confirm -notmatch '^[Yy]$') { Write-Host '[取消] 已取消重启。' -ForegroundColor Yellow; return } }
+        Write-Host '[重启] 立即重启 / Restarting now...' -ForegroundColor Red
         Restart-Computer -Force
-    } else {
-        Write-Host "[返回] 本次不重启。可继续执行其他模块，最后统一重启。" -ForegroundColor Green
-    }
+    } else { Write-Host '[结束] 本次不重启；待重启设置仍会保留。' -ForegroundColor Green }
 }
 
 function Test-BcdBackupSchema {
@@ -520,7 +654,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 Write-Host " 请选择执行模式 / Select an option:" -ForegroundColor Cyan
 Write-Host "   0. 退出 / Exit" -ForegroundColor White
-Write-Host "   1. 核心游戏 / 系统性能优化（不修改 Hyper-V/VBS/高级 BCD/MPO）" -ForegroundColor White
+Write-Host "   1. 核心游戏 / 系统性能优化（内部可分为核心游戏、系统行为、CPU 缓解）" -ForegroundColor White
 Write-Host "   2. 高级 BCD / 计时器与启动安全（独立执行）" -ForegroundColor White
 Write-Host "   3. 开启测试模式" -ForegroundColor White
 Write-Host "   4. 关闭测试模式（保留 nointegritychecks）" -ForegroundColor White
@@ -539,191 +673,166 @@ while ($true) {
 $choice = Read-Host "请输入 0-11 并回车 (Enter 0-11)"
 
 if ($choice -eq "0") {
-    if ($script:rebootRequired) {
-        Write-Host "[提示] 当前会话仍有待重启修改；退出前请手动重启以使设置生效。" -ForegroundColor Yellow
-    }
+    Invoke-FinalRestartPrompt
     break
 
 } elseif ($choice -eq "1") {
 
     $script:moduleFailBaseline = $fail
-    # ======================= Part 1: Core Game / System Optimization =======================
-    Write-Host ""
-    Write-Host "============ [Part 1] Core Game / System Optimization ============" -ForegroundColor Cyan
-    Write-Host ""
+    Write-Host ""; Write-Host "============ [Part 1] 核心游戏 / 系统性能优化 ============" -ForegroundColor Cyan; Write-Host ""
+    Write-Host "  1. 核心游戏优化（GameDVR / GameBar / Multimedia / Win32PrioritySeparation / HAGS / Games Task / Game Mode / ActivationType）" -ForegroundColor White
+    Write-Host "  2. 系统行为优化（Search / Prefetch / Memory Compression / NTFS 8.3 / TRIM / Visual Effects）" -ForegroundColor White
+    Write-Host "  3. CPU 安全缓解调整（FeatureSettingsOverride / Mask；修改前自动备份，可恢复）" -ForegroundColor Yellow
+    Write-Host "  0. 返回主菜单" -ForegroundColor White
+    $coreChoice = Read-Host "请输入 0、1、2 或 3 并回车"
 
-    # 01 GameDVR
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled" 0 "AppCaptureEnabled"
-    Set-RegDword "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0 "GameDVR_Enabled"
+    if ($coreChoice -eq '1') {
+        # 01 GameDVR
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled" 0 "AppCaptureEnabled"
+        Set-RegDword "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0 "GameDVR_Enabled"
 
-    # 02 ActivationType - mandatory.
-    $activationReg = 'HKLM\SOFTWARE\Microsoft\WindowsRuntime\ActivatableClassId\Windows.Gaming.Gamebar.PresenceServer.Internal.PresenceWriter'
-    $taskName = $null
-    try {
-        & reg.exe ADD $activationReg /v ActivationType /t REG_DWORD /d 0x00000000 /f *> $null
-        if ($LASTEXITCODE -ne 0) { throw "Administrator access denied" }
-        Write-Host "[OK] ActivationType = 0"
-        $ok++
-    } catch {
+        # 02 ActivationType - mandatory.
+        $activationReg = 'HKLM\SOFTWARE\Microsoft\WindowsRuntime\ActivatableClassId\Windows.Gaming.Gamebar.PresenceServer.Internal.PresenceWriter'
+        $taskName = $null
         try {
-            $taskName = "WindowsGameOpt_ActivationType_" + [guid]::NewGuid().ToString("N")
-            $cmd = 'reg.exe ADD "' + $activationReg + '" /v ActivationType /t REG_DWORD /d 0x00000000 /f'
-            $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c $cmd"
-            $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-            Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
-            Start-ScheduledTask -TaskName $taskName
-            Start-Sleep -Seconds 2
-            $check = & reg.exe QUERY $activationReg /v ActivationType 2>$null
-            if ($check -match '0x0+\s*$') {
-                Write-Host "[OK] ActivationType = 0 (SYSTEM)"
-                $ok++
-            } else {
-                throw "SYSTEM retry did not verify ActivationType=0"
-            }
-        } catch {
-            Write-Host "[FAIL] ActivationType = 0 : protected registry key rejected the change" -ForegroundColor Red
-            Write-Host " Other optimizations will continue." -ForegroundColor Yellow
-            $fail++
-        } finally {
-            if ($taskName) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue }
-        }
-    }
-
-    # 03 GameBar
-    Set-RegDword "HKCU:\Software\Microsoft\GameBar" "UseNexusForGameBarEnabled" 0 "UseNexusForGameBarEnabled"
-
-    # 04 Multimedia
-    Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" "0xFFFFFFFF" "NetworkThrottlingIndex"
-    Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness" 10 "SystemResponsiveness"
-
-    # 05 CPU priority
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation (0x26)"
-
-    # 06 Search
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0 "BingSearchEnabled"
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "AllowSearchToUseLocation" 0 "AllowSearchToUseLocation"
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent" 0 "CortanaConsent"
-
-    # 07 Meltdown / Spectre
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3 "FeatureSettingsOverride"
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask"
-
-    # 08 HAGS
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
-
-    # 09 Games task
-    $games = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
-    Set-RegDword $games "Affinity" 0 "Games Affinity"
-    Set-RegString $games "Background Only" "False" "Games Background Only"
-    Set-RegDword $games "Clock Rate" 10000 "Games Clock Rate"
-    Set-RegDword $games "GPU Priority" 8 "Games GPU Priority"
-    Set-RegDword $games "Priority" 6 "Games Priority"
-    Set-RegString $games "Scheduling Category" "High" "Games Scheduling Category"
-    Set-RegString $games "SFIO Priority" "High" "Games SFIO Priority"
-
-    # 10 Prefetch
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
-
-    # 11 NTFS
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation" 1 "NtfsDisable8dot3NameCreation"
-
-    # 12 Game Mode
-    Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled" 0 "AutoGameModeEnabled"
-    Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode"
-
-    # 13 Memory Compression
-    Write-Host ""
-    Write-Host "[Memory Compression]" -ForegroundColor Cyan
-    try {
-        Disable-MMAgent -mc -ErrorAction Stop
-        Write-Host "[OK] Memory Compression disabled"
-        $ok++
-    } catch {
-        Write-Host "[FAIL] Memory Compression : $($_.Exception.Message)" -ForegroundColor Red
-        $fail++
-    }
-
-    # 14 TRIM
-    Write-Host ""
-    Write-Host "[TRIM]" -ForegroundColor Cyan
-    try {
-        $trimOut = fsutil.exe behavior set DisableDeleteNotify 0 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "[OK] NTFS TRIM enabled"
+            & reg.exe ADD $activationReg /v ActivationType /t REG_DWORD /d 0x00000000 /f *> $null
+            if ($LASTEXITCODE -ne 0) { throw "Administrator access denied" }
+            Write-Host "[OK] ActivationType = 0"
             $ok++
-        } else {
-            Write-Host "[FAIL] TRIM : fsutil exit code $LASTEXITCODE" -ForegroundColor Red
-            if ($trimOut) { Write-Host ($trimOut -join [Environment]::NewLine) -ForegroundColor DarkYellow }
-            $fail++
+            $script:rebootRequired = $true
+        } catch {
+            try {
+                $taskName = "WindowsGameOpt_ActivationType_" + [guid]::NewGuid().ToString("N")
+                $cmd = 'reg.exe ADD "' + $activationReg + '" /v ActivationType /t REG_DWORD /d 0x00000000 /f'
+                $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c $cmd"
+                $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+                Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+                Start-ScheduledTask -TaskName $taskName
+                Start-Sleep -Seconds 2
+                $check = & reg.exe QUERY $activationReg /v ActivationType 2>$null
+                if ($check -match '0x0+\s*$') {
+                    Write-Host "[OK] ActivationType = 0 (SYSTEM)"
+                    $ok++
+                    $script:rebootRequired = $true
+                } else { throw "SYSTEM retry did not verify ActivationType=0" }
+            } catch {
+                Write-Host "[FAIL] ActivationType = 0 : protected registry key rejected the change" -ForegroundColor Red
+                Write-Host " Other core optimizations will continue." -ForegroundColor Yellow
+                $fail++
+            } finally {
+                if ($taskName) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue }
+            }
         }
-    } catch {
-        Write-Host "[FAIL] TRIM : $($_.Exception.Message)" -ForegroundColor Red
-        $fail++
+
+        # 03 GameBar
+        Set-RegDword "HKCU:\Software\Microsoft\GameBar" "UseNexusForGameBarEnabled" 0 "UseNexusForGameBarEnabled"
+        # 04 Multimedia
+        Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" "0xFFFFFFFF" "NetworkThrottlingIndex"
+        Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness" 10 "SystemResponsiveness"
+        # 05 CPU priority
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation (0x26)"
+        # 08 HAGS
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
+        # 09 Games task
+        $games = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
+        Set-RegDword $games "Affinity" 0 "Games Affinity"
+        Set-RegString $games "Background Only" "False" "Games Background Only"
+        Set-RegDword $games "Clock Rate" 10000 "Games Clock Rate"
+        Set-RegDword $games "GPU Priority" 8 "Games GPU Priority"
+        Set-RegDword $games "Priority" 6 "Games Priority"
+        Set-RegString $games "Scheduling Category" "High" "Games Scheduling Category"
+        Set-RegString $games "SFIO Priority" "High" "Games SFIO Priority"
+        # 12 Game Mode
+        Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled" 0 "AutoGameModeEnabled"
+        Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode"
+
+        Write-Host ""; Write-Host "[Post-Apply Verification / 核心游戏优化验证]" -ForegroundColor Cyan
+        Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation" | Out-Null
+        Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS" | Out-Null
+
+    } elseif ($coreChoice -eq '2') {
+        # 06 Search
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0 "BingSearchEnabled"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "AllowSearchToUseLocation" 0 "AllowSearchToUseLocation"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent" 0 "CortanaConsent"
+        # 10 Prefetch
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
+        # 11 NTFS
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation" 1 "NtfsDisable8dot3NameCreation"
+        # 13 Memory Compression
+        Write-Host ""; Write-Host "[Memory Compression]" -ForegroundColor Cyan
+        try { Disable-MMAgent -mc -ErrorAction Stop; Write-Host "[OK] Memory Compression disabled"; $ok++; $script:rebootRequired=$true }
+        catch { Write-Host "[FAIL] Memory Compression : $($_.Exception.Message)" -ForegroundColor Red; $fail++ }
+        # 14 TRIM
+        Write-Host ""; Write-Host "[TRIM]" -ForegroundColor Cyan
+        try {
+            $trimOut = fsutil.exe behavior set DisableDeleteNotify 0 2>&1
+            if ($LASTEXITCODE -eq 0) { Write-Host "[OK] NTFS TRIM enabled"; $ok++ }
+            else { Write-Host "[FAIL] TRIM : fsutil exit code $LASTEXITCODE" -ForegroundColor Red; if($trimOut){Write-Host ($trimOut -join [Environment]::NewLine) -ForegroundColor DarkYellow}; $fail++ }
+        } catch { Write-Host "[FAIL] TRIM : $($_.Exception.Message)" -ForegroundColor Red; $fail++ }
+
+        # Visual Effects
+        Write-Host ""; Write-Host "[Visual Effects 自定义 / Custom]" -ForegroundColor Cyan
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 3 "VisualFXSetting = 3 (自定义)"
+        Set-RegString "HKCU:\Control Panel\Desktop" "FontSmoothing" "2" "平滑屏幕字体边缘 ON"
+        Set-RegDword "HKCU:\Control Panel\Desktop" "FontSmoothingType" 2 "Font Smoothing = ClearType"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarAnimations" 1 "任务栏动画 ON"
+        Set-RegBinary "HKCU:\Control Panel\Desktop" "UserPreferencesMask" "9012018010000000" "动画/淡入淡出/阴影全关"
+        Set-RegString "HKCU:\Control Panel\Desktop\WindowMetrics" "MinAnimate" "0" "最大/最小化动画 OFF"
+        Set-RegString "HKCU:\Control Panel\Desktop" "DragFullWindows" "0" "拖动显示窗口内容 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewAlphaSelect" 0 "半透明选择框 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewShadow" 0 "图标标签阴影 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "IconsOnly" 1 "缩略图 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\DWM" "AlwaysHibernateThumbnails" 0 "任务栏缩略图缓存 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" 0 "透明效果 OFF"
+        Set-RegDword "HKCU:\Control Panel\Accessibility" "DynamicScrollbars" 1 "始终显示滚动条 OFF"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "AnimationEffects" 0 "动画效果(辅助功能) OFF"
+        Set-RegDword "HKCU:\Control Panel\Accessibility" "MessageDuration" 5 "通知自动关闭时长 = 5 秒"
+        $script:rebootRequired = $true
+        Write-Host "视觉效果为 HKCU 设置，注销 / 重启（或重启资源管理器）后完全生效" -ForegroundColor Yellow
+
+        Write-Host ""; Write-Host "[Post-Apply Verification / 系统行为优化验证]" -ForegroundColor Cyan
+        Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher" | Out-Null
+        Verify-MemoryCompressionDisabled | Out-Null
+        Verify-TrimEnabled | Out-Null
+
+    } elseif ($coreChoice -eq '3') {
+        Write-Host ""; Write-Host "[CPU 安全缓解调整 / Meltdown-Spectre Mitigation]" -ForegroundColor Yellow
+        Write-Host "目标值 FeatureSettingsOverride=3 / FeatureSettingsOverrideMask=3 会关闭相关缓解；仅在明确了解安全影响时使用。" -ForegroundColor Yellow
+        Write-Host "  1. 查看当前值" -ForegroundColor White
+        Write-Host "  2. 应用 3 / 3（修改前自动备份）" -ForegroundColor Yellow
+        Write-Host "  3. 按备份恢复" -ForegroundColor White
+        $mChoice = Read-Host "请输入 1、2 或 3 并回车"
+        $mmPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+        if ($mChoice -eq '1') {
+            $item=Get-Item $mmPath -ErrorAction SilentlyContinue
+            foreach($n in @('FeatureSettingsOverride','FeatureSettingsOverrideMask')){
+                if($item -and ($item.GetValueNames()-contains $n)){Write-Host ("{0} = {1}" -f $n,$item.GetValue($n))}else{Write-Host ("{0} = <未设置（系统默认）>" -f $n)}}
+        } elseif ($mChoice -eq '2') {
+            if (Ensure-SecurityMitigationBackup) {
+                Set-RegDword $mmPath "FeatureSettingsOverride" 3 "FeatureSettingsOverride = 3"
+                Set-RegDword $mmPath "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask = 3"
+                Verify-RegDword $mmPath "FeatureSettingsOverride" 3 "FeatureSettingsOverride" | Out-Null
+                Verify-RegDword $mmPath "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask" | Out-Null
+            }
+        } elseif ($mChoice -eq '3') {
+            Restore-SecurityMitigationBackup
+        } else { Write-Host "[ERROR] 无效输入：$mChoice 。" -ForegroundColor Red }
+    } elseif ($coreChoice -eq '0') {
+        Write-Host "[返回] 已返回主菜单。" -ForegroundColor Green
+    } else {
+        Write-Host "[ERROR] 无效输入：$coreChoice 。请输入 0、1、2 或 3" -ForegroundColor Red
     }
 
-    # 15 Visual Effects（性能选项-视觉效果-自定义：仅开启平滑屏幕字体边缘 + 任务栏动画；
-    #     另含「设置-辅助功能-视觉效果」四项：始终显示滚动条关 / 透明效果关 / 动画效果关 / 关闭通知 5 秒）
-    Write-Host ""
-    Write-Host "[Visual Effects 自定义 / Custom]" -ForegroundColor Cyan
-
-    # 总开关：3 = 自定义（对话框按以下各项值显示勾选状态）
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "VisualFXSetting" 3 "VisualFXSetting = 3 (自定义)"
-
-    # ---- 开启项 ----
-    # 平滑屏幕字体边缘（ClearType）
-    Set-RegString "HKCU:\Control Panel\Desktop" "FontSmoothing" "2" "平滑屏幕字体边缘 ON"
-    Set-RegDword "HKCU:\Control Panel\Desktop" "FontSmoothingType" 2 "Font Smoothing = ClearType"
-    # 任务栏中的动画
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "TaskbarAnimations" 1 "任务栏动画 ON"
-
-    # ---- 关闭项 ----
-    # 菜单/组合框/列表框/工具提示动画、单击后淡出菜单、指针阴影、窗口下阴影（最佳性能位掩码）
-    Set-RegBinary "HKCU:\Control Panel\Desktop" "UserPreferencesMask" "9012018010000000" "动画/淡入淡出/阴影全关"
-    # 在最大化/最小化时显示窗口动画
-    Set-RegString "HKCU:\Control Panel\Desktop\WindowMetrics" "MinAnimate" "0" "最大/最小化动画 OFF"
-    # 拖动时显示窗口内容
-    Set-RegString "HKCU:\Control Panel\Desktop" "DragFullWindows" "0" "拖动显示窗口内容 OFF"
-    # 显示亚透明的选择长方形
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewAlphaSelect" 0 "半透明选择框 OFF"
-    # 在桌面上为图标标签使用阴影
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "ListviewShadow" 0 "图标标签阴影 OFF"
-    # 显示缩略图而不是图标（IconsOnly=1 表示只显示图标）
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "IconsOnly" 1 "缩略图 OFF"
-    # 保存任务栏缩略图预览（不写入缓存）
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\DWM" "AlwaysHibernateThumbnails" 0 "任务栏缩略图缓存 OFF"
-    # 透明效果（如需保留透明改为 1）
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" "EnableTransparency" 0 "透明效果 OFF"
-
-    # ---- 设置 → 辅助功能 → 视觉效果（四项，透明效果已由上面 EnableTransparency 覆盖）----
-    # 始终显示滚动条 = 关（DynamicScrollbars: 1=自动隐藏, 0=始终显示）
-    Set-RegDword "HKCU:\Control Panel\Accessibility" "DynamicScrollbars" 1 "始终显示滚动条 OFF"
-    # 动画效果 = 关
-    Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "AnimationEffects" 0 "动画效果(辅助功能) OFF"
-    # 在此时间后关闭通知 = 5 秒
-    Set-RegDword "HKCU:\Control Panel\Accessibility" "MessageDuration" 5 "通知自动关闭时长 = 5 秒"
-
-    Write-Host " 视觉效果为 HKCU 设置，注销 / 重启（或重启资源管理器）后完全生效" -ForegroundColor Yellow
-
-    Write-Host ""
-    Write-Host "[Post-Apply Verification / 执行后关键项验证]" -ForegroundColor Cyan
-    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation" | Out-Null
-    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3 "FeatureSettingsOverride" | Out-Null
-    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask" | Out-Null
-    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS" | Out-Null
-    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher" | Out-Null
-    Verify-MemoryCompressionDisabled | Out-Null
-    Verify-TrimEnabled | Out-Null
-
-    # Summary
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 1 - Core Game / System Optimization)" -ForegroundColor Cyan
-    Write-Host " OK : $ok" -ForegroundColor Green
-    Write-Host " FAIL : $fail" -ForegroundColor Red
-    Write-Host " SKIP : $skip" -ForegroundColor Yellow
-    Write-Host "============================================================" -ForegroundColor Cyan
-
-    Request-Restart
+    if ($coreChoice -ne '0') {
+        Write-Host ""; Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host " Finished (Part 1 - Core / System Optimization)" -ForegroundColor Cyan
+        Write-Host " OK : $ok" -ForegroundColor Green
+        Write-Host " FAIL : $fail" -ForegroundColor Red
+        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Request-Restart
+    }
 
 } elseif ($choice -eq "2") {
     $script:moduleFailBaseline = $fail
@@ -1446,31 +1555,29 @@ if ($choice -eq "0") {
 
             if (-not $proceed) {
                 Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
+            } elseif (-not (Ensure-NvmeBackup $sbGuid)) {
+                Write-Host "[ABORTED] NVMe SafeBoot 备份不可用，未修改覆盖值" -ForegroundColor Red
             } else {
                 # 三个 Velocity 功能覆盖值（启用 nvmedisk.sys 灰度功能）
                 $velocityFailBaseline = $fail
-                foreach ($vid in $velocityIds) {
-                    Set-RegDword $fmPath $vid 1 "Velocity $vid"
-                }
-                if ($fail -gt $velocityFailBaseline) {
-                    Write-Host "[FAIL] 至少一个 Velocity 覆盖值写入失败，停止后续 SafeBoot 加固和重启标记" -ForegroundColor Red
-                }
-
-                # 安全模式加固：将 nvmedisk 设备类加入安全模式加载列表
-                if ($fail -eq $velocityFailBaseline) {
-                foreach ($mode in @('Minimal', 'Network')) {
-                    $sbReg = Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
-                    & reg.exe ADD $sbReg /ve /d "Storage Disks" /f *> $null
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "[OK] SafeBoot $mode 加固 = Storage Disks"
-                        $script:ok++
-                        $script:rebootRequired = $true
-                    } else {
-                        Write-Host ("[FAIL] SafeBoot $mode 加固 : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red
-                        $script:fail++
+                foreach ($vid in $velocityIds) { Set-RegDword $fmPath $vid 1 "Velocity $vid" }
+                $safeBootOk = $true
+                if ($fail -gt $velocityFailBaseline) { $safeBootOk = $false }
+                if ($safeBootOk) {
+                    foreach ($mode in @('Minimal', 'Network')) {
+                        $sbReg = Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
+                        & reg.exe ADD $sbReg /ve /d "Storage Disks" /f *> $null
+                        if ($LASTEXITCODE -eq 0) { Write-Host "[OK] SafeBoot $mode 加固 = Storage Disks"; $script:ok++ }
+                        else { Write-Host ("[FAIL] SafeBoot $mode 加固 : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red; $script:fail++; $safeBootOk = $false }
                     }
                 }
-                }
+                if (-not $safeBootOk) {
+                    Write-Host '[FAIL] NVMe 启用未完整完成，回滚本轮已写入的 Velocity 覆盖值和 SafeBoot 加固' -ForegroundColor Red
+                    $fmRegRollback = Convert-RegExePath $fmPath
+                    foreach ($vid in $velocityIds) { & reg.exe DELETE $fmRegRollback /v $vid /f *> $null }
+                    & reg.exe DELETE (Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\$sbGuid") /ve /f *> $null
+                    & reg.exe DELETE (Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\$sbGuid") /ve /f *> $null
+                } else { $script:rebootRequired = $true }
 
                 # Summary
                 Write-Host ""
@@ -1480,10 +1587,9 @@ if ($choice -eq "0") {
                 Write-Host " FAIL : $fail" -ForegroundColor Red
                 Write-Host "============================================================" -ForegroundColor Cyan
                 Write-Host ""
-                Write-Host "重启后生效。可在 设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 确认驱动文件为 nvmedisk.sys" -ForegroundColor Yellow
+                Write-Host "配置写入后需重启；可在设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序确认 nvmedisk.sys 是否实际运行" -ForegroundColor Yellow
                 Write-Host "如需还原，再次运行本脚本并选择 8 -> 2。" -ForegroundColor Yellow
 
-                # Auto restart in 5 seconds (press Q to cancel)
                 Request-Restart
             }
 
@@ -1494,19 +1600,13 @@ if ($choice -eq "0") {
             foreach ($vid in $velocityIds) {
                 if ($fmItem -and ($fmItem.GetValueNames() -contains $vid)) {
                     & reg.exe DELETE $fmReg /v $vid /f *> $null
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "[OK] 已删除 Velocity $vid"
-                        $script:ok++
-                    } else {
-                        Write-Host ("[FAIL] 删除 Velocity $vid : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red
-                        $script:fail++
-                    }
-                } else {
-                    Write-Host "[SKIP] Velocity $vid 不存在（无需删除）" -ForegroundColor Yellow
-                    $script:skip++
-                }
+                    if ($LASTEXITCODE -eq 0) { Write-Host "[OK] 已删除 Velocity $vid"; $script:ok++; $script:rebootRequired = $true }
+                    else { Write-Host ("[FAIL] 删除 Velocity $vid : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red; $script:fail++ }
+                } else { Write-Host "[SKIP] Velocity $vid 不存在（无需删除）" -ForegroundColor Yellow; $script:skip++ }
             }
-                Write-Host "安全模式加固项不会自动删除；它会改变安全模式下的存储驱动加载行为。" -ForegroundColor Yellow
+            if (Test-Path $script:nvmeBackupFile) { Restore-NvmeSafeBootBackup $sbGuid | Out-Null }
+            else { Write-Host "[WARN] 未找到 nvme-backup.json，SafeBoot 加固项保持不变" -ForegroundColor Yellow }
+
 
             # Summary
             Write-Host ""
@@ -1518,7 +1618,6 @@ if ($choice -eq "0") {
             Write-Host ""
             Write-Host "重启后恢复为系统默认磁盘驱动 (disk.sys)" -ForegroundColor Yellow
 
-            # Auto restart in 5 seconds (press Q to cancel)
             Request-Restart
 
         } else {
@@ -1669,8 +1768,7 @@ if ($choice -eq "0") {
                                 Write-Host " 重启开机会出现确认界面，请按屏幕提示按键（通常为 F3）确认禁用！" -ForegroundColor Yellow
                                 Write-Host " 重启确认后可用 msinfo32 -> 系统摘要 -> 基于虚拟化的安全性 验证是否已关闭。" -ForegroundColor Yellow
 
-                                # Auto restart in 5 seconds (press Q to cancel)
-                                Request-Restart
+                                                    Request-Restart
                             } else {
                                 Write-Host ""
                                 Write-Host "[提示] EFI 一次性引导配置未完成，未设置待重启状态" -ForegroundColor Yellow
@@ -1746,7 +1844,7 @@ if ($choice -eq "0") {
     $script:moduleFailBaseline = $fail
     Write-Host ""; Write-Host "============ [Part 10] 虚拟化 / VBS / Hyper-V 管理 ============" -ForegroundColor Cyan; Write-Host ""
     $dgRegValues=@(@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity';Name='Enabled'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\LSA';Name='LsaCfgFlags'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='RequirePlatformSecurityFeatures'})
-    Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 恢复虚拟化默认状态 + 尝试启用 Hyper-V"
+    Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）"
     $vChoice=Read-Host "请输入 0、1 或 2 并回车"
     if($vChoice -eq '0'){
         $bcEnum=(& bcdedit.exe /enum '{current}' 2>$null)-join "`n";foreach($n in @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')){if($bcEnum -match ('(?m)^\s*'+[regex]::Escape($n)+'\s+(\S+)')){Write-Host ("bcdedit {0,-24} = {1}"-f $n,$Matches[1])}else{Write-Host ("bcdedit {0,-24} = <未设置（系统默认）>"-f $n)}};foreach($v in $dgRegValues){$item=Get-Item $v.Path -ErrorAction SilentlyContinue;if($item -and ($item.GetValueNames()-contains $v.Name)){Write-Host ("注册表 {0} -> {1} = {2}"-f $v.Path,$v.Name,$item.GetValue($v.Name))}};foreach($fn in @('Microsoft-Hyper-V-All','VirtualMachinePlatform','HypervisorPlatform')){$f=Get-WindowsOptionalFeature -Online -FeatureName $fn -ErrorAction SilentlyContinue;if($f){Write-Host ("功能 {0,-26} = {1}"-f $fn,$f.State)}};$cs=Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue;if($cs){Write-Host ("运行时 HypervisorPresent = {0}"-f $cs.HypervisorPresent)}
@@ -1808,7 +1906,7 @@ if ($choice -eq "0") {
 
         Write-Host ""
         if ($mpoAny) {
-            Write-Host "结论：存在手动 MPO 设置；选 10 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
+            Write-Host "结论：存在手动 MPO 设置；选 11 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
         } else {
             Write-Host "结论：MPO 全部为系统默认状态（未做任何修改）" -ForegroundColor Green
         }
@@ -1862,9 +1960,8 @@ if ($choice -eq "0") {
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
         Write-Host " 重启后可用 dxdiag -> 保存所有信息 -> 搜索 MPO 作辅助判断；最终请结合实际应用测试" -ForegroundColor Yellow
-        Write-Host " 原始状态备份：$script:mpoBackupFile；选 10 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
+        Write-Host " 原始状态备份：$script:mpoBackupFile；选 11 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
 
-        # Auto restart in 5 seconds (press Q to cancel)
         if ($mpoChanged) { Request-Restart }
 
     } elseif ($mChoice -eq "4") {

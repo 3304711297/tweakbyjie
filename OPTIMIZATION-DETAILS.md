@@ -58,12 +58,16 @@
 | `HKCU:\Software\Microsoft\Windows\CurrentVersion\Search` | AllowSearchToUseLocation | DWORD | 0 | 禁止搜索使用位置信息 |
 | `HKCU:\Software\Microsoft\Windows\CurrentVersion\Search` | CortanaConsent | DWORD | 0 | 关闭 Cortana |
 
-#### 08 Meltdown / Spectre 缓解关闭
+#### CPU 安全缓解调整（选项 1 → 3）
 
-| 注册表路径 | 值名 | 类型 | 值 | 作用 |
+该子项独立管理以下两个 DWORD；查看当前值、应用 `3/3` 或按首次快照恢复：
+
+| 注册表路径 | 值名 | 类型 | 应用值 | 作用 |
 |---|---|---|---|---|
-| `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | FeatureSettingsOverride | DWORD | 3 | 关闭 Meltdown/Spectre 缓解措施 |
-| `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | FeatureSettingsOverrideMask | DWORD | 3 | 关闭缓解措施掩码 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | FeatureSettingsOverride | DWORD | 3 | 调整 Meltdown/Spectre 缓解配置 |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management` | FeatureSettingsOverrideMask | DWORD | 3 | 调整缓解配置掩码 |
+
+首次应用前写入 `security-mitigation-backup.json`，备份校验固定路径、值名、存在性和 DWORD 数据；损坏备份会阻止修改。恢复时按原始存在性删除或写回，只有逐项成功才报告恢复完成。写入/回读验证表示配置层状态，不代表所有 CPU、固件和 Windows 版本的运行时缓解已完全改变。
 
 #### 09 HAGS（硬件加速 GPU 调度）
 
@@ -93,13 +97,15 @@
 |---|---|---|---|---|
 | `HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters` | EnablePrefetcher | DWORD | 0 | 关闭预读取 |
 
+#### MPO 已移至 Part 11
+
+核心选项不再写入 MPO 值；请使用选项 11 的独立排障子菜单。
+
 #### 13 DWM
 
-| 注册表路径 | 值名 | 类型 | 值 | 作用 |
-|---|---|---|---|---|
-| `HKLM:\SOFTWARE\Microsoft\Windows\Dwm` | OverlayTestMode | DWORD | 5 | DWM 层禁用 MPO（叠加测试模式） |
+视觉效果中的 DWM 相关用户设置仍按系统行为子项执行；MPO 注册表值不在核心优化中。
 
-> 独立管理/还原见 **Part 10（选项 10）**。
+> MPO 独立管理/还原见 **Part 11（选项 11）**。
 
 #### 14 NTFS 8.3 短文件名
 
@@ -580,6 +586,8 @@
 
 **子选项 1：启用**
 
+启用前先将 Minimal/Network SafeBoot 默认值写入 `nvme-backup.json`，已有快照不会覆盖。三个 Velocity 覆盖值或 SafeBoot 加固任一步失败时，脚本会回滚本轮已写入项并阻止待重启状态。
+
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
 | `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 735209102 | DWORD | 1 | Velocity 功能覆盖 |
@@ -588,7 +596,7 @@
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：nvmedisk 设备类加入最小安全模式加载列表 |
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：带网络的安全模式加载列表 |
 
-**子选项 2：还原**：删除上述 3 个 Velocity 覆盖值（安全模式加固保留，会改变安全模式下的存储驱动加载行为），重启后 NVMe 磁盘恢复使用 `disk.sys`。
+**子选项 2：还原**：删除上述 3 个 Velocity 覆盖值，并按 `nvme-backup.json` 恢复首次修改前的 Minimal/Network SafeBoot 默认值；没有有效快照时不会声称 SafeBoot 已恢复。配置变更需重启后再确认 NVMe 是否恢复使用 `disk.sys`。
 
 **验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）即已生效。
 
@@ -719,7 +727,7 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 | 3 | **方案 C**：清除 `OverlayTestMode` / `DisableOverlays` / `DisableMPO`，写入 `OverlayMinFPS=0`（社区用于排查 G-Sync/FreeSync 视频卡顿；实际效果取决于系统和驱动） |
 | 4 | **还原**：优先按 `mpo-backup.json` 恢复首次修改前状态；没有备份时才删除全部四个值并恢复系统默认 |
 
-首次执行子选项 1–3 前，脚本会在脚本目录创建 `mpo-backup.json`，已有备份不会覆盖。修改后不会强制倒计时重启；模块结束时询问是否立即重启，输入 N 返回主菜单并保留待重启状态；MPO 设置需重启才生效。备份文件损坏或无法读取时，脚本会阻止新的 MPO 修改。
+首次执行子选项 1–3 前，脚本会在脚本目录创建 `mpo-backup.json`，已有备份不会覆盖。修改后不会强制倒计时重启；模块结束只显示待重启提示，退出主菜单时统一询问；MPO 设置需重启才生效。备份文件损坏或无法读取时，脚本会阻止新的 MPO 修改。
 
 **验证方式**：重启后 `Win+R` 运行 `dxdiag` → 保存所有信息 → 打开保存的 txt 搜索 `MPO`。`MPO` 条目消失或 `MPO MaxPlanes` 为 0 在部分系统上可作为禁用的辅助信号；不同 Windows/驱动版本的输出可能不同，不能证明所有应用的运行时状态。最终应结合浏览器/视频、G-Sync/FreeSync、多显示器、窗口化游戏、DX12、HDR、录屏和 Steam/Discord 等覆盖层实测。方案 C 不禁用 MPO，不能用 MaxPlanes 消失判断其是否“生效”。
 
