@@ -3,6 +3,9 @@ _tmp_*
 *.tmp
 *.log
 mpo-backup.json
+bcd-backup.json
+power-backup.pow
+service-backup.json
 
 # OS
 .DS_Store

@@ -1,46 +1,20 @@
-﻿# Windows Game Optimization + BCDEdit Addons - Menu Edition
+﻿# Windows Game Optimization + BCDEdit Addons - Layered Menu Edition
 # Run as Administrator. Each setting is applied independently.
 # ActivationType is handled separately because the key may be protected.
 #
 # 菜单 / Menu:
-#   输入 1 回车 = 系统优化（原脚本全部内容 + 视觉效果自定义：仅保留平滑屏幕字体边缘
-#                 与任务栏动画，其余视觉效果全关），完成后 5 秒自动重启（按 Q 取消）
-#   输入 2 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks），
-#                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 3 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks），
-#                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 4 回车 = 关闭安全中心（禁用 Windows Defender / SmartScreen 策略），
-#                 随后可选择是否执行删除类优化（Y=执行 / N=跳过），
-#                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 5 回车 = 优化服务项继续工作（禁用可安全禁用的服务，
-#                 Xbox / 蓝牙 / 嵌入模式服务改成手动），
-#                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 6 回车 = 应用超性能电源计划（子选项 1：先备份当前电源计划到脚本所在目录，
-#                 再导入并应用仓库自带的 ultimate-performance.pow；
-#                 子选项 2：恢复之前备份的电源计划），
-#                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 7 回车 = 尝试启用 Windows 原生 NVMe 驱动 nvmedisk.sys（当前脚本以 25H2/build 26200+
-#                 与 NVMe 硬盘为前提；子选项 0：只读查看当前状态；子选项 1：写入 3 个 Velocity
-#                 功能覆盖值 + 2 条安全模式加固；子选项 2：删除 Velocity 覆盖值还原，SafeBoot
-#                 加固项按设计保留），
-#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
-#   输入 8 回车 = 清除 Device Guard EFI 锁定（应对 UEFI 锁定：注册表已关但安全中心仍
-#                 显示内存完整性/凭据保护开启；先做 BitLocker 预检查，再挂载 EFI 分区
-#                 复制 SecConfig.efi 并配置一次性引导项，重启开机时需按屏幕提示按键确认；
-#                 子选项 2：删除引导项并卸载 EFI 盘符），
-#                 执行后 5 秒自动重启（按 Q 取消）
-#   输入 9 回车 = 虚拟化还原 / Hyper-V 启用（与选项 1 互为还原：删除 hypervisorlaunchtype /
-#                 vsmlaunchtype / isolatedcontext 引导项，删除 Device Guard 注册表关闭值，
-#                 恢复系统默认；子选项 0：只读查看当前虚拟化状态；子选项 1：仅还原；
-#                 子选项 2：还原后尝试启用 Hyper-V 功能（仅适用于 Microsoft 官方支持的版本；
-#                 Windows Home 官方不支持 Hyper-V，DISM 结果取决于系统映像），
-#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
-#   输入 10 回车 = MPO 设置管理（三方案互斥，使用未公开的社区排障注册表值；首次修改前
-#                 备份到 mpo-backup.json：1 = 方案 A：OverlayTestMode=5 + DisableMPO=1；
-#                 2 = 方案 B：DisableOverlays=1（更激进，可能影响 DX12/叠加层）；
-#                 3 = 方案 C：OverlayMinFPS=0（尝试排查 G-Sync/FreeSync 视频卡顿）；
-#                 子选项 0：只读查看状态；子选项 4：优先恢复首次修改前状态），
-#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
+#   输入 1 回车 = 核心游戏 / 系统性能优化（不修改 Hyper-V/VBS/高级 BCD/MPO），执行后返回主菜单
+#   输入 2 回车 = 高级 BCD / 计时器与启动安全（独立配置，修改前备份）
+#   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks）
+#   输入 4 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks）
+#   输入 5 回车 = 关闭安全中心（禁用 Windows Defender / SmartScreen 策略，可选删除类优化）
+#   输入 6 回车 = 服务优化（A/B 功能依赖分组，Xbox/蓝牙/嵌入模式/BITS 改为手动）
+#   输入 7 回车 = 超性能电源计划（备份并应用 / 恢复备份）
+#   输入 8 回车 = 原生 NVMe 驱动配置
+#   输入 9 回车 = 清除 Device Guard EFI 锁定（SecConfig.efi 流程）
+#   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（独立配置）
+#   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
+#   修改完成后不会逐项自动重启；脚本会进入待重启状态，可连续执行多个模块后统一重启。
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -79,6 +53,7 @@ function Set-RegDword {
         if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
         Write-Host ("[OK] {0} = {1}" -f $Label, $valueText)
         $script:ok++
+        $script:rebootRequired = $true
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
@@ -92,6 +67,7 @@ function Set-RegString {
         New-ItemProperty -Path $Path -Name $Name -PropertyType String -Value $Value -Force -ErrorAction Stop | Out-Null
         Write-Host ("[OK] {0} = {1}" -f $Label, $Value)
         $script:ok++
+        $script:rebootRequired = $true
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
@@ -106,6 +82,7 @@ function Set-RegBinary {
         if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
         Write-Host ("[OK] {0} = {1}" -f $Label, $Hex)
         $script:ok++
+        $script:rebootRequired = $true
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
@@ -123,6 +100,7 @@ function Remove-RegDwordValue {
             if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
             Write-Host ("[OK] {0}（已删除 {1} -> {2}）" -f $Label, $Path, $Name)
             $script:ok++
+            $script:rebootRequired = $true
         } else {
             Write-Host "[SKIP] $Label 未设置（系统默认，无需还原）" -ForegroundColor Yellow
             $script:skip++
@@ -174,20 +152,15 @@ function Ensure-MpoBackup {
     try {
         if (Test-Path $script:mpoBackupFile) {
             $backup = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            $records = @($backup.Values)
-            if ($backup.Version -ne 1 -or $records.Count -ne $script:mpoManagedValues.Count) { throw 'mpo-backup.json 版本或记录数量不正确' }
-            $allowedKeys = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
-            foreach ($r in $records) {
-                if (-not $r.Path -or -not $r.Name -or ($null -eq $r.Exists)) { throw 'mpo-backup.json 记录字段不完整' }
-                if ($allowedKeys -notcontains "$($r.Path)|$($r.Name)") { throw 'mpo-backup.json 包含非 MPO 管理路径' }
-            }
+            if (-not (Test-MpoBackupSchema $backup)) { throw 'mpo-backup.json 结构、记录唯一性或值数据不正确' }
             $script:mpoBackupReady = $true
             return $true
         }
         $parent = Split-Path $script:mpoBackupFile -Parent
         if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
         $snapshots = @($script:mpoManagedValues | ForEach-Object { Get-MpoValueSnapshot $_ })
-        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = $snapshots }
+        $backup = [pscustomobject]@{ Version = 1; Values = $snapshots }
+        if (-not (Test-MpoBackupSchema $backup)) { throw '生成的 MPO 备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:mpoBackupFile -Encoding UTF8 -ErrorAction Stop
         $script:mpoBackupReady = $true
         Write-Host "[OK] MPO 原始状态已备份：$script:mpoBackupFile" -ForegroundColor Green
@@ -199,6 +172,26 @@ function Ensure-MpoBackup {
     }
 }
 
+function Test-MpoBackupSchema {
+    param([object]$Backup)
+    if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    $records = @($Backup.Values)
+    if ($records.Count -ne $script:mpoManagedValues.Count) { return $false }
+    $expected = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    $actual = @($records | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    if (@($actual | Sort-Object -Unique).Count -ne $expected.Count -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
+    foreach ($r in $records) {
+        if ($null -eq $r.Exists) { return $false }
+        if ([bool]$r.Exists) {
+            if ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data) { return $false }
+            try { $null = Convert-RegKindForExe ([string]$r.Kind) } catch { return $false }
+            if ($r.Kind -eq 'DWord') { try { $null = [uint32]$r.Data } catch { return $false } }
+            if ($r.Kind -eq 'Binary' -and ([string]$r.Data -notmatch '^(?:[0-9A-Fa-f]{2})*$')) { return $false }
+        } elseif ($null -ne $r.Kind -or $null -ne $r.Data) { return $false }
+    }
+    return $true
+}
+
 function Restore-MpoBackup {
     if (-not (Test-Path $script:mpoBackupFile)) {
         Write-Host "[WARN] 未找到 mpo-backup.json，将删除受管理值并恢复系统默认；这不会恢复此前的自定义值" -ForegroundColor Yellow
@@ -207,22 +200,20 @@ function Restore-MpoBackup {
     }
     try {
         $backup = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        $records = @($backup.Values)
-        if ($backup.Version -ne 1 -or $records.Count -ne $script:mpoManagedValues.Count) { throw 'mpo-backup.json 版本或记录数量不正确' }
-        $allowedKeys = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
-        foreach ($r in $records) {
-            if ($allowedKeys -notcontains "$($r.Path)|$($r.Name)") { throw 'mpo-backup.json 包含非 MPO 管理路径' }
+        if (-not (Test-MpoBackupSchema $backup)) { throw 'mpo-backup.json 结构、记录唯一性或值数据不正确' }
+        foreach ($r in @($backup.Values)) {
             if (-not $r.Exists) {
                 Remove-RegDwordValue $r.Path $r.Name ("还原 " + $r.Name)
                 continue
             }
             $regPath = Convert-RegExePath $r.Path
             $regType = Convert-RegKindForExe $r.Kind
-            $data = if ($r.Kind -eq 'Binary') { $r.Data } else { [string]$r.Data }
+            $data = if ($r.Kind -eq 'Binary') { [string]$r.Data } else { [string]$r.Data }
             & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
             if ($LASTEXITCODE -ne 0) { throw "恢复 $($r.Name) 失败，reg.exe exit code $LASTEXITCODE" }
             Write-Host ("[OK] 已恢复 {0} 原始值 {1}" -f $r.Name, $r.Data)
             $script:ok++
+            $script:rebootRequired = $true
         }
         Write-Host "[OK] MPO 已恢复到首次修改前状态；备份文件已保留：$script:mpoBackupFile" -ForegroundColor Green
         return $true
@@ -241,9 +232,12 @@ function Invoke-BcdEdit {
         if ($process.ExitCode -ne 0) { throw "Exit code $($process.ExitCode)" }
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
+        $script:rebootRequired = $true
+        return $true
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
+        return $false
     }
 }
 
@@ -309,6 +303,36 @@ function Verify-BcdValue {
     }
 }
 
+function Ensure-ServiceBackup {
+    param([string[]]$ServiceNames)
+    try {
+        if (Test-Path $script:serviceBackupFile) {
+            $backup = Get-Content $script:serviceBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            $records = @($backup.Services)
+            $expected = @($ServiceNames | Sort-Object -Unique)
+            $actual = @($records | ForEach-Object { [string]$_.Name })
+            if ($backup.Version -ne 1 -or $records.Count -ne $expected.Count -or (@($actual | Sort-Object -Unique).Count -ne $expected.Count) -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { throw 'service-backup.json 结构或服务集合不正确' }
+            foreach ($r in $records) {
+                if ($null -eq $r.StartMode -and $null -ne $r.State) { throw 'service-backup.json 缺少启动类型' }
+            }
+            return $true
+        }
+        $records = foreach ($name in $ServiceNames) {
+            $svc = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f $name.Replace("'", "''")) -ErrorAction Stop
+            if ($svc) { [pscustomobject]@{ Name = $name; StartMode = $svc.StartMode; State = $svc.State } }
+            else { [pscustomobject]@{ Name = $name; StartMode = $null; State = $null } }
+        }
+        $backup = [pscustomobject]@{ Version = 1; Services = @($records) }
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:serviceBackupFile -Encoding UTF8 -ErrorAction Stop
+        Write-Host "[OK] 服务原始状态已备份：$script:serviceBackupFile" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] 服务原始状态备份失败：$($_.Exception.Message)；已阻止服务修改" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
 function Verify-ServiceStartupType {
     param([string]$ServiceName, [string]$Expected, [string]$Label)
     try {
@@ -332,38 +356,161 @@ function Verify-ServiceStartupType {
     }
 }
 
-# 5-second restart countdown, press Q to cancel
-function Start-RestartCountdown {
-    param([int]$Seconds = 5)
+$script:rebootRequired = $false
+$script:moduleFailBaseline = 0
+$script:bcdBackupFile = Join-Path $PSScriptRoot 'bcd-backup.json'
+$script:bcdManagedValues = @('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy','nx','tpmbootentropy','nointegritychecks')
+$script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'
+
+function Request-Restart {
+    param([int]$FailBaseline = $script:moduleFailBaseline)
+    if (-not $script:rebootRequired) { return }
+    $newFailures = $script:fail -gt $FailBaseline
     Write-Host ""
-    Write-Host "系统将在 $($Seconds) 秒后自动重启，期间按 Q 键取消重启" -ForegroundColor Yellow
-    Write-Host "Restarting in $($Seconds) seconds. Press Q to cancel." -ForegroundColor Yellow
-    $cancelled = $false
-    for ($i = $Seconds; $i -ge 1; $i--) {
-        Write-Host ("`r剩余 {0} 秒后重启，按 Q 取消 ... " -f $i) -NoNewline -ForegroundColor Yellow
-        $deadline = (Get-Date).AddSeconds(1)
-        while (-not $cancelled -and (Get-Date) -lt $deadline) {
-            try {
-                if ([Console]::KeyAvailable) {
-                    $key = [Console]::ReadKey($true)
-                    if ($key.Key -eq [ConsoleKey]::Q) { $cancelled = $true }
-                }
-            } catch {
-                Start-Sleep -Milliseconds 100
-            }
-            Start-Sleep -Milliseconds 50
-        }
-        if ($cancelled) { break }
+    Write-Host "[重启待处理] 本次会话存在需要重启后生效的修改。" -ForegroundColor Yellow
+    if ($newFailures) {
+        Write-Host "[已阻止] 当前模块存在失败或验证失败，默认不允许重启；请修复后手动重启。" -ForegroundColor Red
+        return
     }
-    Write-Host ""
-    if ($cancelled) {
-        Write-Host "[已取消] 重启已取消，请稍后手动重启以使设置生效" -ForegroundColor Green
-        Write-Host "[CANCELLED] Restart cancelled. Restart manually later for changes to take effect." -ForegroundColor Green
-        Read-Host "Press Enter to exit"
-    } else {
+    $r = Read-Host "现在重启吗？输入 Y 立即重启；输入 N 返回主菜单"
+    if ($r -match '^[Yy]$') {
         Write-Host "[重启] 立即重启 / Restarting now..." -ForegroundColor Red
         Restart-Computer -Force
+    } else {
+        Write-Host "[返回] 本次不重启。可继续执行其他模块，最后统一重启。" -ForegroundColor Green
     }
+}
+
+function Test-BcdBackupSchema {
+    param([object]$Backup, [string[]]$ValueNames)
+    if ($null -eq $Backup -or $Backup.Version -ne 1 -or $Backup.Object -ne '{current}') { return $false }
+    $records = @($Backup.Values)
+    if ($records.Count -ne $ValueNames.Count) { return $false }
+    $expected = @($ValueNames | Sort-Object -Unique)
+    $actual = @($records | ForEach-Object { [string]$_.Name })
+    if ($actual.Count -ne $expected.Count -or (@($actual | Sort-Object -Unique).Count -ne $expected.Count)) { return $false }
+    foreach ($name in $expected) {
+        $record = @($records | Where-Object { $_.Name -eq $name })
+        if ($record.Count -ne 1 -or $null -eq $record[0].Present) { return $false }
+        if ([bool]$record[0].Present) {
+            if ([string]::IsNullOrWhiteSpace([string]$record[0].Value)) { return $false }
+        } elseif ($null -ne $record[0].Value) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Ensure-BcdBackup {
+    param([string[]]$ValueNames)
+    try {
+        $managedNames = @($script:bcdManagedValues)
+        if (Test-Path $script:bcdBackupFile) {
+            $backup = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw 'bcd-backup.json 结构、对象或记录不完整' }
+            return $true
+        }
+        $enumOut = (& bcdedit.exe /enum '{current}' 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw '无法读取当前 BCD' }
+        $values = foreach ($name in $managedNames) {
+            $pattern = '(?m)^\s*' + [regex]::Escape($name) + '\s+([^\r\n]+)'
+            if ($enumOut -match $pattern) {
+                [pscustomobject]@{ Name = $name; Present = $true; Value = $Matches[1].Trim() }
+            } else {
+                [pscustomobject]@{ Name = $name; Present = $false; Value = $null }
+            }
+        }
+        $backup = [pscustomobject]@{ Version = 1; Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
+        if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw '生成的 BCD 备份未通过结构校验' }
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:bcdBackupFile -Encoding UTF8 -ErrorAction Stop
+        Write-Host "[OK] BCD 原始状态已备份：$script:bcdBackupFile" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] BCD 原始状态备份失败：$($_.Exception.Message)；已阻止高级 BCD 修改" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Restore-BcdBackup {
+    param([string[]]$ValueNames)
+    if (-not (Test-Path $script:bcdBackupFile)) {
+        Write-Host '[FAIL] 未找到有效 BCD 备份，拒绝声称已恢复；请手动检查当前 BCD' -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+    try {
+        $backup = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-BcdBackupSchema $backup $script:bcdManagedValues)) { throw 'bcd-backup.json 结构、对象或记录不完整' }
+        $allOk = $true
+        foreach ($name in $ValueNames) {
+            $record = @($backup.Values | Where-Object { $_.Name -eq $name })[0]
+            if ([bool]$record.Present) {
+                if (-not (Invoke-BcdEdit "/set $name $($record.Value)" "恢复 $name = $($record.Value)")) { $allOk = $false }
+            } else {
+                $before = $script:fail
+                Remove-BcdValue $name "删除 $name（恢复原始未设置状态）"
+                if ($script:fail -gt $before) { $allOk = $false }
+            }
+        }
+        if ($allOk) { Write-Host "[OK] 高级 BCD 已按修改前快照恢复；备份文件保留：$script:bcdBackupFile" -ForegroundColor Green }
+        return $allOk
+    } catch {
+        Write-Host "[FAIL] BCD 状态恢复失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Restore-ServiceBackup {
+    if (-not (Test-Path $script:serviceBackupFile)) {
+        Write-Host '[FAIL] 未找到 service-backup.json，无法精确恢复服务状态' -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+    try {
+        $backup = Get-Content $script:serviceBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $records = @($backup.Services)
+        if ($backup.Version -ne 1 -or $records.Count -eq 0) { throw 'service-backup.json 结构不正确' }
+        $allOk = $true
+        foreach ($r in $records) {
+            if ([string]::IsNullOrWhiteSpace([string]$r.StartMode)) {
+                Write-Host "[SKIP] $($r.Name) 原本不存在，跳过恢复" -ForegroundColor Yellow
+                $script:skip++
+                continue
+            }
+            try {
+                $startupType = if ($r.StartMode -eq 'Auto') { 'Automatic' } else { [string]$r.StartMode }
+                Set-Service -Name $r.Name -StartupType $startupType -ErrorAction Stop
+                Write-Host "[OK] 已恢复 $($r.Name) StartupType = $startupType"
+                $script:ok++
+                $script:rebootRequired = $true
+            } catch {
+                $scStart = if ($r.StartMode -eq 'Auto') { 'auto' } elseif ($r.StartMode -eq 'Manual') { 'demand' } else { 'disabled' }
+                & sc.exe config $r.Name start= $scStart *> $null
+                if ($LASTEXITCODE -eq 0) { $script:ok++ } else { $script:fail++; $allOk = $false }
+            }
+        }
+        if ($allOk) { Write-Host "[OK] 服务启动类型已按快照恢复；运行状态不强制恢复" -ForegroundColor Green }
+        return $allOk
+    } catch {
+        Write-Host "[FAIL] 服务状态恢复失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Verify-MemoryCompressionDisabled {
+    try { $mma=Get-MMAgent -ErrorAction Stop; if($mma.MemoryCompression -eq $false){Write-Host "[VERIFY OK] Memory Compression = Disabled" -ForegroundColor Green;return $true}; Write-Host "[VERIFY FAIL] Memory Compression 仍处于启用状态" -ForegroundColor Red;$script:fail++;return $false }
+    catch { Write-Host "[VERIFY FAIL] Memory Compression：$($_.Exception.Message)" -ForegroundColor Red;$script:fail++;return $false }
+}
+function Verify-TrimEnabled {
+    try { $out=(& fsutil.exe behavior query DisableDeleteNotify 2>&1)-join "`n"; if($LASTEXITCODE -ne 0){throw 'fsutil 查询失败'}; if($out -match '=\s*0\s*$'){Write-Host "[VERIFY OK] NTFS TRIM = Enabled (DisableDeleteNotify = 0)" -ForegroundColor Green;return $true}; Write-Host "[VERIFY FAIL] 无法确认 TRIM = Enabled" -ForegroundColor Red;$script:fail++;return $false }
+    catch { Write-Host "[VERIFY FAIL] TRIM：$($_.Exception.Message)" -ForegroundColor Red;$script:fail++;return $false }
+}
+function Verify-HypervisorRuntime {
+    try { $cs=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop; if($cs.HypervisorPresent -eq $false){Write-Host "[VERIFY OK] 运行时 HypervisorPresent = False" -ForegroundColor Green;return $true}; Write-Host "[VERIFY INFO] 运行时仍检测到 HypervisorPresent = True；重启后再复核" -ForegroundColor Yellow;$script:skip++;return $true }
+    catch { Write-Host "[VERIFY SKIP] 无法读取 HypervisorPresent：$($_.Exception.Message)" -ForegroundColor Yellow;$script:skip++;return $true }
 }
 
 # ============================ Menu ============================
@@ -372,39 +519,38 @@ Write-Host " Windows Game Optimization + BCDEdit - Menu Edition" -ForegroundColo
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host " 请选择执行模式 / Select an option:" -ForegroundColor Cyan
-Write-Host "   1. 系统优化（原脚本全部内容）" -ForegroundColor White
-Write-Host "      System Optimization (original script)" -ForegroundColor Gray
-Write-Host "   2. 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks）" -ForegroundColor White
-Write-Host "      Enable Test Mode (independent step)" -ForegroundColor Gray
-Write-Host "   3. 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks）" -ForegroundColor White
-Write-Host "      Disable Test Mode (delete testsigning / debug entries, keep nointegritychecks)" -ForegroundColor Gray
-Write-Host "   4. 关闭安全中心（禁用 Windows Defender / SmartScreen，可选删除类优化）" -ForegroundColor White
-Write-Host "      Disable Security Center (Defender & SmartScreen policies, optional deletion step)" -ForegroundColor Gray
-Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务，Xbox/蓝牙/嵌入模式改成手动）" -ForegroundColor White
-Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
-Write-Host "   6. 应用超性能电源计划（备份当前计划后导入并应用，子选项 2 可恢复备份）" -ForegroundColor White
-Write-Host "      Apply Ultimate Performance Power Plan (backup current, import & apply, restorable)" -ForegroundColor Gray
-    Write-Host "   7. 尝试启用原生 NVMe 驱动（Velocity 覆盖 + SafeBoot 加固；子选项 2 删除覆盖值，保留加固项）" -ForegroundColor White
-    Write-Host "      Try native NVMe driver nvmedisk.sys (remove velocity overrides to restore; SafeBoot fix retained)" -ForegroundColor Gray
-    Write-Host "   8. 清除 Device Guard EFI 锁定（SecConfig.efi 应对 UEFI 锁定，含 BitLocker 预检查）" -ForegroundColor White
-    Write-Host "      Clear Device Guard UEFI lock via SecConfig.efi (BitLocker pre-check included)" -ForegroundColor Gray
-    Write-Host "   9. 虚拟化还原 / Hyper-V 启用（还原选项 1；仅适用于官方支持版本，Home 结果取决于映像）" -ForegroundColor White
-    Write-Host "      Virtualization restore & Hyper-V attempt (officially supported editions; Home image-dependent)" -ForegroundColor Gray
-    Write-Host "  10. MPO 设置管理（禁用三方案互斥管理 / OverlayMinFPS 调整 / 一键还原）" -ForegroundColor White
-    Write-Host "      MPO settings manager (3 exclusive disable schemes, OverlayMinFPS tweak, one-key restore)" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
-    Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
-    Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4、5、6、7、8、9 或 10 并回车 (Enter 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10)"
+Write-Host "   0. 退出 / Exit" -ForegroundColor White
+Write-Host "   1. 核心游戏 / 系统性能优化（不修改 Hyper-V/VBS/高级 BCD/MPO）" -ForegroundColor White
+Write-Host "   2. 高级 BCD / 计时器与启动安全（独立执行）" -ForegroundColor White
+Write-Host "   3. 开启测试模式" -ForegroundColor White
+Write-Host "   4. 关闭测试模式（保留 nointegritychecks）" -ForegroundColor White
+Write-Host "   5. 关闭安全中心（Defender / SmartScreen）" -ForegroundColor White
+Write-Host "   6. 服务优化（A/B 分组）" -ForegroundColor White
+Write-Host "   7. 超性能电源计划" -ForegroundColor White
+Write-Host "   8. 原生 NVMe 驱动" -ForegroundColor White
+Write-Host "   9. Device Guard EFI 锁定" -ForegroundColor White
+Write-Host "  10. 虚拟化 / VBS / Hyper-V 管理" -ForegroundColor White
+Write-Host "  11. MPO 设置管理（独立排障）" -ForegroundColor White
+Write-Host ""
+Write-Host "提示：一次运行可以连续执行多个模块；修改完成后统一选择是否重启。" -ForegroundColor Yellow
+Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow
+Write-Host ""
+while ($true) {
+$choice = Read-Host "请输入 0-11 并回车 (Enter 0-11)"
 
-if ($choice -eq "1") {
+if ($choice -eq "0") {
+    if ($script:rebootRequired) {
+        Write-Host "[提示] 当前会话仍有待重启修改；退出前请手动重启以使设置生效。" -ForegroundColor Yellow
+    }
+    break
 
-    # ======================= Part 1: Original Script =======================
+} elseif ($choice -eq "1") {
+
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 1: Core Game / System Optimization =======================
     Write-Host ""
-    Write-Host "============ [Part 1] System Optimization (Original) ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 1] Core Game / System Optimization ============" -ForegroundColor Cyan
     Write-Host ""
-    $part1FailBaseline = $fail
 
     # 01 GameDVR
     Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled" 0 "AppCaptureEnabled"
@@ -446,40 +592,26 @@ if ($choice -eq "1") {
     # 03 GameBar
     Set-RegDword "HKCU:\Software\Microsoft\GameBar" "UseNexusForGameBarEnabled" 0 "UseNexusForGameBarEnabled"
 
-    # 04 VBS / HVCI / Credential Guard（Device Guard）
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" "Enabled" 0 "HVCI Enabled"
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" "EnableVirtualizationBasedSecurity" 0 "VBS EnableVirtualizationBasedSecurity"
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\LSA" "LsaCfgFlags" 0 "Credential Guard LsaCfgFlags"
-    Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" "EnableVirtualizationBasedSecurity" 0 "DeviceGuard 策略层 VBS"
-    Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard" "RequirePlatformSecurityFeatures" 0 "DeviceGuard 策略层平台安全特性"
-
-    # 05 Multimedia
+    # 04 Multimedia
     Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "NetworkThrottlingIndex" "0xFFFFFFFF" "NetworkThrottlingIndex"
     Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" "SystemResponsiveness" 10 "SystemResponsiveness"
 
-    # 06 CPU priority
+    # 05 CPU priority
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation (0x26)"
 
-    # 07 Search
+    # 06 Search
     Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "BingSearchEnabled" 0 "BingSearchEnabled"
     Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "AllowSearchToUseLocation" 0 "AllowSearchToUseLocation"
     Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" "CortanaConsent" 0 "CortanaConsent"
 
-    # 08 Meltdown / Spectre
+    # 07 Meltdown / Spectre
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3 "FeatureSettingsOverride"
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask"
 
-    # 09 HAGS
+    # 08 HAGS
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
 
-    # 10 MPO 方案 A（社区排障配置；修改前备份，互斥清理，详细管理/还原见选项 10）
-    if (Ensure-MpoBackup) {
-        Remove-RegDwordValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableOverlays" "清除已有 DisableOverlays"
-        Remove-RegDwordValue "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayMinFPS" "清除已有 OverlayMinFPS"
-        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableMPO" 1 "DisableMPO"
-    }
-
-    # 11 Games task
+    # 09 Games task
     $games = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
     Set-RegDword $games "Affinity" 0 "Games Affinity"
     Set-RegString $games "Background Only" "False" "Games Background Only"
@@ -489,22 +621,17 @@ if ($choice -eq "1") {
     Set-RegString $games "Scheduling Category" "High" "Games Scheduling Category"
     Set-RegString $games "SFIO Priority" "High" "Games SFIO Priority"
 
-    # 12 Prefetch
+    # 10 Prefetch
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
 
-    # 13 DWM：方案 A 的第二个值（备份失败时不写入）
-    if ($script:mpoBackupReady) {
-        Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayTestMode" 5 "OverlayTestMode"
-    }
-
-    # 14 NTFS
+    # 11 NTFS
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation" 1 "NtfsDisable8dot3NameCreation"
 
-    # 15 Game Mode
+    # 12 Game Mode
     Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled" 0 "AutoGameModeEnabled"
     Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode"
 
-    # 16 Memory Compression
+    # 13 Memory Compression
     Write-Host ""
     Write-Host "[Memory Compression]" -ForegroundColor Cyan
     try {
@@ -516,7 +643,7 @@ if ($choice -eq "1") {
         $fail++
     }
 
-    # 17 TRIM
+    # 14 TRIM
     Write-Host ""
     Write-Host "[TRIM]" -ForegroundColor Cyan
     try {
@@ -534,48 +661,7 @@ if ($choice -eq "1") {
         $fail++
     }
 
-    # 18 BCDEdit Optimization
-    Write-Host ""
-    Write-Host "[BCDEdit Tweaks]" -ForegroundColor Cyan
-
-    # VBS/Hyper-V Off (Matches Registry settings)
-    Invoke-BcdEdit "/set hypervisorlaunchtype off" "Hypervisor Launch Type Off"
-    Invoke-BcdEdit "/set isolatedcontext no" "Isolated Context Off"
-    Invoke-BcdEdit "/set vsmlaunchtype off" "VSM Launch Type Off"
-
-    # Hyper-V 功能组件禁用（DISM；检测到已启用才执行，未启用自动跳过）。
-    # 只禁用 Hyper-V 本体（Microsoft-Hyper-V-All，即虚拟机管理栈 vmms/vmcompute/HvHost），
-    # 不动 WSL2 / Docker / 沙盒依赖的 VirtualMachinePlatform / HypervisorPlatform。
-    # 等效于控制面板"启用或关闭 Windows 功能"取消勾选 Hyper-V。
-    # 如需还原/重新启用，使用选项 9。
-    try {
-        $hvFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction Stop
-        if ($hvFeature.State -in @('Enabled','EnablePending')) {
-            $null = Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart -ErrorAction Stop
-            Write-Host "[OK] Hyper-V 功能组件已禁用 (Microsoft-Hyper-V-All)"
-            $ok++
-        } else {
-            Write-Host "[SKIP] Hyper-V 功能组件未启用（无需禁用）" -ForegroundColor Yellow
-            $skip++
-        }
-    } catch {
-        Write-Host "[FAIL] Hyper-V 功能组件禁用 : $($_.Exception.Message)" -ForegroundColor Red
-        $fail++
-    }
-
-    # Clock/Ticks
-    Invoke-BcdEdit "/set useplatformclock no" "Use Platform Clock Off"
-    Invoke-BcdEdit "/set useplatformtick no" "Use Platform Tick Off"
-    Invoke-BcdEdit "/set disabledynamictick yes" "Disable Dynamic Tick"
-    Invoke-BcdEdit "/set tscsyncpolicy Enhanced" "TSC Sync Policy Enhanced"
-
-    # Security Settings (WARNING: These are dangerous)
-    Write-Host " [WARNING] Disabling NX and Integrity Checks is a security risk!" -ForegroundColor Yellow
-    Invoke-BcdEdit "/set nx AlwaysOff" "NX (DEP) AlwaysOff"
-    Invoke-BcdEdit "/set tpmbootentropy ForceDisable" "TPM Boot Entropy Disabled"
-    Invoke-BcdEdit "/set nointegritychecks on" "Driver Integrity Checks Disabled"
-
-    # 19 Visual Effects（性能选项-视觉效果-自定义：仅开启平滑屏幕字体边缘 + 任务栏动画；
+    # 15 Visual Effects（性能选项-视觉效果-自定义：仅开启平滑屏幕字体边缘 + 任务栏动画；
     #     另含「设置-辅助功能-视觉效果」四项：始终显示滚动条关 / 透明效果关 / 动画效果关 / 关闭通知 5 秒）
     Write-Host ""
     Write-Host "[Visual Effects 自定义 / Custom]" -ForegroundColor Cyan
@@ -625,39 +711,47 @@ if ($choice -eq "1") {
     Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask" | Out-Null
     Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS" | Out-Null
     Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher" | Out-Null
-    Verify-BcdValue "hypervisorlaunchtype" "Off" "hypervisorlaunchtype" | Out-Null
-    Verify-BcdValue "isolatedcontext" "No" "isolatedcontext" | Out-Null
-    Verify-BcdValue "vsmlaunchtype" "Off" "vsmlaunchtype" | Out-Null
-    Verify-BcdValue "useplatformclock" "No" "useplatformclock" | Out-Null
-    Verify-BcdValue "useplatformtick" "No" "useplatformtick" | Out-Null
-    Verify-BcdValue "disabledynamictick" "Yes" "disabledynamictick" | Out-Null
-    Verify-BcdValue "tscsyncpolicy" "Enhanced" "tscsyncpolicy" | Out-Null
-    Verify-BcdValue "nx" "AlwaysOff" "nx" | Out-Null
-    Verify-BcdValue "tpmbootentropy" "ForceDisable" "tpmbootentropy" | Out-Null
-    Verify-BcdValue "nointegritychecks" "Yes" "nointegritychecks" | Out-Null
+    Verify-MemoryCompressionDisabled | Out-Null
+    Verify-TrimEnabled | Out-Null
 
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 1 - System Optimization)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 1 - Core Game / System Optimization)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
-    # Auto restart only when this part's writes and verification have no failures
-    if ($fail -eq $part1FailBaseline) {
-        Start-RestartCountdown -Seconds 5
-    } else {
-        Write-Host "[已跳过] 关键项验证或写入失败，未自动重启；修复后请手动重启" -ForegroundColor Yellow
-    }
+    Request-Restart
 
 } elseif ($choice -eq "2") {
+    $script:moduleFailBaseline = $fail
+    Write-Host ""; Write-Host "============ [Part 2] 高级 BCD / Advanced BCD ============" -ForegroundColor Cyan; Write-Host ""
+    Write-Host "  0. 查看当前高级 BCD 状态（只读）" -ForegroundColor White
+    Write-Host "  1. 应用高级计时器配置（useplatformclock / useplatformtick / disabledynamictick / tscsyncpolicy）" -ForegroundColor White
+    Write-Host "  2. 恢复高级计时器修改前状态" -ForegroundColor White
+    Write-Host "  3. 应用启动安全高级项（NX AlwaysOff / TPM Boot Entropy ForceDisable / nointegritychecks）" -ForegroundColor Yellow
+    Write-Host "  4. 恢复启动安全高级项到修改前状态" -ForegroundColor White
+    $bChoice=Read-Host "请输入 0、1、2、3 或 4 并回车"
+    $timerValues=@('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy'); $securityValues=@('nx','tpmbootentropy','nointegritychecks'); $allAdvancedValues=@($script:bcdManagedValues)
+    if($bChoice -eq '0'){
+        $enumOut=(& bcdedit.exe /enum '{current}' 2>$null)-join "`n"; foreach($name in $allAdvancedValues){$pattern='(?m)^\s*'+[regex]::Escape($name)+'\s+([^\r\n]+)';if($enumOut -match $pattern){Write-Host ("bcdedit {0,-22} = {1}"-f $name,$Matches[1].Trim())}else{Write-Host ("bcdedit {0,-22} = <未设置（系统默认）>"-f $name)}}; if(Test-Path $script:bcdBackupFile){Write-Host "BCD 备份：$script:bcdBackupFile" -ForegroundColor Yellow}
+    } elseif($bChoice -eq '1'){
+        if(Ensure-BcdBackup $allAdvancedValues){Invoke-BcdEdit "/set useplatformclock no" "Use Platform Clock Off";Invoke-BcdEdit "/set useplatformtick no" "Use Platform Tick Off";Invoke-BcdEdit "/set disabledynamictick yes" "Disable Dynamic Tick";Invoke-BcdEdit "/set tscsyncpolicy Enhanced" "TSC Sync Policy Enhanced";Write-Host "[提示] BCD 计时器项属于高级/调试用途，效果依硬件与 Windows 版本而异。" -ForegroundColor Yellow;Verify-BcdValue 'useplatformclock' 'No' 'useplatformclock'|Out-Null;Verify-BcdValue 'useplatformtick' 'No' 'useplatformtick'|Out-Null;Verify-BcdValue 'disabledynamictick' 'Yes' 'disabledynamictick'|Out-Null;Verify-BcdValue 'tscsyncpolicy' 'Enhanced' 'tscsyncpolicy'|Out-Null}
+    } elseif($bChoice -eq '2'){Restore-BcdBackup $timerValues
+    } elseif($bChoice -eq '3'){Write-Host '[WARNING] 启动安全高级项会降低系统安全边界。' -ForegroundColor Yellow;if(Ensure-BcdBackup $allAdvancedValues){Invoke-BcdEdit "/set nx AlwaysOff" "NX (DEP) AlwaysOff";Invoke-BcdEdit "/set tpmbootentropy ForceDisable" "TPM Boot Entropy Disabled";Invoke-BcdEdit "/set nointegritychecks on" "Driver Integrity Checks Disabled";Verify-BcdValue 'nx' 'AlwaysOff' 'nx'|Out-Null;Verify-BcdValue 'tpmbootentropy' 'ForceDisable' 'tpmbootentropy'|Out-Null;Verify-BcdValue 'nointegritychecks' 'Yes' 'nointegritychecks'|Out-Null}
+    } elseif($bChoice -eq '4'){Restore-BcdBackup $securityValues
+    } else {Write-Host "[ERROR] 无效输入：$bChoice 。请输入 0、1、2、3 或 4" -ForegroundColor Red}
+    Write-Host "Finished (Part 2 - Advanced BCD)" -ForegroundColor Cyan; Write-Host " OK : $ok  FAIL : $fail  SKIP : $skip"; Request-Restart
 
-    # ======================= Part 2: 开启测试模式 =======================
+} elseif ($choice -eq "3") {
+
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 3: 开启测试模式 =======================
     # 独立步骤：开启测试模式 / Enable Test Mode (bcdedit)
     Write-Host ""
-    Write-Host "============ [Part 2] 开启测试模式 / Enable Test Mode ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 3] 开启测试模式 / Enable Test Mode ============" -ForegroundColor Cyan
     Write-Host ""
 
     Invoke-BcdEdit "/set testsigning on" "bcdedit /set testsigning on"
@@ -668,7 +762,7 @@ if ($choice -eq "1") {
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 2 - Enable Test Mode)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 3 - Enable Test Mode)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -676,15 +770,15 @@ if ($choice -eq "1") {
     Write-Host "提示：开启测试模式后桌面右下角会显示“测试模式”水印，属正常现象。" -ForegroundColor Yellow
     Write-Host "如需关闭测试模式，可运行: bcdedit /set testsigning off" -ForegroundColor Yellow
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    Request-Restart
 
-} elseif ($choice -eq "3") {
+} elseif ($choice -eq "4") {
 
-    # ======================= Part 3: 关闭测试模式 =======================
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 4: 关闭测试模式 =======================
     # 独立步骤：关闭测试模式 / Disable Test Mode（保留 nointegritychecks）
     Write-Host ""
-    Write-Host "============ [Part 3] 关闭测试模式 / Disable Test Mode ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 4] 关闭测试模式 / Disable Test Mode ============" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：此操作通过删除 testsigning 和 debug 启动项来关闭测试模式，保留 nointegritychecks。" -ForegroundColor Yellow
     Write-Host ""
@@ -695,7 +789,7 @@ if ($choice -eq "1") {
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 3 - Disable Test Mode)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 4 - Disable Test Mode)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -703,15 +797,15 @@ if ($choice -eq "1") {
     Write-Host "提示：测试模式已关闭，桌面右下角的"测试模式"水印将在重启后消失。" -ForegroundColor Yellow
     Write-Host "如需重新开启测试模式，可运行选项 2。" -ForegroundColor Yellow
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    Request-Restart
 
-} elseif ($choice -eq "4") {
+} elseif ($choice -eq "5") {
 
-    # ======================= Part 4: 关闭安全中心 =======================
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 5: 关闭安全中心 =======================
     # 独立步骤：关闭 Windows Defender 安全中心 / Disable Security Center
     Write-Host ""
-    Write-Host "============ [Part 4] 关闭安全中心 / Disable Security Center ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 5] 关闭安全中心 / Disable Security Center ============" -ForegroundColor Cyan
     Write-Host ""
     Write-Host " [WARNING] 此操作将禁用 Windows Defender 实时保护及相关安全服务！" -ForegroundColor Yellow
     Write-Host " [WARNING] This will disable Windows Defender realtime protection and related services!" -ForegroundColor Yellow
@@ -1022,26 +1116,33 @@ if ($choice -eq "1") {
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 4 - Disable Security Center)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 5 - Disable Security Center)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：Windows Defender 已被禁用，重启后生效。" -ForegroundColor Yellow
-    Write-Host "如需恢复，可在 Windows 安全中心应用中手动开启实时保护。" -ForegroundColor Yellow
+    Write-Host "策略禁用与删除类操作没有统一的自动原始状态回滚；恢复前请根据详情文档检查策略、服务、计划任务和 SecHealthUI 状态。" -ForegroundColor Yellow
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    Request-Restart
 
-} elseif ($choice -eq "5") {
+} elseif ($choice -eq "6") {
 
-    # ======================= Part 5: 优化服务项 =======================
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 6: 优化服务项 =======================
     # 独立步骤：禁用可安全禁用的服务 + 将 Xbox / 蓝牙 / 嵌入模式服务恢复为手动
     Write-Host ""
-    Write-Host "============ [Part 5] 优化服务项继续工作 / Service Optimization ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 6] 优化服务项继续工作 / Service Optimization ============" -ForegroundColor Cyan
     Write-Host ""
-    $part5FailBaseline = $fail
+    Write-Host "  1. 执行服务优化（A+B 两组共 30 个服务全部处理，另将 7 个服务改为 Manual）" -ForegroundColor White
+    Write-Host "  2. 按 service-backup.json 恢复目标服务原始启动类型" -ForegroundColor White
+    $serviceChoice = Read-Host "请输入 1 或 2 并回车"
+    if ($serviceChoice -eq '2') {
+        Restore-ServiceBackup | Out-Null
+        Write-Host "[提示] 服务运行状态不强制恢复；如需立即应用启动类型，请重启。" -ForegroundColor Yellow
+        Request-Restart
+    } elseif ($serviceChoice -eq '1') {
 
     # 1) Disable service groups
     # A：通常可在不需要对应功能时禁用
@@ -1062,6 +1163,13 @@ if ($choice -eq "1") {
     )
 
     $disableServices = @($groupAServices + $groupBServices)
+    $manualServices = @(
+        "XboxGipSvc","XblAuthManager","XboxNetApiSvc","XblGameSave","bthserv","embeddedmode","BITS"
+    )
+    $allServiceNames = @($disableServices + $manualServices)
+    if (-not (Ensure-ServiceBackup $allServiceNames)) {
+        Write-Host "[ABORTED] 服务备份不可用，未修改服务" -ForegroundColor Red
+    } else {
     foreach ($svc in $disableServices) {
         $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if ($svcObj) {
@@ -1089,9 +1197,6 @@ if ($choice -eq "1") {
     # 2) Set Xbox / Bluetooth / Embedded / BITS services to Manual
     Write-Host ""
     Write-Host "[Manual Services: Xbox / Bluetooth / Embedded / BITS]" -ForegroundColor Cyan
-    $manualServices = @(
-        "XboxGipSvc","XblAuthManager","XboxNetApiSvc","XblGameSave","bthserv","embeddedmode","BITS"
-    )
     foreach ($svc in $manualServices) {
         $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if ($svcObj) {
@@ -1130,25 +1235,25 @@ if ($choice -eq "1") {
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 5 - Service Optimization)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 6 - Service Optimization)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
-    # Auto restart only when this part's writes and verification have no failures
-    if ($fail -eq $part5FailBaseline) {
-        Start-RestartCountdown -Seconds 5
+    Request-Restart
+    }
     } else {
-        Write-Host "[已跳过] 服务写入或验证失败，未自动重启；修复后请手动重启" -ForegroundColor Yellow
+        Write-Host "[ERROR] 无效输入：$serviceChoice 。请输入 1 或 2" -ForegroundColor Red
     }
 
-} elseif ($choice -eq "6") {
+} elseif ($choice -eq "7") {
 
-    # ======================= Part 6: 应用超性能电源计划 =======================
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 7: 应用超性能电源计划 =======================
     # 独立步骤：备份当前电源计划 -> 导入并应用仓库自带的超性能计划 / 或恢复备份
     Write-Host ""
-    Write-Host "============ [Part 6] 应用超性能电源计划 / Ultimate Performance Power Plan ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 7] 应用超性能电源计划 / Ultimate Performance Power Plan ============" -ForegroundColor Cyan
     Write-Host ""
 
     $planFile   = Join-Path $PSScriptRoot "ultimate-performance.pow"
@@ -1200,6 +1305,7 @@ if ($choice -eq "1") {
                     if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
                     Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)"
                     $ok++
+                    $script:rebootRequired = $true
                 } catch {
                     Write-Host "[FAIL] 导入/应用超性能电源计划 : $($_.Exception.Message)" -ForegroundColor Red
                     $fail++
@@ -1228,6 +1334,7 @@ if ($choice -eq "1") {
                 if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
                 Write-Host "[OK] 已恢复备份的电源计划 ($newGuid)"
                 $ok++
+                $script:rebootRequired = $true
             } catch {
                 Write-Host "[FAIL] 恢复备份的电源计划 : $($_.Exception.Message)" -ForegroundColor Red
                 $fail++
@@ -1241,27 +1348,27 @@ if ($choice -eq "1") {
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host " Finished (Part 6 - Ultimate Performance Power Plan)" -ForegroundColor Cyan
+    Write-Host " Finished (Part 7 - Ultimate Performance Power Plan)" -ForegroundColor Cyan
     Write-Host " OK : $ok" -ForegroundColor Green
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：可用 powercfg /getactivescheme 查看当前电源计划；" -ForegroundColor Yellow
-    Write-Host "如需恢复原计划，再次运行本脚本并选择 6 -> 2。" -ForegroundColor Yellow
+    Write-Host "如需恢复原计划，再次运行本脚本并选择 7 -> 2。" -ForegroundColor Yellow
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    Request-Restart
 
-} elseif ($choice -eq "7") {
+} elseif ($choice -eq "8") {
 
-    # ======================= Part 7: 启用原生 NVMe 驱动 =======================
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 8: 启用原生 NVMe 驱动 =======================
     # 通过 Velocity 功能覆盖提前启用微软原生 NVMe 磁盘驱动 nvmedisk.sys
     # （仅作用于 NVMe 磁盘；USB 等其他总线磁盘仍使用 disk.sys）。
     # 安全模式加固为预防性写入：nvmedisk 设备类默认不在安全模式加载列表，
     # 不加固可能导致启用后无法进入安全模式。
     Write-Host ""
-    Write-Host "============ [Part 7] 启用原生 NVMe 驱动 / Native NVMe Driver (nvmedisk.sys) ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 8] 启用原生 NVMe 驱动 / Native NVMe Driver (nvmedisk.sys) ============" -ForegroundColor Cyan
     Write-Host ""
 
     # 前提检查：系统版本（需 25H2 / build 26200 及以上）与 NVMe 磁盘
@@ -1281,9 +1388,9 @@ if ($choice -eq "1") {
         $velocityIds = @('735209102', '1853569164', '156965516')
 
         Write-Host ""
-        Write-Host "  0. 查看当前状态（只读检查：覆盖值 / 安全模式加固 / 驱动文件 / 加载状态）" -ForegroundColor White
-        Write-Host "  1. 启用（写入 3 个 Velocity 覆盖值 + 2 条安全模式加固，重启后生效）" -ForegroundColor White
-        Write-Host "  2. 还原（删除 3 个覆盖值，恢复系统默认；安全模式加固保留）" -ForegroundColor White
+    Write-Host "  0. 查看当前状态（只读检查：覆盖值 / 安全模式加固 / 驱动文件 / 加载状态）" -ForegroundColor White
+    Write-Host "  1. 启用（写入 3 个 Velocity 覆盖值 + 2 条安全模式加固，重启后生效）" -ForegroundColor White
+    Write-Host "  2. 还原（删除 3 个覆盖值；按快照处理 SafeBoot 原始值）" -ForegroundColor White
         $nChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
 
         if ($nChoice -eq "0") {
@@ -1292,8 +1399,12 @@ if ($choice -eq "1") {
             $fmItem0 = Get-Item $fmPath -ErrorAction SilentlyContinue
             $velText = @()
             foreach ($vid in $velocityIds) {
-                if ($fmItem0 -and ($fmItem0.GetValueNames() -contains $vid)) { $velText += "$vid=1" }
-                else { $velText += "$vid=未写入" }
+                if ($fmItem0 -and ($fmItem0.GetValueNames() -contains $vid)) {
+                    $kind = $fmItem0.GetValueKind($vid).ToString()
+                    $value = $fmItem0.GetValue($vid)
+                    if ($kind -eq 'DWord' -and [uint32]$value -eq 1) { $velText += "$vid=1" }
+                    else { $velText += "$vid=$value（类型=$kind，非 1）" }
+                } else { $velText += "$vid=未写入" }
             }
             $allWritten = @($velText | Where-Object { $_ -like "*=1" }).Count -eq 3
             Write-Host ("Velocity 覆盖值 : " + ($velText -join "  "))
@@ -1318,9 +1429,9 @@ if ($choice -eq "1") {
             } elseif ($drvState -eq "Running") {
                 Write-Host "结论：原生 NVMe 驱动已启用并正在运行（NVMe 磁盘已使用 nvmedisk.sys）" -ForegroundColor Green
             } elseif ($allWritten) {
-                Write-Host "结论：覆盖值已写入，重启后生效；若重启后仍未切换，运行 7 -> 0 再查" -ForegroundColor Yellow
+                Write-Host "结论：覆盖值已写入，重启后生效；若重启后仍未切换，运行 8 -> 0 再查" -ForegroundColor Yellow
             } else {
-                Write-Host "结论：未启用（覆盖值未写入）。选择 7 -> 1 启用" -ForegroundColor Yellow
+                Write-Host "结论：未启用（覆盖值未写入）。选择 8 -> 1 启用" -ForegroundColor Yellow
             }
 
         } elseif ($nChoice -eq "1") {
@@ -1337,36 +1448,43 @@ if ($choice -eq "1") {
                 Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
             } else {
                 # 三个 Velocity 功能覆盖值（启用 nvmedisk.sys 灰度功能）
+                $velocityFailBaseline = $fail
                 foreach ($vid in $velocityIds) {
                     Set-RegDword $fmPath $vid 1 "Velocity $vid"
                 }
+                if ($fail -gt $velocityFailBaseline) {
+                    Write-Host "[FAIL] 至少一个 Velocity 覆盖值写入失败，停止后续 SafeBoot 加固和重启标记" -ForegroundColor Red
+                }
 
                 # 安全模式加固：将 nvmedisk 设备类加入安全模式加载列表
+                if ($fail -eq $velocityFailBaseline) {
                 foreach ($mode in @('Minimal', 'Network')) {
                     $sbReg = Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
                     & reg.exe ADD $sbReg /ve /d "Storage Disks" /f *> $null
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "[OK] SafeBoot $mode 加固 = Storage Disks"
                         $script:ok++
+                        $script:rebootRequired = $true
                     } else {
                         Write-Host ("[FAIL] SafeBoot $mode 加固 : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red
                         $script:fail++
                     }
                 }
+                }
 
                 # Summary
                 Write-Host ""
                 Write-Host "============================================================" -ForegroundColor Cyan
-                Write-Host " Finished (Part 7 - Native NVMe Driver ENABLE)" -ForegroundColor Cyan
+                Write-Host " Finished (Part 8 - Native NVMe Driver ENABLE)" -ForegroundColor Cyan
                 Write-Host " OK : $ok" -ForegroundColor Green
                 Write-Host " FAIL : $fail" -ForegroundColor Red
                 Write-Host "============================================================" -ForegroundColor Cyan
                 Write-Host ""
                 Write-Host "重启后生效。可在 设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 确认驱动文件为 nvmedisk.sys" -ForegroundColor Yellow
-                Write-Host "如需还原，再次运行本脚本并选择 7 -> 2。" -ForegroundColor Yellow
+                Write-Host "如需还原，再次运行本脚本并选择 8 -> 2。" -ForegroundColor Yellow
 
                 # Auto restart in 5 seconds (press Q to cancel)
-                Start-RestartCountdown -Seconds 5
+                Request-Restart
             }
 
         } elseif ($nChoice -eq "2") {
@@ -1388,12 +1506,12 @@ if ($choice -eq "1") {
                     $script:skip++
                 }
             }
-            Write-Host "安全模式加固项保留（无副作用，仅让安全模式额外加载存储驱动）" -ForegroundColor Yellow
+                Write-Host "安全模式加固项不会自动删除；它会改变安全模式下的存储驱动加载行为。" -ForegroundColor Yellow
 
             # Summary
             Write-Host ""
             Write-Host "============================================================" -ForegroundColor Cyan
-            Write-Host " Finished (Part 7 - Native NVMe Driver RESTORE)" -ForegroundColor Cyan
+            Write-Host " Finished (Part 8 - Native NVMe Driver RESTORE)" -ForegroundColor Cyan
             Write-Host " OK : $ok" -ForegroundColor Green
             Write-Host " FAIL : $fail" -ForegroundColor Red
             Write-Host "============================================================" -ForegroundColor Cyan
@@ -1401,23 +1519,24 @@ if ($choice -eq "1") {
             Write-Host "重启后恢复为系统默认磁盘驱动 (disk.sys)" -ForegroundColor Yellow
 
             # Auto restart in 5 seconds (press Q to cancel)
-            Start-RestartCountdown -Seconds 5
+            Request-Restart
 
         } else {
             Write-Host "[ERROR] 无效输入：$nChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
         }
     }
 
-} elseif ($choice -eq "8") {
+} elseif ($choice -eq "9") {
 
-    # ======================= Part 8: 清除 Device Guard EFI 锁定 =======================
-    # 应对 UEFI 锁定：选项 1 已通过注册表关闭 VBS/HVCI/Credential Guard，
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 9: 清除 Device Guard EFI 锁定 =======================
+    # 应对 UEFI 锁定：选项 10 的关闭子项可通过注册表关闭 VBS/HVCI/Credential Guard，
     # 但 安全中心 / msinfo32 仍显示"内存完整性"或"凭据保护"开启时，
     # 用 SecConfig.efi 引导清除 EFI 变量（硬手段，等效于官方 DG_Readiness_Tool）。
     Write-Host ""
-    Write-Host "============ [Part 8] 清除 Device Guard EFI 锁定 / Clear DG UEFI Lock (SecConfig.efi) ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 9] 清除 Device Guard EFI 锁定 / Clear DG UEFI Lock (SecConfig.efi) ============" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host " 适用场景：UEFI 锁定 —— 已运行选项 1（注册表关闭），但 安全中心/msinfo32 仍显示" -ForegroundColor Yellow
+    Write-Host " 适用场景：UEFI 锁定 —— 已运行选项 10（注册表关闭），但 安全中心/msinfo32 仍显示" -ForegroundColor Yellow
     Write-Host "            内核隔离-内存完整性 或 凭据保护 处于开启状态。" -ForegroundColor Yellow
     Write-Host " 原理：把 SecConfig.efi 设为一次性引导项，开机进入后清除 Device Guard 的 EFI 变量。" -ForegroundColor Yellow
     Write-Host ""
@@ -1440,8 +1559,9 @@ if ($choice -eq "1") {
             Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
         } else {
 
-            # 1) BitLocker 预检查：任一分区保护开启则拒绝执行
+            # 1) BitLocker 预检查：任一分区保护开启或状态无法确认都拒绝执行
             $blBlocked = $false
+            $blCheckFailed = $false
             try {
                 $blOn = @(Get-BitLockerVolume -ErrorAction Stop | Where-Object { $_.ProtectionStatus -eq 'On' })
                 if ($blOn.Count -gt 0) {
@@ -1457,11 +1577,12 @@ if ($choice -eq "1") {
                     $ok++
                 }
             } catch {
-                Write-Host "[WARN] 无法查询 BitLocker 状态：$($_.Exception.Message)" -ForegroundColor Yellow
-                Write-Host "        请自行确认 BitLocker 已关闭/解密后再继续" -ForegroundColor Yellow
+                $blCheckFailed = $true
+                Write-Host "[FAIL] 无法查询 BitLocker 状态：$($_.Exception.Message)；已拒绝 EFI 修改" -ForegroundColor Red
+                $fail++
             }
 
-            if (-not $blBlocked) {
+            if (-not $blBlocked -and -not $blCheckFailed) {
 
                 # 2) SecConfig.efi 源文件检查
                 $secSrc = Join-Path $env:SystemRoot 'System32\SecConfig.efi'
@@ -1507,15 +1628,23 @@ if ($choice -eq "1") {
                                 $fail++
                             }
 
+                            $efiConfigured = $false
                             if ($copyOk) {
 
-                                # 5) 配置一次性引导项（先删除可能残留的旧项，保证可重复执行）
+                                # 5) 配置一次性引导项；任一步失败都停止并清理临时项
                                 & bcdedit.exe /delete $dgGuid /f *> $null
-                                Invoke-BcdEdit "/create $dgGuid /d DebugTool /application osloader" "创建 BCD 引导项 (DebugTool)"
-                                Invoke-BcdEdit "/set $dgGuid path \EFI\Microsoft\Boot\SecConfig.efi" "引导项路径 SecConfig.efi"
-                                Invoke-BcdEdit "/set $dgGuid device partition=$($efiLetter):" "引导项设备分区 $($efiLetter):"
-                                Invoke-BcdEdit "/set $dgGuid loadoptions DISABLE-LSA-ISO" "LoadOptions = DISABLE-LSA-ISO"
-                                Invoke-BcdEdit "/set {bootmgr} bootsequence $dgGuid" "设为下次开机一次性引导"
+                                $bcdOk = Invoke-BcdEdit "/create $dgGuid /d DebugTool /application osloader" "创建 BCD 引导项 (DebugTool)"
+                                if ($bcdOk) { $bcdOk = Invoke-BcdEdit "/set $dgGuid path \EFI\Microsoft\Boot\SecConfig.efi" "引导项路径 SecConfig.efi" }
+                                if ($bcdOk) { $bcdOk = Invoke-BcdEdit "/set $dgGuid device partition=$($efiLetter):" "引导项设备分区 $($efiLetter):" }
+                                if ($bcdOk) { $bcdOk = Invoke-BcdEdit "/set $dgGuid loadoptions DISABLE-LSA-ISO" "LoadOptions = DISABLE-LSA-ISO" }
+                                if ($bcdOk) { $bcdOk = Invoke-BcdEdit "/set {bootmgr} bootsequence $dgGuid" "设为下次开机一次性引导" }
+                                if ($bcdOk) {
+                                    $efiConfigured = $true
+                                } else {
+                                    Write-Host "[FAIL] EFI 一次性引导配置未完成，正在清理临时 BCD 项" -ForegroundColor Red
+                                    & bcdedit.exe /delete $dgGuid /f *> $null
+                                    & bcdedit.exe /deletevalue '{bootmgr}' bootsequence *> $null
+                                }
                             }
 
                             # 6) 卸载 EFI 分区
@@ -1527,11 +1656,12 @@ if ($choice -eq "1") {
                                 Write-Host "[WARN] EFI 分区卸载失败，可稍后手动执行: mountvol $($efiLetter): /d" -ForegroundColor Yellow
                             }
 
-                            if ($copyOk) {
+                            if ($efiConfigured) {
+                                $script:rebootRequired = $true
                                 # Summary
                                 Write-Host ""
                                 Write-Host "============================================================" -ForegroundColor Cyan
-                                Write-Host " Finished (Part 8 - Clear DG UEFI Lock)" -ForegroundColor Cyan
+                                Write-Host " Finished (Part 9 - Clear DG UEFI Lock)" -ForegroundColor Cyan
                                 Write-Host " OK : $ok" -ForegroundColor Green
                                 Write-Host " FAIL : $fail" -ForegroundColor Red
                                 Write-Host "============================================================" -ForegroundColor Cyan
@@ -1540,10 +1670,10 @@ if ($choice -eq "1") {
                                 Write-Host " 重启确认后可用 msinfo32 -> 系统摘要 -> 基于虚拟化的安全性 验证是否已关闭。" -ForegroundColor Yellow
 
                                 # Auto restart in 5 seconds (press Q to cancel)
-                                Start-RestartCountdown -Seconds 5
+                                Request-Restart
                             } else {
                                 Write-Host ""
-                                Write-Host "[提示] SecConfig.efi 复制失败，未配置任何引导项，无需重启" -ForegroundColor Yellow
+                                Write-Host "[提示] EFI 一次性引导配置未完成，未设置待重启状态" -ForegroundColor Yellow
                             }
                         }
                     }
@@ -1600,7 +1730,7 @@ if ($choice -eq "1") {
         # Summary（无需重启）
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host " Finished (Part 8 - Cleanup)" -ForegroundColor Cyan
+        Write-Host " Finished (Part 9 - Cleanup)" -ForegroundColor Cyan
         Write-Host " OK : $ok" -ForegroundColor Green
         Write-Host " FAIL : $fail" -ForegroundColor Red
         Write-Host " SKIP : $skip" -ForegroundColor Yellow
@@ -1612,135 +1742,28 @@ if ($choice -eq "1") {
         Write-Host "[ERROR] 无效输入：$gChoice 。请输入 1 或 2 / Invalid input. Enter 1 or 2." -ForegroundColor Red
     }
 
-} elseif ($choice -eq "9") {
-
-    # ======================= Part 9: 虚拟化还原 / Hyper-V 启用 =======================
-    # 与选项 1（关闭 VBS/Hyper-V）互为还原：删除 bcdedit 引导项 + 删除 Device Guard
-    # 注册表关闭值，恢复系统默认；子选项 2 再启用 Hyper-V 功能组件
-    # （家庭版无控制面板入口，DISM 方式启用同样有效）。
-    Write-Host ""
-    Write-Host "============ [Part 9] 虚拟化还原 / Virtualization Restore & Hyper-V Enable ============" -ForegroundColor Cyan
-    Write-Host ""
-
-    # 选项 1 写入的 Device Guard 关闭值（还原 = 删除值，恢复"未配置"的系统默认状态）
-    $dgRegValues = @(
-        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity'; Name = 'Enabled' },
-        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard'; Name = 'EnableVirtualizationBasedSecurity' },
-        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA'; Name = 'LsaCfgFlags' },
-        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard'; Name = 'EnableVirtualizationBasedSecurity' },
-        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard'; Name = 'RequirePlatformSecurityFeatures' }
-    )
-
-    Write-Host "  0. 查看当前虚拟化状态（只读：bcdedit 引导项 / Device Guard 注册表 / Hyper-V 功能）" -ForegroundColor White
-    Write-Host "  1. 还原虚拟化（删除 hypervisorlaunchtype / vsmlaunchtype / isolatedcontext 引导项，" -ForegroundColor White
-    Write-Host "     删除 Device Guard 注册表关闭值，恢复系统默认；不改动 Hyper-V 功能安装状态）" -ForegroundColor White
-    Write-Host "  2. 完整还原 + 尝试启用 Hyper-V 功能（先做 1 的全部内容，再启用 Microsoft-Hyper-V-All；" -ForegroundColor White
-    Write-Host "     Windows Home 官方不支持 Hyper-V，DISM 结果取决于系统版本和映像" -ForegroundColor White
-    $vChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
-
-    if ($vChoice -eq "0") {
-
-        # 只读状态检查，不做任何修改
-        Write-Host ""
-        $bcEnum = (& bcdedit.exe /enum '{current}' 2>$null) -join "`n"
-        $bcHvOff = $false
-        foreach ($vName in @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')) {
-            if ($bcEnum -match ('(?m)^\s*' + [regex]::Escape($vName) + '\s+(\S+)')) {
-                Write-Host ("bcdedit {0,-24} = {1}" -f $vName, $Matches[1])
-                if ($vName -eq 'hypervisorlaunchtype' -and $Matches[1] -eq 'Off') { $bcHvOff = $true }
-            } else {
-                Write-Host ("bcdedit {0,-24} = <未设置（系统默认）>" -f $vName)
-            }
-        }
-
-        $dgAny = $false
-        foreach ($v in $dgRegValues) {
-            $item = Get-Item $v.Path -ErrorAction SilentlyContinue
-            if ($item -and ($item.GetValueNames() -contains $v.Name)) {
-                Write-Host ("注册表 {0} -> {1} = {2}" -f $v.Path, $v.Name, $item.GetValue($v.Name))
-                $dgAny = $true
-            }
-        }
-        if (-not $dgAny) { Write-Host "注册表 Device Guard 关闭值 : 无（未配置或已还原）" }
-
-        Write-Host "Hyper-V 功能组件状态（后两项为 WSL2/Docker 依赖，本脚本从不改动）："
-        foreach ($fn in @('Microsoft-Hyper-V-All','VirtualMachinePlatform','HypervisorPlatform')) {
-            $f = Get-WindowsOptionalFeature -Online -FeatureName $fn -ErrorAction SilentlyContinue
-            if ($f) { Write-Host ("  功能 {0,-26} = {1}" -f $fn, $f.State) }
-        }
-
-        Write-Host ""
-        if ($bcHvOff -or $dgAny) {
-            Write-Host "结论：虚拟化已被本脚本关闭（选项 1 的效果仍在）。选 9 -> 1 可还原，9 -> 2 还原并启用 Hyper-V" -ForegroundColor Yellow
-        } else {
-            Write-Host "结论：虚拟化处于系统默认状态（本脚本未关闭或已还原）" -ForegroundColor Green
-        }
-        Write-Host "提示：VBS 运行状态可用 msinfo32 -> 系统摘要 -> 基于虚拟化的安全性 查看" -ForegroundColor Yellow
-
-    } elseif (($vChoice -eq "1") -or ($vChoice -eq "2")) {
-
-        # 1) 还原 bcdedit 引导项（存在才删除）
-        Remove-BcdValue "hypervisorlaunchtype" "bcdedit hypervisorlaunchtype 还原"
-        Remove-BcdValue "vsmlaunchtype" "bcdedit vsmlaunchtype 还原"
-        Remove-BcdValue "isolatedcontext" "bcdedit isolatedcontext 还原"
-
-        # 2) 删除 Device Guard 注册表关闭值（恢复"未配置"）
-        foreach ($v in $dgRegValues) {
-            $item = Get-Item $v.Path -ErrorAction SilentlyContinue
-            if ($item -and ($item.GetValueNames() -contains $v.Name)) {
-                $regPath = Convert-RegExePath $v.Path
-                & reg.exe DELETE $regPath /v $v.Name /f *> $null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host ("[OK] 已删除注册表值 {0} -> {1}" -f $v.Path, $v.Name)
-                    $ok++
-                } else {
-                    Write-Host ("[FAIL] 删除注册表值 {0} -> {1} : reg.exe exit code $LASTEXITCODE" -f $v.Path, $v.Name) -ForegroundColor Red
-                    $fail++
-                }
-            } else {
-                Write-Host ("[SKIP] 注册表值不存在: {0} -> {1}" -f $v.Path, $v.Name) -ForegroundColor Yellow
-                $skip++
-            }
-        }
-
-        # 3) 子选项 2：尝试启用 Hyper-V 功能组件（-All 连带依赖；Home 结果取决于系统版本和映像）
-        if ($vChoice -eq "2") {
-            try {
-                $null = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart -ErrorAction Stop
-                Write-Host "[OK] Hyper-V 功能组件已启用 (Microsoft-Hyper-V-All，重启后生效)"
-                $ok++
-            } catch {
-                Write-Host "[FAIL] Hyper-V 功能组件启用 : $($_.Exception.Message)" -ForegroundColor Red
-                $fail++
-            }
-        }
-
-        # Summary
-        $actionLabel = $(if ($vChoice -eq "2") { "Restore + Hyper-V Enable" } else { "Restore" })
-        Write-Host ""
-        Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host " Finished (Part 9 - Virtualization $actionLabel)" -ForegroundColor Cyan
-        Write-Host " OK : $ok" -ForegroundColor Green
-        Write-Host " FAIL : $fail" -ForegroundColor Red
-        Write-Host " SKIP : $skip" -ForegroundColor Yellow
-        Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host ""
-        if ($vChoice -eq "2") {
-            Write-Host " 重启后可在开始菜单搜索 Hyper-V 管理器 验证；WSL2 / Docker / Windows 沙盒恢复可用（依赖 hypervisor 正常启动）" -ForegroundColor Yellow
-        } else {
-            Write-Host " 重启后虚拟化恢复系统默认（hypervisor 随需启动）；如需启用 Hyper-V 功能请选 9 -> 2" -ForegroundColor Yellow
-        }
-
-        # Auto restart in 5 seconds (press Q to cancel)
-        Start-RestartCountdown -Seconds 5
-
-    } else {
-        Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
-    }
-
 } elseif ($choice -eq "10") {
+    $script:moduleFailBaseline = $fail
+    Write-Host ""; Write-Host "============ [Part 10] 虚拟化 / VBS / Hyper-V 管理 ============" -ForegroundColor Cyan; Write-Host ""
+    $dgRegValues=@(@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity';Name='Enabled'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\LSA';Name='LsaCfgFlags'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='RequirePlatformSecurityFeatures'})
+    Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 恢复虚拟化默认状态 + 尝试启用 Hyper-V"
+    $vChoice=Read-Host "请输入 0、1 或 2 并回车"
+    if($vChoice -eq '0'){
+        $bcEnum=(& bcdedit.exe /enum '{current}' 2>$null)-join "`n";foreach($n in @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')){if($bcEnum -match ('(?m)^\s*'+[regex]::Escape($n)+'\s+(\S+)')){Write-Host ("bcdedit {0,-24} = {1}"-f $n,$Matches[1])}else{Write-Host ("bcdedit {0,-24} = <未设置（系统默认）>"-f $n)}};foreach($v in $dgRegValues){$item=Get-Item $v.Path -ErrorAction SilentlyContinue;if($item -and ($item.GetValueNames()-contains $v.Name)){Write-Host ("注册表 {0} -> {1} = {2}"-f $v.Path,$v.Name,$item.GetValue($v.Name))}};foreach($fn in @('Microsoft-Hyper-V-All','VirtualMachinePlatform','HypervisorPlatform')){$f=Get-WindowsOptionalFeature -Online -FeatureName $fn -ErrorAction SilentlyContinue;if($f){Write-Host ("功能 {0,-26} = {1}"-f $fn,$f.State)}};$cs=Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue;if($cs){Write-Host ("运行时 HypervisorPresent = {0}"-f $cs.HypervisorPresent)}
+    } elseif($vChoice -eq '1'){
+        foreach($v in $dgRegValues){Set-RegDword $v.Path $v.Name 0 ("关闭虚拟化安全 "+$v.Name)}
+        try{$hv=Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction Stop;if($hv.State -in @('Enabled','EnablePending')){$null=Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart -ErrorAction Stop;Write-Host '[OK] Hyper-V 功能组件已禁用';$ok++;$script:rebootRequired=$true}else{Write-Host '[SKIP] Hyper-V 功能组件未启用' -ForegroundColor Yellow;$skip++}}catch{Write-Host "[FAIL] Hyper-V 功能组件禁用 : $($_.Exception.Message)" -ForegroundColor Red;$fail++}
+        Invoke-BcdEdit "/set hypervisorlaunchtype off" "Hypervisor Launch Type Off";Invoke-BcdEdit "/set isolatedcontext no" "Isolated Context Off";Invoke-BcdEdit "/set vsmlaunchtype off" "VSM Launch Type Off";Verify-BcdValue 'hypervisorlaunchtype' 'Off' 'hypervisorlaunchtype'|Out-Null;Verify-BcdValue 'isolatedcontext' 'No' 'isolatedcontext'|Out-Null;Verify-BcdValue 'vsmlaunchtype' 'Off' 'vsmlaunchtype'|Out-Null;Write-Host '[提示] 重启后再验证 HypervisorPresent / msinfo32 实际运行状态。' -ForegroundColor Yellow
+    } elseif($vChoice -eq '2'){
+        foreach($v in $dgRegValues){$item=Get-Item $v.Path -ErrorAction SilentlyContinue;if($item -and ($item.GetValueNames()-contains $v.Name)){$regPath=Convert-RegExePath $v.Path;& reg.exe DELETE $regPath /v $v.Name /f *> $null;if($LASTEXITCODE -eq 0){Write-Host ("[OK] 已删除注册表值 {0} -> {1}"-f $v.Path,$v.Name);$ok++;$script:rebootRequired=$true}else{Write-Host ("[FAIL] 删除注册表值 {0} -> {1}"-f $v.Path,$v.Name) -ForegroundColor Red;$fail++}}else{Write-Host ("[SKIP] 注册表值不存在: {0} -> {1}"-f $v.Path,$v.Name) -ForegroundColor Yellow;$skip++}}
+        Remove-BcdValue 'hypervisorlaunchtype' '还原 hypervisorlaunchtype';Remove-BcdValue 'vsmlaunchtype' '还原 vsmlaunchtype';Remove-BcdValue 'isolatedcontext' '还原 isolatedcontext';try{$null=Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart -ErrorAction Stop;Write-Host '[OK] 已尝试启用 Hyper-V 功能组件（重启后生效）';$ok++;$script:rebootRequired=$true}catch{Write-Host "[FAIL] Hyper-V 功能组件启用 : $($_.Exception.Message)" -ForegroundColor Red;$fail++}
+    } else {Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1 或 2" -ForegroundColor Red}
+    Write-Host "Finished (Part 10 - Virtualization Management)" -ForegroundColor Cyan;Write-Host " OK : $ok  FAIL : $fail  SKIP : $skip";Request-Restart
 
-    # ======================= Part 10: MPO 设置管理 =======================
+} elseif ($choice -eq "11") {
+
+    $script:moduleFailBaseline = $fail
+    # ======================= Part 11: MPO 设置管理 =======================
     # MPO（Multi-Plane Overlay，多平面叠加）让显卡用独立硬件平面合成画面，异常时
     # 会引起闪屏/黑屏/切屏卡顿（N 卡多屏与 Chromium 系应用高发）。本选项管理四个
     # 注册表值，三个方案互斥（切换方案时自动清除其他方案的值）：
@@ -1753,7 +1776,7 @@ if ($choice -eq "1") {
     #                                     G-Sync/FreeSync 视频播放卡顿
     # 验证：dxdiag -> 保存所有信息 -> 搜索 MPO，仅作辅助判断；最终结合实际应用测试。
     Write-Host ""
-    Write-Host "============ [Part 10] MPO 设置管理 / MPO Settings ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 11] MPO 设置管理 / MPO Settings ============" -ForegroundColor Cyan
     Write-Host ""
 
     $mpoValues = @($script:mpoManagedValues)
@@ -1832,7 +1855,7 @@ if ($choice -eq "1") {
         $schemeLabel = $(if ($mChoice -eq "1") { "Disable (Scheme A: OverlayTestMode+DisableMPO)" } elseif ($mChoice -eq "2") { "Disable (Scheme B: DisableOverlays)" } else { "Keep MPO (Scheme C: OverlayMinFPS)" })
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host " Finished (Part 10 - MPO $schemeLabel)" -ForegroundColor Cyan
+        Write-Host " Finished (Part 11 - MPO $schemeLabel)" -ForegroundColor Cyan
         Write-Host " OK : $ok" -ForegroundColor Green
         Write-Host " FAIL : $fail" -ForegroundColor Red
         Write-Host " SKIP : $skip" -ForegroundColor Yellow
@@ -1842,7 +1865,7 @@ if ($choice -eq "1") {
         Write-Host " 原始状态备份：$script:mpoBackupFile；选 10 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
 
         # Auto restart in 5 seconds (press Q to cancel)
-        if ($mpoChanged) { Start-RestartCountdown -Seconds 5 }
+        if ($mpoChanged) { Request-Restart }
 
     } elseif ($mChoice -eq "4") {
 
@@ -1852,7 +1875,7 @@ if ($choice -eq "1") {
         # Summary
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host " Finished (Part 10 - MPO Restore)" -ForegroundColor Cyan
+        Write-Host " Finished (Part 11 - MPO Restore)" -ForegroundColor Cyan
         Write-Host " OK : $ok" -ForegroundColor Green
         Write-Host " FAIL : $fail" -ForegroundColor Red
         Write-Host " SKIP : $skip" -ForegroundColor Yellow
@@ -1864,16 +1887,13 @@ if ($choice -eq "1") {
             Write-Host " 重启后 MPO 恢复系统默认（叠加平面按系统策略自动管理）" -ForegroundColor Yellow
         }
 
-        # Auto restart in 5 seconds (press Q to cancel)
-        Start-RestartCountdown -Seconds 5
+        Request-Restart
 
     } else {
         Write-Host "[ERROR] 无效输入：$mChoice 。请输入 0、1、2、3 或 4 / Invalid input. Enter 0, 1, 2, 3 or 4." -ForegroundColor Red
     }
 
-} else {
-    Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7、8、9 或 10 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10." -ForegroundColor Red
-    Read-Host "Press Enter to exit"
-    exit 1
+ } else {
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-11 / Invalid input. Enter 0-11." -ForegroundColor Red
+}
 }
