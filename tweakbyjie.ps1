@@ -19,9 +19,10 @@
 #                 再导入并应用仓库自带的 ultimate-performance.pow；
 #                 子选项 2：恢复之前备份的电源计划），
 #                 完成后 5 秒自动重启（按 Q 取消）
-#   输入 7 回车 = 启用 Windows 原生 NVMe 驱动 nvmedisk.sys（需 25H2/build 26200+ 与 NVMe
-#                 硬盘；子选项 0：只读查看当前状态；子选项 1：写入 3 个 Velocity
-#                 功能覆盖值 + 2 条安全模式加固；子选项 2：删除覆盖值还原为系统默认），
+#   输入 7 回车 = 尝试启用 Windows 原生 NVMe 驱动 nvmedisk.sys（当前脚本以 25H2/build 26200+
+#                 与 NVMe 硬盘为前提；子选项 0：只读查看当前状态；子选项 1：写入 3 个 Velocity
+#                 功能覆盖值 + 2 条安全模式加固；子选项 2：删除 Velocity 覆盖值还原，SafeBoot
+#                 加固项按设计保留），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 #   输入 8 回车 = 清除 Device Guard EFI 锁定（应对 UEFI 锁定：注册表已关但安全中心仍
 #                 显示内存完整性/凭据保护开启；先做 BitLocker 预检查，再挂载 EFI 分区
@@ -31,8 +32,8 @@
 #   输入 9 回车 = 虚拟化还原 / Hyper-V 启用（与选项 1 互为还原：删除 hypervisorlaunchtype /
 #                 vsmlaunchtype / isolatedcontext 引导项，删除 Device Guard 注册表关闭值，
 #                 恢复系统默认；子选项 0：只读查看当前虚拟化状态；子选项 1：仅还原；
-#                 子选项 2：还原并启用 Hyper-V 功能——家庭版无控制面板入口，
-#                 DISM 方式启用同样有效），
+#                 子选项 2：还原后尝试启用 Hyper-V 功能（仅适用于 Microsoft 官方支持的版本；
+#                 Windows Home 官方不支持 Hyper-V，DISM 结果取决于系统映像），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 #   输入 10 回车 = MPO 设置管理（三方案互斥，使用未公开的社区排障注册表值；首次修改前
 #                 备份到 mpo-backup.json：1 = 方案 A：OverlayTestMode=5 + DisableMPO=1；
@@ -310,12 +311,12 @@ Write-Host "   5. 优化服务项继续工作（禁用可安全禁用的服务�
 Write-Host "      Service Optimization (disable safe services, restore Xbox/Bluetooth to Manual)" -ForegroundColor Gray
 Write-Host "   6. 应用超性能电源计划（备份当前计划后导入并应用，子选项 2 可恢复备份）" -ForegroundColor White
 Write-Host "      Apply Ultimate Performance Power Plan (backup current, import & apply, restorable)" -ForegroundColor Gray
-    Write-Host "   7. 启用原生 NVMe 驱动（写入 Velocity 覆盖 + 安全模式加固，子选项 2 可还原）" -ForegroundColor White
-    Write-Host "      Enable native NVMe driver nvmedisk.sys (velocity overrides + safe boot fix, restorable)" -ForegroundColor Gray
+    Write-Host "   7. 尝试启用原生 NVMe 驱动（Velocity 覆盖 + SafeBoot 加固；子选项 2 删除覆盖值，保留加固项）" -ForegroundColor White
+    Write-Host "      Try native NVMe driver nvmedisk.sys (remove velocity overrides to restore; SafeBoot fix retained)" -ForegroundColor Gray
     Write-Host "   8. 清除 Device Guard EFI 锁定（SecConfig.efi 应对 UEFI 锁定，含 BitLocker 预检查）" -ForegroundColor White
     Write-Host "      Clear Device Guard UEFI lock via SecConfig.efi (BitLocker pre-check included)" -ForegroundColor Gray
-    Write-Host "   9. 虚拟化还原 / Hyper-V 启用（还原选项 1 的虚拟化关闭；家庭版 DISM 启用同样有效）" -ForegroundColor White
-    Write-Host "      Virtualization restore & Hyper-V enable (undo option 1; works on Home via DISM)" -ForegroundColor Gray
+    Write-Host "   9. 虚拟化还原 / Hyper-V 启用（还原选项 1；仅适用于官方支持版本，Home 结果取决于映像）" -ForegroundColor White
+    Write-Host "      Virtualization restore & Hyper-V attempt (officially supported editions; Home image-dependent)" -ForegroundColor Gray
     Write-Host "  10. MPO 设置管理（禁用三方案互斥管理 / OverlayMinFPS 调整 / 一键还原）" -ForegroundColor White
     Write-Host "      MPO settings manager (3 exclusive disable schemes, OverlayMinFPS tweak, one-key restore)" -ForegroundColor Gray
     Write-Host ""
@@ -446,8 +447,14 @@ if ($choice -eq "1") {
     Write-Host "[TRIM]" -ForegroundColor Cyan
     try {
         $trimOut = fsutil.exe behavior set DisableDeleteNotify 0 2>&1
-        Write-Host "[OK] NTFS TRIM command executed"
-        $ok++
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[OK] NTFS TRIM enabled"
+            $ok++
+        } else {
+            Write-Host "[FAIL] TRIM : fsutil exit code $LASTEXITCODE" -ForegroundColor Red
+            if ($trimOut) { Write-Host ($trimOut -join [Environment]::NewLine) -ForegroundColor DarkYellow }
+            $fail++
+        }
     } catch {
         Write-Host "[FAIL] TRIM : $($_.Exception.Message)" -ForegroundColor Red
         $fail++
@@ -1506,8 +1513,8 @@ if ($choice -eq "1") {
     Write-Host "  0. 查看当前虚拟化状态（只读：bcdedit 引导项 / Device Guard 注册表 / Hyper-V 功能）" -ForegroundColor White
     Write-Host "  1. 还原虚拟化（删除 hypervisorlaunchtype / vsmlaunchtype / isolatedcontext 引导项，" -ForegroundColor White
     Write-Host "     删除 Device Guard 注册表关闭值，恢复系统默认；不改动 Hyper-V 功能安装状态）" -ForegroundColor White
-    Write-Host "  2. 完整还原 + 启用 Hyper-V 功能（先做 1 的全部内容，再启用 Microsoft-Hyper-V-All；" -ForegroundColor White
-    Write-Host "     家庭版同样适用——DISM 方式启用，等价于控制面板勾选 Hyper-V）" -ForegroundColor White
+    Write-Host "  2. 完整还原 + 尝试启用 Hyper-V 功能（先做 1 的全部内容，再启用 Microsoft-Hyper-V-All；" -ForegroundColor White
+    Write-Host "     Windows Home 官方不支持 Hyper-V，DISM 结果取决于系统版本和映像" -ForegroundColor White
     $vChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
 
     if ($vChoice -eq "0") {
@@ -1575,7 +1582,7 @@ if ($choice -eq "1") {
             }
         }
 
-        # 3) 子选项 2：启用 Hyper-V 功能组件（-All 连带全部依赖子功能，家庭版同样适用）
+        # 3) 子选项 2：尝试启用 Hyper-V 功能组件（-All 连带依赖；Home 结果取决于系统版本和映像）
         if ($vChoice -eq "2") {
             try {
                 $null = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart -ErrorAction Stop

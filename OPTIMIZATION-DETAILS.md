@@ -643,7 +643,7 @@
 
 ### Part 9：虚拟化还原 / Hyper-V 启用（选项 9）
 
-与选项 1（关闭 VBS / Hyper-V）互为还原，补齐虚拟化开关的另一半。社区教程《Hyper-V 的启用与关闭》（机械革命优化频道）给出的关闭侧三种方法，本仓库选项 1 已全部覆盖；启用侧（尤其是**家庭版没有控制面板入口、需 DISM 启用**）由本选项提供。
+与选项 1（关闭 VBS / Hyper-V）互为还原，补齐虚拟化开关的另一半。选项 1 覆盖 bcdedit、可选功能和注册表层面的关闭操作；本选项提供恢复虚拟化并尝试启用 Hyper-V 功能的入口。Windows Home 官方不支持 Hyper-V 角色，DISM 是否能找到并启用相关组件取决于系统版本和映像。
 
 **关闭 Hyper-V 的三种方法与本脚本的对应关系**
 
@@ -679,7 +679,7 @@
 |---|---|
 | `Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart` | 启用 Hyper-V 功能本体（`-All` 连带全部依赖子功能），重启后生效 |
 
-> **家庭版适用**：家庭版"启用或关闭 Windows 功能"里没有 Hyper-V 一项，但 DISM 层面功能组件仍存在，`Enable-WindowsOptionalFeature`（DISM 的 PowerShell 封装）可以直接启用——这正是社区"家庭版一键开启 Hyper-V"批处理脚本（一串 `DISM /Online /Enable-Feature` 命令）的原理，本脚本与其等效。
+> **Windows Home 限制**：Microsoft 官方不支持在家庭版提供 Hyper-V 角色。脚本仍可能尝试调用 `Enable-WindowsOptionalFeature`，但是否存在 `Microsoft-Hyper-V-All` 以及能否启用完全取决于系统版本和映像；失败时应以脚本输出为准，不能将其视为等价于专业版控制面板中的 Hyper-V。
 
 **注意事项**：
 
