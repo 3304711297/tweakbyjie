@@ -34,6 +34,13 @@
 #                 子选项 2：还原并启用 Hyper-V 功能——家庭版无控制面板入口，
 #                 DISM 方式启用同样有效），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
+#   输入 10 回车 = MPO 设置管理（三方案互斥，切换时自动清除其他方案值：
+#                 1 = 方案 A：OverlayTestMode=5 + DisableMPO=1 禁用 MPO（与选项 1 写入
+#                 相同，最常用）；2 = 方案 B：DisableOverlays=1 驱动层更彻底禁用（个别
+#                 DX12 游戏可能异常，最后手段）；3 = 方案 C：OverlayMinFPS=0 不禁用
+#                 MPO、保持硬件合成常开（解决 G-Sync/FreeSync 视频播放全屏卡顿，无兼容
+#                 性问题）；子选项 0：只读查看状态；子选项 4：删除全部值还原系统默认），
+#                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
 $ok = 0
@@ -99,6 +106,27 @@ function Set-RegBinary {
         if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
         Write-Host ("[OK] {0} = {1}" -f $Label, $Hex)
         $script:ok++
+    } catch {
+        Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
+        $script:fail++
+    }
+}
+
+# Delete a registry value only when it exists (for restore flows)
+function Remove-RegDwordValue {
+    param([string]$Path,[string]$Name,[string]$Label)
+    try {
+        $item = Get-Item $Path -ErrorAction SilentlyContinue
+        if ($item -and ($item.GetValueNames() -contains $Name)) {
+            $regPath = Convert-RegExePath $Path
+            & reg.exe DELETE $regPath /v $Name /f *> $null
+            if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+            Write-Host ("[OK] {0}（已删除 {1} -> {2}）" -f $Label, $Path, $Name)
+            $script:ok++
+        } else {
+            Write-Host "[SKIP] $Label 未设置（系统默认，无需还原）" -ForegroundColor Yellow
+            $script:skip++
+        }
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
@@ -189,11 +217,13 @@ Write-Host "      Apply Ultimate Performance Power Plan (backup current, import 
     Write-Host "      Clear Device Guard UEFI lock via SecConfig.efi (BitLocker pre-check included)" -ForegroundColor Gray
     Write-Host "   9. 虚拟化还原 / Hyper-V 启用（还原选项 1 的虚拟化关闭；家庭版 DISM 启用同样有效）" -ForegroundColor White
     Write-Host "      Virtualization restore & Hyper-V enable (undo option 1; works on Home via DISM)" -ForegroundColor Gray
+    Write-Host "  10. MPO 设置管理（禁用三方案互斥管理 / OverlayMinFPS 调整 / 一键还原）" -ForegroundColor White
+    Write-Host "      MPO settings manager (3 exclusive disable schemes, OverlayMinFPS tweak, one-key restore)" -ForegroundColor Gray
     Write-Host ""
     Write-Host " 注意：每个选项执行完成后都会在 5 秒后自动重启（期间按 Q 取消）" -ForegroundColor Yellow
     Write-Host " NOTE: Each option auto-restarts after 5 seconds (press Q to cancel)." -ForegroundColor Yellow
     Write-Host ""
-$choice = Read-Host "请输入 1、2、3、4、5、6、7、8 或 9 并回车 (Enter 1, 2, 3, 4, 5, 6, 7, 8 or 9)"
+$choice = Read-Host "请输入 1、2、3、4、5、6、7、8、9 或 10 并回车 (Enter 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10)"
 
 if ($choice -eq "1") {
 
@@ -268,7 +298,7 @@ if ($choice -eq "1") {
     # 09 HAGS
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
 
-    # 10 Disable MPO
+    # 10 Disable MPO（独立管理/更多方案/还原见选项 10）
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableMPO" 1 "DisableMPO"
 
     # 11 Games task
@@ -284,7 +314,7 @@ if ($choice -eq "1") {
     # 12 Prefetch
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
 
-    # 13 DWM
+    # 13 DWM（独立管理/还原见选项 10）
     Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayTestMode" 5 "OverlayTestMode"
 
     # 14 NTFS
@@ -1475,9 +1505,137 @@ if ($choice -eq "1") {
         Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
     }
 
+} elseif ($choice -eq "10") {
+
+    # ======================= Part 10: MPO 设置管理 =======================
+    # MPO（Multi-Plane Overlay，多平面叠加）让显卡用独立硬件平面合成画面，异常时
+    # 会引起闪屏/黑屏/切屏卡顿（N 卡多屏与 Chromium 系应用高发）。本选项管理四个
+    # 注册表值，三个方案互斥（切换方案时自动清除其他方案的值）：
+    #   DisableMPO      (GraphicsDrivers) = 1：驱动层禁用（旧方法；Win11 24H2/25H2
+    #                                     部分版本已失效；选项 1 会写入本值）
+    #   OverlayTestMode (Dwm)            = 5：DWM 层禁用（最常用、兼容性好）
+    #   DisableOverlays (GraphicsDrivers) = 1：驱动层禁用（最彻底的最后手段；个别
+    #                                     DX12 游戏可能异常；须与其他值互斥）
+    #   OverlayMinFPS   (Dwm)            = 0：不禁用 MPO，改为始终维持硬件合成——
+    #                                     解决 G-Sync/FreeSync 视频播放全屏卡顿
+    # 验证：dxdiag -> 保存所有信息 -> 搜索 MPO，MaxPlanes 消失/为 0 即已禁用。
+    Write-Host ""
+    Write-Host "============ [Part 10] MPO 设置管理 / MPO Settings ============" -ForegroundColor Cyan
+    Write-Host ""
+
+    $mpoValues = @(
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableMPO';      Desc = '驱动层禁用 MPO（旧方法）' },
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableOverlays'; Desc = '驱动层禁用 MPO（最彻底，最后手段）' },
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayTestMode'; Desc = 'DWM 层禁用 MPO（最常用）' },
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayMinFPS';   Desc = '保持 MPO 常开（治 G-Sync/FreeSync 视频卡顿）' }
+    )
+
+    Write-Host "  0. 查看当前 MPO 设置状态（只读：四个注册表值 + dxdiag 验证方法）" -ForegroundColor White
+    Write-Host "  1. 禁用 MPO — 方案 A：OverlayTestMode=5 + DisableMPO=1（与选项 1 相同；" -ForegroundColor White
+    Write-Host "     最常用、兼容性好；自动清除方案 B/C 的值）" -ForegroundColor White
+    Write-Host "  2. 禁用 MPO — 方案 B：DisableOverlays=1（驱动层更彻底；个别 DX12 游戏可能" -ForegroundColor White
+    Write-Host "     异常，作为方案 A 无效时的最后手段；自动清除方案 A/C 的值）" -ForegroundColor White
+    Write-Host "  3. 不禁用 MPO — 方案 C：OverlayMinFPS=0（保持硬件合成常开，解决 G-Sync/" -ForegroundColor White
+    Write-Host "     FreeSync 视频播放全屏卡顿；无兼容性问题；自动清除方案 A/B 的值）" -ForegroundColor White
+    Write-Host "  4. 还原（删除全部四个值，恢复系统默认）" -ForegroundColor White
+    $mChoice = Read-Host "请输入 0、1、2、3 或 4 并回车 (Enter 0, 1, 2, 3 or 4)"
+
+    if ($mChoice -eq "0") {
+
+        # 只读状态检查，不做任何修改
+        Write-Host ""
+        $mpoAny = $false
+        foreach ($v in $mpoValues) {
+            $item = Get-Item $v.Path -ErrorAction SilentlyContinue
+            if ($item -and ($item.GetValueNames() -contains $v.Name)) {
+                Write-Host ("注册表 {0,-16} = {1}  ({2})" -f $v.Name, $item.GetValue($v.Name), $v.Desc)
+                $mpoAny = $true
+            } else {
+                Write-Host ("注册表 {0,-16} = <未设置（系统默认）>  ({1})" -f $v.Name, $v.Desc)
+            }
+        }
+
+        Write-Host ""
+        if ($mpoAny) {
+            Write-Host "结论：存在手动 MPO 设置；选 10 -> 4 可全部还原为系统默认" -ForegroundColor Yellow
+        } else {
+            Write-Host "结论：MPO 全部为系统默认状态（未做任何修改）" -ForegroundColor Green
+        }
+        Write-Host ""
+        Write-Host "验证 MPO 是否已禁用（需重启后检查）：" -ForegroundColor Cyan
+        Write-Host "  Win+R 运行 dxdiag -> 保存所有信息 -> 打开保存的 txt 搜索 MPO" -ForegroundColor White
+        Write-Host "  已禁用：MPO 相关条目消失或 MaxPlanes 为 0" -ForegroundColor White
+        Write-Host "  未生效：仍显示 MPO MaxPlanes: 4 等完整支持信息" -ForegroundColor White
+
+    } elseif (($mChoice -eq "1") -or ($mChoice -eq "2") -or ($mChoice -eq "3")) {
+
+        $gdReg = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
+        $dwmReg = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
+
+        if ($mChoice -eq "1") {
+            # 方案 A：DWM 层 + 旧驱动层双保险（与选项 1 写入的值一致）
+            Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
+            Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
+            Set-RegDword $dwmReg "OverlayTestMode" 5 "OverlayTestMode = 5 (DWM 层禁用 MPO)"
+            Set-RegDword $gdReg "DisableMPO" 1 "DisableMPO = 1 (驱动层禁用 MPO)"
+        } elseif ($mChoice -eq "2") {
+            # 方案 B：驱动层整体禁用叠加平面；与其他值互斥，须先清除
+            Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
+            Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
+            Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
+            Set-RegDword $gdReg "DisableOverlays" 1 "DisableOverlays = 1 (驱动层禁用 MPO)"
+            Write-Host " [警告] DisableOverlays 为最后手段：个别 DX12 游戏可能出现异常，如遇问题请用 10 -> 4 还原" -ForegroundColor Yellow
+        } else {
+            # 方案 C：保持 MPO 开启，将 DWM 撤下叠加平面的最低帧率阈值设为 0（不撤）
+            Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
+            Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
+            Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
+            Set-RegDword $dwmReg "OverlayMinFPS" 0 "OverlayMinFPS = 0 (保持 MPO 常开)"
+        }
+
+        # Summary
+        $schemeLabel = $(if ($mChoice -eq "1") { "Disable (Scheme A: OverlayTestMode+DisableMPO)" } elseif ($mChoice -eq "2") { "Disable (Scheme B: DisableOverlays)" } else { "Keep MPO (Scheme C: OverlayMinFPS)" })
+        Write-Host ""
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host " Finished (Part 10 - MPO $schemeLabel)" -ForegroundColor Cyan
+        Write-Host " OK : $ok" -ForegroundColor Green
+        Write-Host " FAIL : $fail" -ForegroundColor Red
+        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host " 重启后用 dxdiag -> 保存所有信息 -> 搜索 MPO 验证是否生效（MaxPlanes 消失/为 0 = 已禁用）" -ForegroundColor Yellow
+
+        # Auto restart in 5 seconds (press Q to cancel)
+        Start-RestartCountdown -Seconds 5
+
+    } elseif ($mChoice -eq "4") {
+
+        # 还原：删除全部四个值（存在才删）
+        foreach ($v in $mpoValues) {
+            Remove-RegDwordValue $v.Path $v.Name ("还原 " + $v.Name)
+        }
+
+        # Summary
+        Write-Host ""
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host " Finished (Part 10 - MPO Restore)" -ForegroundColor Cyan
+        Write-Host " OK : $ok" -ForegroundColor Green
+        Write-Host " FAIL : $fail" -ForegroundColor Red
+        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host " 重启后 MPO 恢复系统默认（叠加平面按系统策略自动管理）" -ForegroundColor Yellow
+
+        # Auto restart in 5 seconds (press Q to cancel)
+        Start-RestartCountdown -Seconds 5
+
+    } else {
+        Write-Host "[ERROR] 无效输入：$mChoice 。请输入 0、1、2、3 或 4 / Invalid input. Enter 0, 1, 2, 3 or 4." -ForegroundColor Red
+    }
+
 } else {
     Write-Host ""
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7、8 或 9 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7, 8 or 9." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 1、2、3、4、5、6、7、8、9 或 10 / Invalid input. Enter 1, 2, 3, 4, 5, 6, 7, 8, 9 or 10." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }

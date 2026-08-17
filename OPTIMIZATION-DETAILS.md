@@ -85,6 +85,8 @@
 |---|---|---|---|---|
 | `HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` | DisableMPO | DWORD | 1 | 关闭多平面叠加（MPO），减少部分游戏的卡顿 |
 
+> 更彻底的禁用方案（`DisableOverlays`）、G-Sync/FreeSync 视频卡顿修复（`OverlayMinFPS`）与一键还原见 **Part 10（选项 10）**。
+
 #### 11 Games 任务调度
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
@@ -107,7 +109,9 @@
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
-| `HKLM:\SOFTWARE\Microsoft\Windows\Dwm` | OverlayTestMode | DWORD | 5 | DWM 叠加测试模式优化 |
+| `HKLM:\SOFTWARE\Microsoft\Windows\Dwm` | OverlayTestMode | DWORD | 5 | DWM 层禁用 MPO（叠加测试模式） |
+
+> 独立管理/还原见 **Part 10（选项 10）**。
 
 #### 14 NTFS 8.3 短文件名
 
@@ -685,6 +689,54 @@
 - 若之前执行过选项 8 清除了 EFI 变量，Device Guard 相关开关会回到"未配置"；如需重新开启 VBS/内存完整性，还原后在 Windows 安全中心 → 内核隔离 中手动开启。
 
 **验证方式**：子选项 2 重启后，开始菜单搜索"Hyper-V 管理器"可打开即启用成功；`msinfo32` → 系统摘要 → 基于虚拟化的安全性 可查看 Hyper-V 服务状态；WSL2 可用 `wsl --status` 确认。
+
+---
+
+### Part 10：MPO 设置管理（选项 10）
+
+MPO（Multi-Plane Overlay，多平面叠加）让显卡用独立硬件平面合成画面（视频/游戏独立翻转，减轻 DWM 负担）。MPO 异常会引起闪屏、切屏黑屏、副屏冻结（N 卡多屏与 Chromium 系应用高发）；反之禁用 MPO 会失去窗口化游戏的 VRR（可变刷新率）支持并增加 DWM 负载。本选项把社区通行的四个注册表值收拢为**三个互斥方案 + 查看 + 还原**，切换方案时自动清除其他方案的值。
+
+**两类方案的本质区别**——"OverlayMinFPS 比禁用 MPO 效果更好"的说法**只在 VRR 视频卡顿场景成立**，两者并非同一问题的两种解法，而是方向相反的两个操作：
+
+| | 禁用 MPO（方案 A / B） | OverlayMinFPS=0（方案 C） |
+|---|---|---|
+| 本质 | 把 MPO **关掉**，画面全部退回 DWM 组合输出 | MPO **保持开启**，取消"帧率低于阈值就撤下叠加平面"的默认规则 |
+| 解决的问题 | MPO 本身的故障：多屏闪屏、切屏黑屏、Chromium 残影、副屏冻结 | 仅 G-Sync/FreeSync 下视频播放卡顿（低帧率触发 MPO 撤下瞬间的掉帧）；**对 MPO 本身的故障无效** |
+| 代价 | 失去窗口化游戏的 VRR 支持、DWM 负载增加（方案 B 还有个别 DX12 游戏兼容问题） | 无兼容性问题，保留 MPO 全部收益 |
+
+**按症状选择**：
+
+| 症状 | 推荐 |
+|---|---|
+| 闪屏 / 切屏黑屏 / Chromium 残影 / 副屏冻结（N 卡多屏高发） | 10 → 1（方案 A）；无效再试 10 → 2（方案 B） |
+| 仅 G-Sync/FreeSync 开启时视频播放全屏卡顿，游戏画面正常 | 10 → 3（方案 C），不要禁用 MPO |
+| 禁用 MPO 后窗口化游戏丢失 VRR / 变卡 | 10 → 3（方案 C）或 10 → 4（还原） |
+| 恢复系统默认 | 10 → 4 |
+
+**四个受管理的注册表值**
+
+| 注册表路径 | 值名 | 写入值 | 作用 | 备注 |
+|---|---|---|---|---|
+| `HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` | DisableMPO | 1 | 驱动层禁用 MPO（旧方法） | Win11 24H2/25H2 部分版本已失效（社区反馈）；选项 1 会写入本值 |
+| `HKLM:\SOFTWARE\Microsoft\Windows\Dwm` | OverlayTestMode | 5 | DWM 层禁用 MPO | 最常用、兼容性好；"25H2 已失效"属传言（MPO-GPU-FIX 仓库反馈仍有效） |
+| `HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers` | DisableOverlays | 1 | 驱动层整体禁用叠加平面 | 最彻底的**最后手段**：个别 DX12 游戏可能异常（黑屏/崩溃）；开启后其余三个值必须清除（互斥） |
+| `HKLM:\SOFTWARE\Microsoft\Windows\Dwm` | OverlayMinFPS | 0 | **不禁用 MPO**：把 DWM 撤下叠加平面的最低帧率阈值设为 0（不撤） | 解决 G-Sync/FreeSync 下视频播放全屏卡顿（帧率低于默认阈值时 Windows 会放弃 MPO 退回组合模式导致卡顿）；无兼容性问题 |
+
+**子选项**
+
+| 子选项 | 内容 |
+|---|---|
+| 0 | 只读查看四个值当前状态（值 + 含义 + 结论），并打印 dxdiag 验证方法；不做任何修改、不重启 |
+| 1 | **方案 A**：清除 `DisableOverlays` / `OverlayMinFPS`，写入 `OverlayTestMode=5` + `DisableMPO=1`（与选项 1 写入的值一致，最常用） |
+| 2 | **方案 B**：清除 `OverlayTestMode` / `OverlayMinFPS` / `DisableMPO`，写入 `DisableOverlays=1`（更彻底；执行时屏幕提示 DX12 兼容性警告） |
+| 3 | **方案 C**：清除 `OverlayTestMode` / `DisableOverlays` / `DisableMPO`，写入 `OverlayMinFPS=0`（保持 MPO 开启，治 G-Sync/FreeSync 视频卡顿） |
+| 4 | **还原**：删除全部四个值（存在才删），恢复系统默认 |
+
+子选项 1–4 修改后均 5 秒自动重启（按 `Q` 取消）；MPO 设置需重启才生效。
+
+**验证方式**：重启后 `Win+R` 运行 `dxdiag` → 保存所有信息 → 打开保存的 txt 搜索 `MPO`。已禁用：MPO 相关条目消失或 `MPO MaxPlanes` 为 0；未生效：仍显示 `MPO MaxPlanes: 4` 等完整支持信息。（方案 C 不禁用 MPO，MaxPlanes 仍为完整值，属正常。）
+
+**参考**：社区 MPO 修复仓库 [RedDot-3ND7355/MPO-GPU-FIX](https://github.com/RedDot-3ND7355/MPO-GPU-FIX)（OverlayTestMode 主修复 + OverlayMinFPS / DisableOverlays 可选开关的出处，互斥建议同本实现）；MPO/全屏优化原理参考 [dnpu.com/853.html](https://dnpu.com/853.html)。
 
 ---
 
