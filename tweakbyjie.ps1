@@ -259,6 +259,79 @@ function Remove-BcdValue {
     }
 }
 
+function Verify-RegDword {
+    param([string]$Path, [string]$Name, [uint32]$Expected, [string]$Label)
+    try {
+        $item = Get-Item $Path -ErrorAction Stop
+        if ($item.GetValueNames() -notcontains $Name) {
+            Write-Host "[VERIFY FAIL] $Label：值不存在" -ForegroundColor Red
+            $script:fail++
+            return $false
+        }
+        $actual = [uint32]$item.GetValue($Name)
+        if ($actual -eq $Expected) {
+            Write-Host "[VERIFY OK] $Label = $actual" -ForegroundColor Green
+            return $true
+        }
+        Write-Host "[VERIFY FAIL] $Label：实际=$actual，目标=$Expected" -ForegroundColor Red
+        $script:fail++
+        return $false
+    } catch {
+        Write-Host "[VERIFY FAIL] $Label：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Verify-BcdValue {
+    param([string]$ValueName, [string]$Expected, [string]$Label)
+    try {
+        $enumOut = (& bcdedit.exe /enum '{current}' 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw 'bcdedit /enum failed' }
+        $pattern = '(?m)^\s*' + [regex]::Escape($ValueName) + '\s+([^\r\n]+)'
+        if ($enumOut -notmatch $pattern) {
+            Write-Host "[VERIFY FAIL] bcdedit $Label：值不存在" -ForegroundColor Red
+            $script:fail++
+            return $false
+        }
+        $actual = $Matches[1].Trim()
+        if ($actual -ieq $Expected) {
+            Write-Host "[VERIFY OK] bcdedit $Label = $actual" -ForegroundColor Green
+            return $true
+        }
+        Write-Host "[VERIFY FAIL] bcdedit $Label：实际=$actual，目标=$Expected" -ForegroundColor Red
+        $script:fail++
+        return $false
+    } catch {
+        Write-Host "[VERIFY FAIL] bcdedit $Label：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Verify-ServiceStartupType {
+    param([string]$ServiceName, [string]$Expected, [string]$Label)
+    try {
+        $svc = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f $ServiceName.Replace("'", "''")) -ErrorAction Stop
+        if (-not $svc) {
+            Write-Host "[VERIFY SKIP] $Label：服务不存在" -ForegroundColor Yellow
+            $script:skip++
+            return $true
+        }
+        if ($svc.StartMode -ieq $Expected) {
+            Write-Host "[VERIFY OK] $Label StartupType = $($svc.StartMode)" -ForegroundColor Green
+            return $true
+        }
+        Write-Host "[VERIFY FAIL] $Label：实际=$($svc.StartMode)，目标=$Expected" -ForegroundColor Red
+        $script:fail++
+        return $false
+    } catch {
+        Write-Host "[VERIFY FAIL] $Label：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
 # 5-second restart countdown, press Q to cancel
 function Start-RestartCountdown {
     param([int]$Seconds = 5)
@@ -331,6 +404,7 @@ if ($choice -eq "1") {
     Write-Host ""
     Write-Host "============ [Part 1] System Optimization (Original) ============" -ForegroundColor Cyan
     Write-Host ""
+    $part1FailBaseline = $fail
 
     # 01 GameDVR
     Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" "AppCaptureEnabled" 0 "AppCaptureEnabled"
@@ -544,6 +618,18 @@ if ($choice -eq "1") {
 
     Write-Host " 视觉效果为 HKCU 设置，注销 / 重启（或重启资源管理器）后完全生效" -ForegroundColor Yellow
 
+    Write-Host ""
+    Write-Host "[Post-Apply Verification / 执行后关键项验证]" -ForegroundColor Cyan
+    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation" | Out-Null
+    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverride" 3 "FeatureSettingsOverride" | Out-Null
+    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "FeatureSettingsOverrideMask" 3 "FeatureSettingsOverrideMask" | Out-Null
+    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS" | Out-Null
+    Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher" | Out-Null
+    Verify-BcdValue "hypervisorlaunchtype" "Off" "hypervisorlaunchtype" | Out-Null
+    Verify-BcdValue "isolatedcontext" "No" "isolatedcontext" | Out-Null
+    Verify-BcdValue "vsmlaunchtype" "Off" "vsmlaunchtype" | Out-Null
+    Verify-BcdValue "nx" "AlwaysOff" "nx" | Out-Null
+
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -553,8 +639,12 @@ if ($choice -eq "1") {
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    # Auto restart only when this part's writes and verification have no failures
+    if ($fail -eq $part1FailBaseline) {
+        Start-RestartCountdown -Seconds 5
+    } else {
+        Write-Host "[已跳过] 关键项验证或写入失败，未自动重启；修复后请手动重启" -ForegroundColor Yellow
+    }
 
 } elseif ($choice -eq "2") {
 
@@ -945,6 +1035,7 @@ if ($choice -eq "1") {
     Write-Host ""
     Write-Host "============ [Part 5] 优化服务项继续工作 / Service Optimization ============" -ForegroundColor Cyan
     Write-Host ""
+    $part5FailBaseline = $fail
 
     # 1) Disable safe-to-disable services
     Write-Host "[Safe Services: stop + disable]" -ForegroundColor Cyan
@@ -1010,6 +1101,15 @@ if ($choice -eq "1") {
         }
     }
 
+    Write-Host ""
+    Write-Host "[Post-Apply Verification / 服务启动类型验证]" -ForegroundColor Cyan
+    foreach ($svc in $safeServices) {
+        Verify-ServiceStartupType $svc "Disabled" $svc | Out-Null
+    }
+    foreach ($svc in $manualServices) {
+        Verify-ServiceStartupType $svc "Manual" $svc | Out-Null
+    }
+
     # Summary
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -1019,8 +1119,12 @@ if ($choice -eq "1") {
     Write-Host " SKIP : $skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
-    # Auto restart in 5 seconds (press Q to cancel)
-    Start-RestartCountdown -Seconds 5
+    # Auto restart only when this part's writes and verification have no failures
+    if ($fail -eq $part5FailBaseline) {
+        Start-RestartCountdown -Seconds 5
+    } else {
+        Write-Host "[已跳过] 服务写入或验证失败，未自动重启；修复后请手动重启" -ForegroundColor Yellow
+    }
 
 } elseif ($choice -eq "6") {
 

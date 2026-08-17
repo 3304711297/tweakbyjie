@@ -44,7 +44,7 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 | **9** | 虚拟化还原 / Hyper-V 启用 | 与选项 1 互为还原。子选项 0：只读查看虚拟化状态（bcdedit 引导项 / Device Guard 注册表 / Hyper-V 及 WSL2 相关功能状态）；子选项 1：删除 `hypervisorlaunchtype` / `vsmlaunchtype` / `isolatedcontext` 引导项 + 删除 Device Guard 注册表关闭值，恢复系统默认；子选项 2：在 1 的基础上尝试启用 Hyper-V 功能（`Microsoft-Hyper-V-All`，仅适用于 Microsoft 官方支持的 Windows 版本；Windows Home 官方不支持 Hyper-V，DISM 结果取决于系统映像）。适用于选项 1 之后想恢复 WSL2 / Docker / Windows 沙盒 / 安卓模拟器，或重新开启内核隔离的场景 |
 | **10** | MPO 设置管理 | 管理四个**未公开的社区排障注册表值**，三方案互斥，切换时自动清除其他方案的值；首次修改前保存 `mpo-backup.json`（已存在则不覆盖）。子选项 0：只读查看状态 + dxdiag 辅助判断；子选项 1：**方案 A**（`OverlayTestMode=5` + `DisableMPO=1`，社区使用较广，可能影响窗口化 VRR/视频呈现）；子选项 2：**方案 B**（`DisableOverlays=1`，更激进，个别 DX12 游戏或叠加层可能异常，仅在方案 A 无效时测试）；子选项 3：**方案 C**（`OverlayMinFPS=0`，常用于尝试缓解 G-Sync/FreeSync 视频卡顿，实际效果取决于系统和驱动）；子选项 4：优先恢复首次修改前状态，无备份时才删除四个值恢复系统默认 |
 
-每个选项执行完成后 **5 秒自动重启**（期间按 `Q` 取消）。
+每个选项执行完成后通常 **5 秒自动重启**（期间按 `Q` 取消）；选项 1 和 5 若关键项回读验证失败，会跳过自动重启并提示手动处理。验证表示当前状态已写入，不代表重启后的全部运行时效果。
 
 ---
 
