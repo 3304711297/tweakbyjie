@@ -34,12 +34,11 @@
 #                 子选项 2：还原并启用 Hyper-V 功能——家庭版无控制面板入口，
 #                 DISM 方式启用同样有效），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
-#   输入 10 回车 = MPO 设置管理（三方案互斥，切换时自动清除其他方案值：
-#                 1 = 方案 A：OverlayTestMode=5 + DisableMPO=1 禁用 MPO（与选项 1 写入
-#                 相同，最常用）；2 = 方案 B：DisableOverlays=1 驱动层更彻底禁用（个别
-#                 DX12 游戏可能异常，最后手段）；3 = 方案 C：OverlayMinFPS=0 不禁用
-#                 MPO、保持硬件合成常开（解决 G-Sync/FreeSync 视频播放全屏卡顿，无兼容
-#                 性问题）；子选项 0：只读查看状态；子选项 4：删除全部值还原系统默认），
+#   输入 10 回车 = MPO 设置管理（三方案互斥，使用未公开的社区排障注册表值；首次修改前
+#                 备份到 mpo-backup.json：1 = 方案 A：OverlayTestMode=5 + DisableMPO=1；
+#                 2 = 方案 B：DisableOverlays=1（更激进，可能影响 DX12/叠加层）；
+#                 3 = 方案 C：OverlayMinFPS=0（尝试排查 G-Sync/FreeSync 视频卡顿）；
+#                 子选项 0：只读查看状态；子选项 4：优先恢复首次修改前状态），
 #                 修改类操作完成后 5 秒自动重启（按 Q 取消）
 
 $ErrorActionPreference = "Continue"
@@ -130,6 +129,106 @@ function Remove-RegDwordValue {
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
+    }
+}
+
+$script:mpoManagedValues = @(
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableMPO';      Desc = '驱动层禁用 MPO（旧方法）' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableOverlays'; Desc = '驱动层禁用 MPO（更激进的社区排障方案）' },
+    @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayTestMode'; Desc = 'DWM 层禁用 MPO（社区排障方案）' },
+    @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayMinFPS';   Desc = '尝试避免低帧率时撤下 MPO' }
+)
+$script:mpoBackupFile = Join-Path $PSScriptRoot 'mpo-backup.json'
+$script:mpoBackupReady = $false
+
+function Get-MpoValueSnapshot {
+    param([hashtable]$Definition)
+    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    $exists = $item -and ($item.GetValueNames() -contains $Definition.Name)
+    if (-not $exists) {
+        return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Exists = $false; Kind = $null; Data = $null }
+    }
+    $kind = $item.GetValueKind($Definition.Name).ToString()
+    $value = $item.GetValue($Definition.Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    if ($kind -eq 'Binary') {
+        $value = ([byte[]]$value | ForEach-Object { '{0:X2}' -f $_ }) -join ''
+    }
+    [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Exists = $true; Kind = $kind; Data = $value }
+}
+
+function Convert-RegKindForExe {
+    param([string]$Kind)
+    switch ($Kind) {
+        'DWord' { return 'REG_DWORD' }
+        'QWord' { return 'REG_QWORD' }
+        'String' { return 'REG_SZ' }
+        'ExpandString' { return 'REG_EXPAND_SZ' }
+        'MultiString' { return 'REG_MULTI_SZ' }
+        'Binary' { return 'REG_BINARY' }
+        default { throw "不支持恢复的注册表类型：$Kind" }
+    }
+}
+
+function Ensure-MpoBackup {
+    try {
+        if (Test-Path $script:mpoBackupFile) {
+            $backup = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            $records = @($backup.Values)
+            if ($backup.Version -ne 1 -or $records.Count -ne $script:mpoManagedValues.Count) { throw 'mpo-backup.json 版本或记录数量不正确' }
+            $allowedKeys = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+            foreach ($r in $records) {
+                if (-not $r.Path -or -not $r.Name -or ($null -eq $r.Exists)) { throw 'mpo-backup.json 记录字段不完整' }
+                if ($allowedKeys -notcontains "$($r.Path)|$($r.Name)") { throw 'mpo-backup.json 包含非 MPO 管理路径' }
+            }
+            $script:mpoBackupReady = $true
+            return $true
+        }
+        $parent = Split-Path $script:mpoBackupFile -Parent
+        if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
+        $snapshots = @($script:mpoManagedValues | ForEach-Object { Get-MpoValueSnapshot $_ })
+        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = $snapshots }
+        ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:mpoBackupFile -Encoding UTF8 -ErrorAction Stop
+        $script:mpoBackupReady = $true
+        Write-Host "[OK] MPO 原始状态已备份：$script:mpoBackupFile" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] MPO 原始状态备份失败：$($_.Exception.Message)；已阻止 MPO 修改" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Restore-MpoBackup {
+    if (-not (Test-Path $script:mpoBackupFile)) {
+        Write-Host "[WARN] 未找到 mpo-backup.json，将删除受管理值并恢复系统默认；这不会恢复此前的自定义值" -ForegroundColor Yellow
+        foreach ($v in $script:mpoManagedValues) { Remove-RegDwordValue $v.Path $v.Name ("还原 " + $v.Name) }
+        return $true
+    }
+    try {
+        $backup = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $records = @($backup.Values)
+        if ($backup.Version -ne 1 -or $records.Count -ne $script:mpoManagedValues.Count) { throw 'mpo-backup.json 版本或记录数量不正确' }
+        $allowedKeys = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+        foreach ($r in $records) {
+            if ($allowedKeys -notcontains "$($r.Path)|$($r.Name)") { throw 'mpo-backup.json 包含非 MPO 管理路径' }
+            if (-not $r.Exists) {
+                Remove-RegDwordValue $r.Path $r.Name ("还原 " + $r.Name)
+                continue
+            }
+            $regPath = Convert-RegExePath $r.Path
+            $regType = Convert-RegKindForExe $r.Kind
+            $data = if ($r.Kind -eq 'Binary') { $r.Data } else { [string]$r.Data }
+            & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
+            if ($LASTEXITCODE -ne 0) { throw "恢复 $($r.Name) 失败，reg.exe exit code $LASTEXITCODE" }
+            Write-Host ("[OK] 已恢复 {0} 原始值 {1}" -f $r.Name, $r.Data)
+            $script:ok++
+        }
+        Write-Host "[OK] MPO 已恢复到首次修改前状态；备份文件已保留：$script:mpoBackupFile" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] MPO 状态恢复失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
     }
 }
 
@@ -298,8 +397,12 @@ if ($choice -eq "1") {
     # 09 HAGS
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
 
-    # 10 Disable MPO（独立管理/更多方案/还原见选项 10）
-    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableMPO" 1 "DisableMPO"
+    # 10 MPO 方案 A（社区排障配置；修改前备份，互斥清理，详细管理/还原见选项 10）
+    if (Ensure-MpoBackup) {
+        Remove-RegDwordValue "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableOverlays" "清除已有 DisableOverlays"
+        Remove-RegDwordValue "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayMinFPS" "清除已有 OverlayMinFPS"
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "DisableMPO" 1 "DisableMPO"
+    }
 
     # 11 Games task
     $games = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
@@ -314,8 +417,10 @@ if ($choice -eq "1") {
     # 12 Prefetch
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
 
-    # 13 DWM（独立管理/还原见选项 10）
-    Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayTestMode" 5 "OverlayTestMode"
+    # 13 DWM：方案 A 的第二个值（备份失败时不写入）
+    if ($script:mpoBackupReady) {
+        Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "OverlayTestMode" 5 "OverlayTestMode"
+    }
 
     # 14 NTFS
     Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation" 1 "NtfsDisable8dot3NameCreation"
@@ -1513,31 +1618,26 @@ if ($choice -eq "1") {
     # 注册表值，三个方案互斥（切换方案时自动清除其他方案的值）：
     #   DisableMPO      (GraphicsDrivers) = 1：驱动层禁用（旧方法；Win11 24H2/25H2
     #                                     部分版本已失效；选项 1 会写入本值）
-    #   OverlayTestMode (Dwm)            = 5：DWM 层禁用（最常用、兼容性好）
-    #   DisableOverlays (GraphicsDrivers) = 1：驱动层禁用（最彻底的最后手段；个别
-    #                                     DX12 游戏可能异常；须与其他值互斥）
-    #   OverlayMinFPS   (Dwm)            = 0：不禁用 MPO，改为始终维持硬件合成——
-    #                                     解决 G-Sync/FreeSync 视频播放全屏卡顿
-    # 验证：dxdiag -> 保存所有信息 -> 搜索 MPO，MaxPlanes 消失/为 0 即已禁用。
+    #   OverlayTestMode (Dwm)            = 5：社区常用的 DWM 层禁用尝试
+    #   DisableOverlays (GraphicsDrivers) = 1：更激进的社区排障尝试；个别 DX12 游戏
+    #                                     或叠加层可能异常；须与其他值互斥
+    #   OverlayMinFPS   (Dwm)            = 0：尝试避免低帧率时撤下 MPO，常用于排查
+    #                                     G-Sync/FreeSync 视频播放卡顿
+    # 验证：dxdiag -> 保存所有信息 -> 搜索 MPO，仅作辅助判断；最终结合实际应用测试。
     Write-Host ""
     Write-Host "============ [Part 10] MPO 设置管理 / MPO Settings ============" -ForegroundColor Cyan
     Write-Host ""
 
-    $mpoValues = @(
-        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableMPO';      Desc = '驱动层禁用 MPO（旧方法）' },
-        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'DisableOverlays'; Desc = '驱动层禁用 MPO（最彻底，最后手段）' },
-        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayTestMode'; Desc = 'DWM 层禁用 MPO（最常用）' },
-        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm';                   Name = 'OverlayMinFPS';   Desc = '保持 MPO 常开（治 G-Sync/FreeSync 视频卡顿）' }
-    )
+    $mpoValues = @($script:mpoManagedValues)
 
     Write-Host "  0. 查看当前 MPO 设置状态（只读：四个注册表值 + dxdiag 验证方法）" -ForegroundColor White
-    Write-Host "  1. 禁用 MPO — 方案 A：OverlayTestMode=5 + DisableMPO=1（与选项 1 相同；" -ForegroundColor White
-    Write-Host "     最常用、兼容性好；自动清除方案 B/C 的值）" -ForegroundColor White
-    Write-Host "  2. 禁用 MPO — 方案 B：DisableOverlays=1（驱动层更彻底；个别 DX12 游戏可能" -ForegroundColor White
-    Write-Host "     异常，作为方案 A 无效时的最后手段；自动清除方案 A/C 的值）" -ForegroundColor White
-    Write-Host "  3. 不禁用 MPO — 方案 C：OverlayMinFPS=0（保持硬件合成常开，解决 G-Sync/" -ForegroundColor White
-    Write-Host "     FreeSync 视频播放全屏卡顿；无兼容性问题；自动清除方案 A/B 的值）" -ForegroundColor White
-    Write-Host "  4. 还原（删除全部四个值，恢复系统默认）" -ForegroundColor White
+    Write-Host "  1. 禁用 MPO — 方案 A：OverlayTestMode=5 + DisableMPO=1（社区使用较广；" -ForegroundColor White
+    Write-Host "     可能影响窗口化 VRR/视频呈现；自动清除方案 B/C 的值）" -ForegroundColor White
+    Write-Host "  2. 禁用 MPO — 方案 B：DisableOverlays=1（更激进的社区排障方案；个别 DX12" -ForegroundColor White
+    Write-Host "     游戏或叠加层可能异常，仅在方案 A 无效时测试；自动清除方案 A/C 的值）" -ForegroundColor White
+    Write-Host "  3. 尝试保持 MPO — 方案 C：OverlayMinFPS=0（常用于 G-Sync/FreeSync 视频卡顿；" -ForegroundColor White
+    Write-Host "     实际效果取决于系统和驱动；自动清除方案 A/B 的值）" -ForegroundColor White
+    Write-Host "  4. 还原（优先恢复首次修改前备份；无备份时删除四个值恢复系统默认）" -ForegroundColor White
     $mChoice = Read-Host "请输入 0、1、2、3 或 4 并回车 (Enter 0, 1, 2, 3 or 4)"
 
     if ($mChoice -eq "0") {
@@ -1557,40 +1657,47 @@ if ($choice -eq "1") {
 
         Write-Host ""
         if ($mpoAny) {
-            Write-Host "结论：存在手动 MPO 设置；选 10 -> 4 可全部还原为系统默认" -ForegroundColor Yellow
+            Write-Host "结论：存在手动 MPO 设置；选 10 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
         } else {
             Write-Host "结论：MPO 全部为系统默认状态（未做任何修改）" -ForegroundColor Green
         }
         Write-Host ""
-        Write-Host "验证 MPO 是否已禁用（需重启后检查）：" -ForegroundColor Cyan
+        Write-Host "验证提示（辅助判断，需重启后检查；不代表所有应用的运行时状态）：" -ForegroundColor Cyan
         Write-Host "  Win+R 运行 dxdiag -> 保存所有信息 -> 打开保存的 txt 搜索 MPO" -ForegroundColor White
-        Write-Host "  已禁用：MPO 相关条目消失或 MaxPlanes 为 0" -ForegroundColor White
-        Write-Host "  未生效：仍显示 MPO MaxPlanes: 4 等完整支持信息" -ForegroundColor White
+        Write-Host "  某些系统中 MPO 条目消失或 MaxPlanes 为 0，可能表示禁用；输出格式因版本/驱动而异" -ForegroundColor White
+        Write-Host "  最终请结合浏览器/视频、多显示器、窗口化游戏、DX12、HDR/录屏和覆盖层实测" -ForegroundColor White
 
     } elseif (($mChoice -eq "1") -or ($mChoice -eq "2") -or ($mChoice -eq "3")) {
 
         $gdReg = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
         $dwmReg = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
+        $mpoChanged = $false
 
-        if ($mChoice -eq "1") {
-            # 方案 A：DWM 层 + 旧驱动层双保险（与选项 1 写入的值一致）
-            Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
-            Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
-            Set-RegDword $dwmReg "OverlayTestMode" 5 "OverlayTestMode = 5 (DWM 层禁用 MPO)"
-            Set-RegDword $gdReg "DisableMPO" 1 "DisableMPO = 1 (驱动层禁用 MPO)"
-        } elseif ($mChoice -eq "2") {
-            # 方案 B：驱动层整体禁用叠加平面；与其他值互斥，须先清除
-            Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
-            Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
-            Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
-            Set-RegDword $gdReg "DisableOverlays" 1 "DisableOverlays = 1 (驱动层禁用 MPO)"
-            Write-Host " [警告] DisableOverlays 为最后手段：个别 DX12 游戏可能出现异常，如遇问题请用 10 -> 4 还原" -ForegroundColor Yellow
+        if (Ensure-MpoBackup) {
+            if ($mChoice -eq "1") {
+                # 方案 A：社区使用较广的禁用组合
+                Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
+                Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
+                Set-RegDword $dwmReg "OverlayTestMode" 5 "OverlayTestMode = 5 (社区排障配置)"
+                Set-RegDword $gdReg "DisableMPO" 1 "DisableMPO = 1 (社区排障配置)"
+            } elseif ($mChoice -eq "2") {
+                # 方案 B：更激进的社区排障配置；与其他值互斥
+                Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
+                Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
+                Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
+                Set-RegDword $gdReg "DisableOverlays" 1 "DisableOverlays = 1 (社区排障配置)"
+                Write-Host " [警告] 该方案可能影响 DX12 游戏或叠加层，仅建议在方案 A 无效时测试" -ForegroundColor Yellow
+            } else {
+                # 方案 C：尝试避免低帧率时撤下 MPO；实际效果取决于系统和驱动
+                Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
+                Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
+                Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
+                Set-RegDword $dwmReg "OverlayMinFPS" 0 "OverlayMinFPS = 0 (社区排障配置)"
+            }
+            $mpoChanged = $true
+            Write-Host " [提示] 这些是未公开的社区排障配置，不是微软或显卡厂商保证的稳定 API" -ForegroundColor Yellow
         } else {
-            # 方案 C：保持 MPO 开启，将 DWM 撤下叠加平面的最低帧率阈值设为 0（不撤）
-            Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
-            Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
-            Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
-            Set-RegDword $dwmReg "OverlayMinFPS" 0 "OverlayMinFPS = 0 (保持 MPO 常开)"
+            Write-Host "[ABORTED] 备份不可用，未修改 MPO，也不会自动重启" -ForegroundColor Red
         }
 
         # Summary
@@ -1603,17 +1710,16 @@ if ($choice -eq "1") {
         Write-Host " SKIP : $skip" -ForegroundColor Yellow
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host " 重启后用 dxdiag -> 保存所有信息 -> 搜索 MPO 验证是否生效（MaxPlanes 消失/为 0 = 已禁用）" -ForegroundColor Yellow
+        Write-Host " 重启后可用 dxdiag -> 保存所有信息 -> 搜索 MPO 作辅助判断；最终请结合实际应用测试" -ForegroundColor Yellow
+        Write-Host " 原始状态备份：$script:mpoBackupFile；选 10 -> 4 可优先恢复首次修改前状态" -ForegroundColor Yellow
 
         # Auto restart in 5 seconds (press Q to cancel)
-        Start-RestartCountdown -Seconds 5
+        if ($mpoChanged) { Start-RestartCountdown -Seconds 5 }
 
     } elseif ($mChoice -eq "4") {
 
-        # 还原：删除全部四个值（存在才删）
-        foreach ($v in $mpoValues) {
-            Remove-RegDwordValue $v.Path $v.Name ("还原 " + $v.Name)
-        }
+        # 还原：优先恢复首次修改前状态；没有备份时才删除全部值
+        Restore-MpoBackup
 
         # Summary
         Write-Host ""
@@ -1624,7 +1730,11 @@ if ($choice -eq "1") {
         Write-Host " SKIP : $skip" -ForegroundColor Yellow
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host " 重启后 MPO 恢复系统默认（叠加平面按系统策略自动管理）" -ForegroundColor Yellow
+        if (Test-Path $script:mpoBackupFile) {
+            Write-Host " 重启后 MPO 恢复首次修改前状态；备份文件保留在 $script:mpoBackupFile" -ForegroundColor Yellow
+        } else {
+            Write-Host " 重启后 MPO 恢复系统默认（叠加平面按系统策略自动管理）" -ForegroundColor Yellow
+        }
 
         # Auto restart in 5 seconds (press Q to cancel)
         Start-RestartCountdown -Seconds 5

@@ -2,6 +2,7 @@
 _tmp_*
 *.tmp
 *.log
+mpo-backup.json
 
 # OS
 .DS_Store
