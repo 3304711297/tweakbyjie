@@ -85,7 +85,7 @@
 |---|---|---|---|---|
 | `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Affinity | DWORD | 0 | 不限制 CPU 核心 |
 | `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Background Only | String | False | 允许前台运行 |
-| `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Clock Rate | DWORD | 10000 | GPU 时钟率最高 |
+| `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Clock Rate | DWORD | 10000 | MMCSS Games 任务类别的时钟/调度参数；不是 GPU 硬件时钟设置 |
 | `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | GPU Priority | DWORD | 8 | GPU 优先级最高 |
 | `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Priority | DWORD | 6 | 进程优先级高 |
 | `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games` | Scheduling Category | String | High | 调度类别高 |

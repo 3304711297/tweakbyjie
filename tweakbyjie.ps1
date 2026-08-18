@@ -966,8 +966,8 @@ if ($choice -eq "0") {
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "提示：测试模式已关闭，桌面右下角的"测试模式"水印将在重启后消失。" -ForegroundColor Yellow
-    Write-Host "如需重新开启测试模式，可运行选项 2。" -ForegroundColor Yellow
+    Write-Host '提示：测试模式已关闭，桌面右下角的"测试模式"水印将在重启后消失。' -ForegroundColor Yellow
+    Write-Host "如需重新开启测试模式，可运行选项 3。" -ForegroundColor Yellow
 
     Request-Restart
 

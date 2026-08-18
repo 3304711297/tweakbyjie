@@ -20,32 +20,47 @@ tweakbyjie 优化项
   - Games Task
 
 - GPU
-  - HAGS
-  - MPO / Overlay
-  - 图形调度相关设置
+  - GPU-001：HAGS（HwSchMode）
+  - GPU-002：MPO / Overlay（DisableMPO、OverlayTestMode、DisableOverlays、OverlayMinFPS）
+  - DirectX：当前仅作为图形管线背景说明，未发现脚本直接修改项
 
 - 内存
-  - Memory Compression
-  - Prefetch
+  - MEMORY-001：EnablePrefetcher
+  - MEMORY-002：Memory Compression
+  - MEMORY-003：虚拟内存/页面文件（当前脚本未执行）
 
 - 存储
-  - TRIM
-  - NTFS 参数
+  - STORAGE-001：NTFS 8.3
+  - STORAGE-002：TRIM
+  - STORAGE-003：BITS 启动类型
+  - STORAGE-004：Native NVMe Driver
+  - STORAGE-005：写入缓存（当前脚本未执行）
 
 - 系统安全
-  - VBS
-  - HVCI
-  - 安全缓解相关设置
+  - SECURITY-001：FeatureSettingsOverride / FeatureSettingsOverrideMask
+  - SECURITY-002：VBS / HVCI / Credential Guard / Hyper-V
+  - SECURITY-003：Device Guard EFI 锁定清除
 
 - 游戏功能
   - GameDVR
   - Game Mode
 
 - 服务
-  - 服务状态调整
+  - SERVICE-001：Part 6 服务启动类型（37 个目标）
+  - SERVICE-002：Part 5 Defender/Security Center 停用
 
 - 启动配置
-  - BCD 参数
+  - BOOT-001：高级 BCD 计时器
+  - BOOT-002：启动安全 BCD
+  - BOOT-003：开启测试模式
+  - BOOT-004：关闭测试模式
+  - BOOT-005：Device Guard EFI 锁定清除
+  - BOOT-006：VBS/Hyper-V 启动项
+
+- 注册表
+  - Part 1 独立注册表执行项
+  - Part 5 Defender/SmartScreen/Security Center 策略
+  - defender-removal.ps1 高风险删除项
 
 ## 完成标准
 
