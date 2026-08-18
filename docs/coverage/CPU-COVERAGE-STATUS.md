@@ -10,11 +10,11 @@
 
 | 编号 | 项目 | 当前源码位置 | 知识文档对应 | 五项说明状态 | 执行闭环状态 |
 | --- | --- | --- | --- | --- | --- |
-| CPU-001 | `Win32PrioritySeparation` | `tweakbyjie.ps1:796`，目标 `REG_DWORD 38`（`0x26`） | `youshouldknow/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 有回读验证（`:813`），但当前脚本未提供自动备份/恢复 |
-| CPU-002 | `Multimedia SystemProfile` | `tweakbyjie.ps1:793-794`，包含其下独立值 | `youshouldknow/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 没有统一回读、备份或恢复流程 |
-| CPU-003 | `SystemResponsiveness` | `tweakbyjie.ps1:794`，目标 `REG_DWORD 10` | `youshouldknow/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有回读验证、自动备份或恢复 |
-| CPU-004 | `NetworkThrottlingIndex` | `tweakbyjie.ps1:793`，目标 `REG_DWORD 0xFFFFFFFF` | `youshouldknow/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有回读验证、自动备份或恢复 |
-| CPU-005 | `Tasks\Games` | `tweakbyjie.ps1:800-807`，七个值的目标值已列明 | `youshouldknow/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有七个值的回读验证、自动备份或恢复 |
+| CPU-001 | `Win32PrioritySeparation` | `tweakbyjie.ps1:796`，目标 `REG_DWORD 38`（`0x26`） | `youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 有回读验证（`:813`），但当前脚本未提供自动备份/恢复 |
+| CPU-002 | `Multimedia SystemProfile` | `tweakbyjie.ps1:793-794`，包含其下独立值 | `youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 没有统一回读、备份或恢复流程 |
+| CPU-003 | `SystemResponsiveness` | `tweakbyjie.ps1:794`，目标 `REG_DWORD 10` | `youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有回读验证、自动备份或恢复 |
+| CPU-004 | `NetworkThrottlingIndex` | `tweakbyjie.ps1:793`，目标 `REG_DWORD 0xFFFFFFFF` | `youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有回读验证、自动备份或恢复 |
+| CPU-005 | `Tasks\Games` | `tweakbyjie.ps1:800-807`，七个值的目标值已列明 | `youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md` | ✅ 原理、目的、适用环境、影响、恢复均已补齐 | ⚠️ 当前源码没有七个值的回读验证、自动备份或恢复 |
 
 ## 检查要求
 
@@ -39,8 +39,8 @@
 ## 追踪记录
 
 - 源码核对文件：`tweakbyjie.ps1`
-- 知识说明文件：`youshouldknow/CPU优化与tweakbyjie对应说明.md`
-- 映射文件：`youshouldknow/tweakbyjie-optimization-mapping.md`
+- 知识说明文件：`youshouldknow/项目导航/CPU优化与tweakbyjie对应说明.md`
+- 映射文件：`youshouldknow/项目导航/tweakbyjie-optimization-mapping.md`
 - 本次更新仅记录 CPU 文档覆盖状态，未修改 `tweakbyjie.ps1` 的执行逻辑。
 
 完成 CPU 类后继续检查 GPU、Memory、Storage、Security、Service、Boot 和 Registry 等分类。
