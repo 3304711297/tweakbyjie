@@ -42,7 +42,7 @@ Windows 游戏优化脚本（菜单版）— 系统优化 / 测试模式开关 /
 | **5** | 关闭安全中心 | Defender / SmartScreen 策略及可选删除类操作。 |
 | **6** | 服务优化 | A/B 功能依赖分组；Xbox、蓝牙、嵌入模式、BITS 改为 Manual；执行后验证启动类型。首次执行前保存 `service-backup.json`，子选项 2 可按快照恢复启动类型。 |
 | **7** | 超性能电源计划 | 备份当前计划后导入/应用，支持恢复备份。 |
-| **8** | 原生 NVMe 驱动 | Velocity / SafeBoot 相关配置；启用前保存 `nvme-backup.json`，还原时删除 Velocity 覆盖并按快照处理 SafeBoot 项，需重启后验证驱动实际切换。 |
+| **8** | 原生 NVMe 驱动 | 优先使用 ViVeTool 启用 Feature `60786016` + `48433719`；启用前保存 Version 3 `nvme-backup.json`（Feature、SafeBoot、旧 Override 原始状态），还原时按快照恢复。旧 Override 仅查看，不再作为生效证明；需重启后以 `nvmedisk` 驱动 `Running` 确认实际切换。 |
 | **9** | Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 预检查。 |
 | **10** | 虚拟化 / VBS / Hyper-V 管理 | 独立管理 VBS/HVCI/Credential Guard、`hypervisorlaunchtype`、Hyper-V 功能组件；支持查看、关闭、删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）。微软当前文档给出的完整禁用 Hyper-V 路径包括禁用 `Microsoft-Hyper-V-All` 与设置 `hypervisorlaunchtype off`；Hyper-V 官方安装支持 Pro/Enterprise，不支持 Home。 citeturn323825search0turn323825search8 |
 | **11** | MPO 设置管理 | 三方案互斥、首次修改前备份、恢复功能；保持为独立排障模块。 |

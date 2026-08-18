@@ -576,17 +576,17 @@
 
 ### Part 8：启用原生 NVMe 驱动（选项 8）
 
-通过 Windows Velocity 功能覆盖，提前启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（仅作用于 NVMe 磁盘，USB 等其他总线磁盘仍使用 `disk.sys`）。
+当前版本优先通过 ViVeTool 启用 Windows Feature `60786016` 和 `48433719`，尝试启用微软原生 NVMe 磁盘驱动 `nvmedisk.sys`（仅作用于 NVMe 磁盘，USB 等其他总线磁盘仍使用 `disk.sys`）。ViVeTool.exe 需放在脚本目录或加入 PATH；脚本不内置该外部工具。
 
-> 实现机制与 ViVeTool 等效：本节写入的注册表项正是 `ViVeTool /enable /id:735209102 /id:1853569164 /id:156965516` 底层写入的内容，无需额外下载工具；子选项 2 删除覆盖值，等效于回到"未配置"状态（比 ViVeTool `/disable` 写 0 更干净）。
+> 旧版脚本曾直接写入 `735209102 / 1853569164 / 156965516` Override；当前版本将这些旧值仅保留为兼容性查看和快照恢复对象，不再把它们当作 Native NVMe 的启用依据。实际启用依赖 ViVeTool 的两个新 Feature。
 
-**前提**：系统 25H2（build 26200）及以上 + 存在 NVMe 磁盘；无 NVMe 磁盘时自动跳过，低版本时提示确认。
+**前提**：系统 25H2（build 26200）及以上 + 存在 NVMe 磁盘 + 可找到 ViVeTool.exe；无 NVMe 磁盘或缺少 ViVeTool 时不修改，低于 26200 直接终止本模块。
 
 **子选项 0：只读状态检查**（不做任何修改）：显示 3 个 Velocity 覆盖值写入情况、安全模式加固有无、`nvmedisk.sys` 文件是否已分发（含版本）、驱动加载状态，并给出结论（已启用运行中 / 已写入待重启 / 未启用 / 该版本无法启用）。适用于启用后确认是否生效（设备管理器"驱动程序文件"列表中 `nvmedisk.sys` 取代 `disk.sys` 即生效）。
 
 **子选项 1：启用**
 
-启用前先将 Minimal/Network SafeBoot 默认值写入 `nvme-backup.json`，已有快照不会覆盖。三个 Velocity 覆盖值或 SafeBoot 加固任一步失败时，脚本会回滚本轮已写入项并阻止待重启状态。
+启用前先将两个 Feature 的原始状态、Minimal/Network SafeBoot 默认值和三个旧版 Override 的原始状态写入 Version 3 `nvme-backup.json`，已有快照不会覆盖。ViVeTool 查询确认两个 Feature 都为 Enabled 后才写入 SafeBoot；SafeBoot 任一步失败时回滚本轮 Feature，并阻止待重启状态。
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
@@ -596,7 +596,7 @@
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：nvmedisk 设备类加入最小安全模式加载列表 |
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：带网络的安全模式加载列表 |
 
-**子选项 2：还原**：删除上述 3 个 Velocity 覆盖值，并按 `nvme-backup.json` 恢复首次修改前的 Minimal/Network SafeBoot 默认值；没有有效快照时不会声称 SafeBoot 已恢复。配置变更需重启后再确认 NVMe 是否恢复使用 `disk.sys`。
+**子选项 2：还原**：依赖启用时可用的 ViVeTool，按 `nvme-backup.json` 恢复两个 Feature 的原始状态；同时恢复首次修改前的 Minimal/Network SafeBoot 默认值和三个旧版 Override。缺少 ViVeTool 或 Version 3 快照无效时拒绝声称已精确恢复。配置变更需重启后再确认 `nvmedisk` 是否停止运行。
 
 **验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）即已生效。
 

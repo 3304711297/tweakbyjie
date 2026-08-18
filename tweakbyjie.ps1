@@ -429,16 +429,27 @@ function Restore-SecurityMitigationBackup {
 
 function Test-NvmeBackupSchema {
     param([object]$Backup)
-    if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
-    $records = @($Backup.Values)
-    if ($records.Count -ne 2) { return $false }
-    $expected = @('Minimal','Network')
-    $actual = @($records | ForEach-Object { [string]$_.Mode })
-    if (@($actual | Sort-Object -Unique).Count -ne 2 -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
-    foreach ($r in $records) {
-        if ($null -eq $r.Present) { return $false }
+    if ($null -eq $Backup -or $Backup.Version -ne 3) { return $false }
+    $safe = @($Backup.SafeBoot)
+    if ($safe.Count -ne 2 -or @($safe.Mode | Sort-Object -Unique).Count -ne 2) { return $false }
+    foreach ($r in $safe) {
+        if ([string]$r.Mode -notin @('Minimal','Network') -or $null -eq $r.Present) { return $false }
         if ([bool]$r.Present -and ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data)) { return $false }
         if (-not [bool]$r.Present -and ($null -ne $r.Kind -or $null -ne $r.Data)) { return $false }
+    }
+    $features = @($Backup.Features)
+    if ($features.Count -ne 2) { return $false }
+    foreach ($f in $features) {
+        if ([string]$f.Id -notin @('60786016','48433719') -or [string]$f.BeforeState -notin @('Enabled','Disabled','Default','Unknown')) { return $false }
+    }
+    $legacy = @($Backup.LegacyOverrides)
+    if ($legacy.Count -ne 3) { return $false }
+    foreach ($r in $legacy) {
+        if ([string]$r.Name -notin @('735209102','1853569164','156965516') -or $null -eq $r.Present) { return $false }
+        if ([bool]$r.Present) {
+            if ([string]$r.Kind -ne 'DWord' -or $null -eq $r.Data) { return $false }
+            try { if ([uint64]$r.Data -gt 0xFFFFFFFF) { return $false } } catch { return $false }
+        } elseif ($null -ne $r.Kind -or $null -ne $r.Data) { return $false }
     }
     return $true
 }
@@ -458,42 +469,94 @@ function Get-NvmeSafeBootSnapshot {
     }
 }
 
+function Get-NvmeLegacyOverrideSnapshot {
+    param([string]$Path)
+    foreach ($name in @('735209102','1853569164','156965516')) {
+        $item = Get-Item $Path -ErrorAction SilentlyContinue
+        if ($item -and ($item.GetValueNames() -contains $name)) {
+            $kind = $item.GetValueKind($name).ToString()
+            [pscustomobject]@{ Name = $name; Present = $true; Kind = $kind; Data = [uint32]$item.GetValue($name) }
+        } else { [pscustomobject]@{ Name = $name; Present = $false; Kind = $null; Data = $null } }
+    }
+}
+
+function Get-ViVeFeatureState {
+    param([string]$ViVeTool, [string]$Id)
+    try {
+        $text = (& $ViVeTool /query /id:$Id 2>&1) -join "`n"
+        if ($text -match 'State:\s*Enabled\s*\(2\)') { return 'Enabled' }
+        if ($text -match 'State:\s*Disabled\s*\(1\)') { return 'Disabled' }
+        if ($text -match 'No configuration|ImageDefault') { return 'Default' }
+        return 'Unknown'
+    } catch { return 'Unknown' }
+}
+
+function Find-ViVeTool {
+    $local = Join-Path $PSScriptRoot 'ViVeTool.exe'
+    if (Test-Path $local) { return $local }
+    $cmd = Get-Command 'ViVeTool.exe' -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $cmd = Get-Command 'vivetool.exe' -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
 function Ensure-NvmeBackup {
-    param([string]$Guid)
+    param([string]$Guid, [string]$ViVeTool, [string]$LegacyPath)
     try {
         if (Test-Path $script:nvmeBackupFile) {
             $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确' }
+            if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确、版本过旧或记录不完整' }
             return $true
         }
-        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @(Get-NvmeSafeBootSnapshot $Guid) }
+        $features = @('60786016','48433719') | ForEach-Object { [pscustomobject]@{ Id = $_; BeforeState = Get-ViVeFeatureState $ViVeTool $_ } }
+        $backup = [pscustomobject]@{
+            Version = 3
+            CreatedAt = (Get-Date).ToString('o')
+            Features = @($features)
+            SafeBoot = @(Get-NvmeSafeBootSnapshot $Guid)
+            LegacyOverrides = @(Get-NvmeLegacyOverrideSnapshot $LegacyPath)
+        }
         if (-not (Test-NvmeBackupSchema $backup)) { throw '生成的 NVMe 备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:nvmeBackupFile -Encoding UTF8 -ErrorAction Stop
-        Write-Host "[OK] NVMe SafeBoot 原始状态已备份：$script:nvmeBackupFile" -ForegroundColor Green
+        ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:nvmeBackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-NvmeBackupSchema $check)) { throw '写入后的 NVMe 备份校验失败' }
+        Write-Host "[OK] Native NVMe 原始状态已备份：$script:nvmeBackupFile" -ForegroundColor Green
         return $true
-    } catch { Write-Host "[FAIL] NVMe SafeBoot 备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
+    } catch { Write-Host "[FAIL] Native NVMe 原始状态备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
 }
 
 function Restore-NvmeSafeBootBackup {
-    param([string]$Guid)
-    if (-not (Test-Path $script:nvmeBackupFile)) { Write-Host '[FAIL] 未找到 nvme-backup.json，无法精确恢复 SafeBoot' -ForegroundColor Red; $script:fail++; return $false }
+    param([string]$Guid, [string]$ViVeTool, [string]$LegacyPath)
+    if (-not (Test-Path $script:nvmeBackupFile)) { Write-Host '[FAIL] 未找到 nvme-backup.json，无法精确恢复 Native NVMe' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确' }
         $allOk = $true
-        foreach ($r in @($backup.Values)) {
-            $regPath = Convert-RegExePath $r.Path
-            if ([bool]$r.Present) {
-                & reg.exe ADD $regPath /ve /t REG_SZ /d ([string]$r.Data) /f *> $null
-                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true }
-            } else {
-                & reg.exe DELETE $regPath /ve /f *> $null
-                if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ }
+        if ($ViVeTool) {
+            foreach ($f in @($backup.Features)) {
+                switch ([string]$f.BeforeState) {
+                    'Enabled' { & $ViVeTool /enable /id:$($f.Id) 2>&1 | Out-Null }
+                    'Disabled' { & $ViVeTool /disable /id:$($f.Id) 2>&1 | Out-Null }
+                    'Default' { & $ViVeTool /reset /id:$($f.Id) 2>&1 | Out-Null }
+                    default { continue }
+                }
+                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ }
             }
+        } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
+        foreach ($r in @($backup.SafeBoot)) {
+            $regPath = Convert-RegExePath $r.Path
+            if ([bool]$r.Present) { & reg.exe ADD $regPath /ve /t REG_SZ /d ([string]$r.Data) /f *> $null; if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true } }
+            else { & reg.exe DELETE $regPath /ve /f *> $null; if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ } }
         }
-        if ($allOk) { Write-Host '[OK] NVMe SafeBoot 已按原始快照处理。' -ForegroundColor Green }
+        foreach ($r in @($backup.LegacyOverrides)) {
+            $regPath = Convert-RegExePath $LegacyPath
+            if ([bool]$r.Present) { & reg.exe ADD $regPath /v $r.Name /t REG_DWORD /d ([uint32]$r.Data) /f *> $null; if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true } }
+            else { & reg.exe DELETE $regPath /v $r.Name /f *> $null; if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ } }
+        }
+        if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else { Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow }
         return $allOk
-    } catch { Write-Host "[FAIL] NVMe SafeBoot 恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
+    } catch { Write-Host "[FAIL] NVMe 恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
 }
 
 function Request-Restart {
@@ -1471,160 +1534,169 @@ if ($choice -eq "0") {
 } elseif ($choice -eq "8") {
 
     $script:moduleFailBaseline = $fail
-    # ======================= Part 8: 启用原生 NVMe 驱动 =======================
-    # 通过 Velocity 功能覆盖提前启用微软原生 NVMe 磁盘驱动 nvmedisk.sys
-    # （仅作用于 NVMe 磁盘；USB 等其他总线磁盘仍使用 disk.sys）。
-    # 安全模式加固为预防性写入：nvmedisk 设备类默认不在安全模式加载列表，
-    # 不加固可能导致启用后无法进入安全模式。
+    # ======================= Part 8: Native NVMe Driver =======================
+    # Preferred path: ViVeTool feature IDs 60786016 + 48433719.
+    # Legacy registry overrides are retained only for compatibility/inspection and
+    # are no longer treated as proof that the native driver is active.
     Write-Host ""
-    Write-Host "============ [Part 8] 启用原生 NVMe 驱动 / Native NVMe Driver (nvmedisk.sys) ============" -ForegroundColor Cyan
+    Write-Host "============ [Part 8] 原生 NVMe 驱动 / Native NVMe Driver (nvmedisk.sys) ============" -ForegroundColor Cyan
     Write-Host ""
 
-    # 前提检查：系统版本（需 25H2 / build 26200 及以上）与 NVMe 磁盘
     $cvKey = Get-Item 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
     $buildNum = [int]($cvKey.GetValue('CurrentBuildNumber'))
     $dispVer = [string]($cvKey.GetValue('DisplayVersion'))
     $nvmeDisks = @(Get-Disk | Where-Object { $_.BusType -eq 'NVMe' })
+    $sbGuid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}'
+    $fmPath = 'HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides'
+    $legacyIds = @('735209102', '1853569164', '156965516')
+    $viVe = Find-ViVeTool
+
     Write-Host ("系统版本 : $dispVer (build $buildNum)")
     Write-Host ("NVMe 磁盘 : " + $(if ($nvmeDisks.Count -gt 0) { "检测到 $($nvmeDisks.Count) 块" } else { "未检测到" }))
+    Write-Host ("ViVeTool : " + $(if ($viVe) { $viVe } else { "未找到" }))
+    Write-Host ""
 
-    if ($nvmeDisks.Count -eq 0) {
-        Write-Host ""
-        Write-Host "[SKIP] 未检测到 NVMe 磁盘，本项无作用，已跳过（不重启）" -ForegroundColor Yellow
-    } else {
-        $fmPath = 'HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides'
-        $sbGuid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}'
-        $velocityIds = @('735209102', '1853569164', '156965516')
+    Write-Host "  0. 查看当前状态（Feature / SafeBoot / Legacy Override / nvmedisk 实际状态）" -ForegroundColor White
+    Write-Host "  1. 启用 Native NVMe（ViVeTool 60786016 + 48433719）" -ForegroundColor White
+    Write-Host "  2. 还原到启用前快照" -ForegroundColor White
+    $nChoice = Read-Host "请输入 0、1 或 2 并回车"
 
-        Write-Host ""
-    Write-Host "  0. 查看当前状态（只读检查：覆盖值 / 安全模式加固 / 驱动文件 / 加载状态）" -ForegroundColor White
-    Write-Host "  1. 启用（写入 3 个 Velocity 覆盖值 + 2 条安全模式加固，重启后生效）" -ForegroundColor White
-    Write-Host "  2. 还原（删除 3 个覆盖值；按快照处理 SafeBoot 原始值）" -ForegroundColor White
-        $nChoice = Read-Host "请输入 0、1 或 2 并回车 (Enter 0, 1 or 2)"
+    if ($nChoice -eq '0') {
 
-        if ($nChoice -eq "0") {
+        if ($viVe) {
+            $cfg = Test-NativeNvmeConfigured $viVe
+            Write-Host "ViVeTool 60786016 : $($cfg.Feature60786016)"
+            Write-Host "ViVeTool 48433719 : $($cfg.Feature48433719)"
+        } else {
+            Write-Host "ViVeTool 60786016 : <无法查询>"
+            Write-Host "ViVeTool 48433719 : <无法查询>"
+        }
 
-            # 只读状态检查，不做任何修改
-            $fmItem0 = Get-Item $fmPath -ErrorAction SilentlyContinue
-            $velText = @()
-            foreach ($vid in $velocityIds) {
-                if ($fmItem0 -and ($fmItem0.GetValueNames() -contains $vid)) {
-                    $kind = $fmItem0.GetValueKind($vid).ToString()
-                    $value = $fmItem0.GetValue($vid)
-                    if ($kind -eq 'DWord' -and [uint32]$value -eq 1) { $velText += "$vid=1" }
-                    else { $velText += "$vid=$value（类型=$kind，非 1）" }
-                } else { $velText += "$vid=未写入" }
-            }
-            $allWritten = @($velText | Where-Object { $_ -like "*=1" }).Count -eq 3
-            Write-Host ("Velocity 覆盖值 : " + ($velText -join "  "))
-
-            $sbMinOk = Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\$sbGuid"
-            $sbNetOk = Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\$sbGuid"
-            Write-Host ("SafeBoot 加固   : Minimal=" + $(if ($sbMinOk) { "已有" } else { "缺失" }) + "  Network=" + $(if ($sbNetOk) { "已有" } else { "缺失" }))
-
-            $drvFile = "$env:SystemRoot\System32\drivers\nvmedisk.sys"
-            $fileThere = Test-Path $drvFile
-            if ($fileThere) {
-                Write-Host ("nvmedisk.sys 文件: 已分发 (" + (Get-Item $drvFile).VersionInfo.FileVersion + ")")
+        $fmItem0 = Get-Item $fmPath -ErrorAction SilentlyContinue
+        $legacyText = @()
+        foreach ($id in $legacyIds) {
+            if ($fmItem0 -and ($fmItem0.GetValueNames() -contains $id)) {
+                $kind = $fmItem0.GetValueKind($id).ToString()
+                $value = $fmItem0.GetValue($id)
+                $legacyText += "$id=$value（$kind）"
             } else {
-                Write-Host "nvmedisk.sys 文件: 未分发（当前系统不带此驱动）"
+                $legacyText += "$id=未写入"
             }
-            $drvState = (Get-CimInstance Win32_SystemDriver -Filter "Name='nvmedisk'" -ErrorAction SilentlyContinue).State
-            Write-Host ("nvmedisk 驱动状态: " + $(if ($drvState) { $drvState } else { "未加载" }))
+        }
+        Write-Host ("Legacy Feature Override : " + ($legacyText -join "  "))
+
+        foreach ($mode in @('Minimal','Network')) {
+            $sbPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
+            if (Test-Path $sbPath) {
+                $item = Get-Item $sbPath -ErrorAction SilentlyContinue
+                $defaultValue = if ($item -and ($item.GetValueNames() -contains '')) { $item.GetValue('') } else { '<默认值缺失>' }
+                Write-Host ("SafeBoot {0} : 已配置，Default={1}" -f $mode, $defaultValue)
+            } else {
+                Write-Host ("SafeBoot {0} : 未配置" -f $mode)
+            }
+        }
+
+        $effective = Test-NativeNvmeEffective
+        Write-Host ("nvmedisk.sys 文件 : " + $(if ($effective.FileExists) { "存在" } else { "不存在" }))
+        Write-Host ("nvmedisk 驱动状态 : $($effective.State)")
+
+        if ($effective.State -eq 'Running') {
+            Write-Host "[EFFECTIVE] Native NVMe 已实际生效，当前 nvmedisk 驱动正在运行。" -ForegroundColor Green
+        } elseif ($viVe -and (Test-NativeNvmeConfigured $viVe).BothEnabled) {
+            Write-Host "[CONFIGURED] 两个 Feature 已启用，但当前尚未确认 nvmedisk 实际运行；请重启后再次执行 8 -> 0。" -ForegroundColor Yellow
+        } elseif ($effective.FileExists) {
+            Write-Host "[NOT EFFECTIVE] 系统存在 nvmedisk.sys，但当前未确认由它运行。" -ForegroundColor Yellow
+        } else {
+            Write-Host "[NOT ENABLED] 当前未确认 Native NVMe 生效。" -ForegroundColor Yellow
+        }
+
+    } elseif ($nChoice -eq '1') {
+
+        if ($nvmeDisks.Count -eq 0) {
+            Write-Host "[SKIP] 未检测到 NVMe 磁盘，本项无作用，不修改。" -ForegroundColor Yellow
+        } elseif ($buildNum -lt 26200) {
+            Write-Host "[ABORTED] build $buildNum 低于 26200；此模块仅针对 Windows 11 25H2+（26200+）。" -ForegroundColor Red
+        } elseif (-not $viVe) {
+            Write-Host "[ABORTED] 未找到 ViVeTool.exe。" -ForegroundColor Red
+            Write-Host "请从官方 ViVeTool 发布页获取与系统架构匹配的版本，并将 ViVeTool.exe 放在本脚本目录或加入 PATH。" -ForegroundColor Yellow
+        } elseif (-not (Ensure-NvmeBackup $sbGuid $viVe $fmPath)) {
+            Write-Host "[ABORTED] Native NVMe 备份不可用，未执行修改。" -ForegroundColor Red
+        } else {
 
             Write-Host ""
-            if (-not $fileThere) {
-                Write-Host "结论：系统未分发 nvmedisk.sys，当前版本无法启用原生 NVMe 驱动" -ForegroundColor Yellow
-            } elseif ($drvState -eq "Running") {
-                Write-Host "结论：原生 NVMe 驱动已启用并正在运行（NVMe 磁盘已使用 nvmedisk.sys）" -ForegroundColor Green
-            } elseif ($allWritten) {
-                Write-Host "结论：覆盖值已写入，重启后生效；若重启后仍未切换，运行 8 -> 0 再查" -ForegroundColor Yellow
+            Write-Host "[1/3] 启用 Native NVMe Feature：60786016 + 48433719" -ForegroundColor Cyan
+            & $viVe /enable /id:60786016,48433719 2>&1 | ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[FAIL] ViVeTool 启用 Feature 失败，未继续修改 SafeBoot。" -ForegroundColor Red
+                $fail++
             } else {
-                Write-Host "结论：未启用（覆盖值未写入）。选择 8 -> 1 启用" -ForegroundColor Yellow
-            }
+                $cfgAfter = Test-NativeNvmeConfigured $viVe
+                if (-not $cfgAfter.BothEnabled) {
+                    Write-Host "[WARN] ViVeTool 命令完成，但查询不到两个 Feature 都为 Enabled；停止后续修改。" -ForegroundColor Yellow
+                    $fail++
+                } else {
+                    Write-Host "[OK] 60786016 + 48433719 = Enabled" -ForegroundColor Green
+                    $ok += 2
+                    $script:rebootRequired = $true
 
-        } elseif ($nChoice -eq "1") {
-
-            $proceed = $true
-            if ($buildNum -lt 26200) {
-                Write-Host ""
-                Write-Host "[WARNING] build $buildNum 低于 26200（25H2）。实测：24H2（26100.x，含十月更新批次 26100.2454）无法启用，仅 25H2（26200+）支持" -ForegroundColor Yellow
-                $confirmNvme = Read-Host "仍要继续吗？(Y = 继续 / N = 取消)"
-                if ($confirmNvme -notin @('Y', 'y')) { $proceed = $false }
-            }
-
-            if (-not $proceed) {
-                Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
-            } elseif (-not (Ensure-NvmeBackup $sbGuid)) {
-                Write-Host "[ABORTED] NVMe SafeBoot 备份不可用，未修改覆盖值" -ForegroundColor Red
-            } else {
-                # 三个 Velocity 功能覆盖值（启用 nvmedisk.sys 灰度功能）
-                $velocityFailBaseline = $fail
-                foreach ($vid in $velocityIds) { Set-RegDword $fmPath $vid 1 "Velocity $vid" }
-                $safeBootOk = $true
-                if ($fail -gt $velocityFailBaseline) { $safeBootOk = $false }
-                if ($safeBootOk) {
-                    foreach ($mode in @('Minimal', 'Network')) {
+                    Write-Host ""
+                    Write-Host "[2/3] SafeBoot NVMe 加固" -ForegroundColor Cyan
+                    $safeBootOk = $true
+                    foreach ($mode in @('Minimal','Network')) {
                         $sbReg = Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$sbGuid"
-                        & reg.exe ADD $sbReg /ve /d "Storage Disks" /f *> $null
-                        if ($LASTEXITCODE -eq 0) { Write-Host "[OK] SafeBoot $mode 加固 = Storage Disks"; $script:ok++ }
-                        else { Write-Host ("[FAIL] SafeBoot $mode 加固 : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red; $script:fail++; $safeBootOk = $false }
+                        & reg.exe ADD $sbReg /ve /t REG_SZ /d "Storage Disks" /f *> $null
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Host "[OK] SafeBoot $mode = Storage Disks"
+                            $script:ok++
+                        } else {
+                            Write-Host "[FAIL] SafeBoot $mode : reg.exe exit code $LASTEXITCODE" -ForegroundColor Red
+                            $script:fail++
+                            $safeBootOk = $false
+                        }
+                    }
+
+                    if (-not $safeBootOk) {
+                        Write-Host "[FAIL] SafeBoot 配置未完整完成，正在按启用前 Version 3 快照回滚。" -ForegroundColor Red
+                        Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath | Out-Null
+                        $script:rebootRequired = $false
+                    } else {
+                        Write-Host ""
+                        Write-Host "[3/3] Legacy Override 兼容说明" -ForegroundColor Cyan
+                        Write-Host "[INFO] 保留现有 735209102 / 1853569164 / 156965516，不再自动写入或删除它们。" -ForegroundColor Yellow
+                        Write-Host "[INFO] 这些旧值仍可在 8 -> 0 中查看，但不再作为 Native NVMe 已生效的判断依据。" -ForegroundColor Yellow
+
+                        Write-Host ""
+                        Write-Host "配置已完成，但必须重启后才能确认实际驱动。" -ForegroundColor Yellow
+                        Write-Host "重启后执行：8 -> 0" -ForegroundColor Yellow
+                        Write-Host "真正成功条件：nvmedisk 驱动状态 = Running。" -ForegroundColor Yellow
+                        Request-Restart
                     }
                 }
-                if (-not $safeBootOk) {
-                    Write-Host '[FAIL] NVMe 启用未完整完成，回滚本轮已写入的 Velocity 覆盖值和 SafeBoot 加固' -ForegroundColor Red
-                    $fmRegRollback = Convert-RegExePath $fmPath
-                    foreach ($vid in $velocityIds) { & reg.exe DELETE $fmRegRollback /v $vid /f *> $null }
-                    & reg.exe DELETE (Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\$sbGuid") /ve /f *> $null
-                    & reg.exe DELETE (Convert-RegExePath "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\$sbGuid") /ve /f *> $null
-                } else { $script:rebootRequired = $true }
-
-                # Summary
-                Write-Host ""
-                Write-Host "============================================================" -ForegroundColor Cyan
-                Write-Host " Finished (Part 8 - Native NVMe Driver ENABLE)" -ForegroundColor Cyan
-                Write-Host " OK : $ok" -ForegroundColor Green
-                Write-Host " FAIL : $fail" -ForegroundColor Red
-                Write-Host "============================================================" -ForegroundColor Cyan
-                Write-Host ""
-                Write-Host "配置写入后需重启；可在设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序确认 nvmedisk.sys 是否实际运行" -ForegroundColor Yellow
-                Write-Host "如需还原，再次运行本脚本并选择 8 -> 2。" -ForegroundColor Yellow
-
-                Request-Restart
             }
-
-        } elseif ($nChoice -eq "2") {
-
-            $fmReg = Convert-RegExePath $fmPath
-            $fmItem = Get-Item $fmPath -ErrorAction SilentlyContinue
-            foreach ($vid in $velocityIds) {
-                if ($fmItem -and ($fmItem.GetValueNames() -contains $vid)) {
-                    & reg.exe DELETE $fmReg /v $vid /f *> $null
-                    if ($LASTEXITCODE -eq 0) { Write-Host "[OK] 已删除 Velocity $vid"; $script:ok++; $script:rebootRequired = $true }
-                    else { Write-Host ("[FAIL] 删除 Velocity $vid : reg.exe exit code $LASTEXITCODE") -ForegroundColor Red; $script:fail++ }
-                } else { Write-Host "[SKIP] Velocity $vid 不存在（无需删除）" -ForegroundColor Yellow; $script:skip++ }
-            }
-            if (Test-Path $script:nvmeBackupFile) { Restore-NvmeSafeBootBackup $sbGuid | Out-Null }
-            else { Write-Host "[WARN] 未找到 nvme-backup.json，SafeBoot 加固项保持不变" -ForegroundColor Yellow }
-
-
-            # Summary
-            Write-Host ""
-            Write-Host "============================================================" -ForegroundColor Cyan
-            Write-Host " Finished (Part 8 - Native NVMe Driver RESTORE)" -ForegroundColor Cyan
-            Write-Host " OK : $ok" -ForegroundColor Green
-            Write-Host " FAIL : $fail" -ForegroundColor Red
-            Write-Host "============================================================" -ForegroundColor Cyan
-            Write-Host ""
-            Write-Host "重启后恢复为系统默认磁盘驱动 (disk.sys)" -ForegroundColor Yellow
-
-            Request-Restart
-
-        } else {
-            Write-Host "[ERROR] 无效输入：$nChoice 。请输入 0、1 或 2 / Invalid input. Enter 0, 1 or 2." -ForegroundColor Red
         }
+
+    } elseif ($nChoice -eq '2') {
+
+        if (-not $viVe) {
+            Write-Host "[ABORTED] 未找到 ViVeTool.exe，无法精确恢复 Feature 状态。" -ForegroundColor Red
+            Write-Host "请将与启用时相同的 ViVeTool.exe 放回脚本目录或 PATH，再执行 8 -> 2。" -ForegroundColor Yellow
+            $fail++
+        } else {
+            Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath | Out-Null
+            Request-Restart
+        }
+
+    } else {
+        Write-Host "[ERROR] 无效输入：$nChoice 。请输入 0、1 或 2" -ForegroundColor Red
     }
 
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host " Finished (Part 8 - Native NVMe Driver)" -ForegroundColor Cyan
+    Write-Host " OK : $ok" -ForegroundColor Green
+    Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " SKIP : $skip" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor Cyan
 } elseif ($choice -eq "9") {
 
     $script:moduleFailBaseline = $fail
