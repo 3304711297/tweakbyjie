@@ -166,7 +166,28 @@
 
 ### Part 2：高级 BCD / 计时器与启动安全（选项 2）
 
-高级 BCD 使用 `bcd-backup.json` 记录修改前状态。
+高级 BCD 使用 `bcd-backup.json` 记录 `{current}` 修改前状态。备份包含 7 个受管值的存在性和值，已有有效快照不会覆盖；子项 2 的恢复按快照写回原值，原本不存在的值执行 `deletevalue`。
+
+#### 子项 1：计时器与调度配置
+
+| BCD 值 | 脚本目标 | 含义/边界 |
+|---|---|---|
+| `useplatformclock` | `No` | 不强制使用平台时钟；效果依平台和 Windows 版本 |
+| `useplatformtick` | `No` | 不强制使用平台 tick；不是通用低延迟开关 |
+| `disabledynamictick` | `Yes` | 禁用动态 tick；可能影响功耗和计时行为 |
+| `tscsyncpolicy` | `Enhanced` | TSC 同步策略；属于高级/调试用途，依硬件 |
+
+源码应用 `tweakbyjie.ps1:913`，逐项由 `Verify-BcdValue:279-303` 回读。修改前先由 `Ensure-BcdBackup:601-630` 保存快照；子项 2 恢复这四项。
+
+#### 子项 3：启动安全配置
+
+| BCD 值 | 脚本目标 | 风险 |
+|---|---|---|
+| `nx` | `AlwaysOff` | 关闭 NX/DEP 保护，降低安全性 |
+| `tpmbootentropy` | `ForceDisable` | 改变 TPM 启动熵来源，依系统支持 |
+| `nointegritychecks` | `Yes` | 关闭部分驱动完整性检查，可能允许不受信任驱动 |
+
+源码应用 `tweakbyjie.ps1:915`，逐项回读并与前四项共用 `bcd-backup.json`；子项 4 恢复这三项。不要把这些设置当作普通游戏优化。
 
 ### Part 3：开启测试模式（选项 3）
 
@@ -598,7 +619,7 @@
 
 **子选项 2：还原**：依赖启用时可用的 ViVeTool，按 `nvme-backup.json` 恢复两个 Feature 的原始状态；同时恢复首次修改前的 Minimal/Network SafeBoot 默认值和三个旧版 Override。缺少 ViVeTool 或 Version 3 快照无效时拒绝声称已精确恢复。配置变更需重启后再确认 `nvmedisk` 是否停止运行。
 
-**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）即已生效。
+**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）可作为辅助信号；脚本当前调用的 `Test-NativeNvmeConfigured` 与 `Test-NativeNvmeEffective` 在源码中未找到定义，因此菜单状态检查和启用后的自动验证可能运行时失败，不能把脚本提示当作已完成生效证明。最终应以重启后驱动状态、系统稳定性和 NVMe 实际行为核对。
 
 > 实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
 
@@ -654,9 +675,11 @@
 
 | 操作 | 命令 / 对象 | 作用 |
 |---|---|---|
-| bcdedit 还原 | `bcdedit /deletevalue hypervisorlaunchtype` | 恢复虚拟机监控器默认启动（Auto，随需启动） |
-| bcdedit 还原 | `bcdedit /deletevalue vsmlaunchtype` | 恢复 VSM 默认启动 |
-| bcdedit 还原 | `bcdedit /deletevalue isolatedcontext` | 恢复隔离上下文默认 |
+| bcdedit 应用 | `bcdedit /set hypervisorlaunchtype off` | 关闭虚拟机监控器启动 |
+| bcdedit 应用 | `bcdedit /set vsmlaunchtype off` | 关闭 VSM 启动 |
+| bcdedit 应用 | `bcdedit /set isolatedcontext no` | 关闭隔离上下文 |
+
+以上是子选项 1 的实际写入，不是恢复命令。子选项 2 才会删除这些 BCD 覆盖并尝试启用 Hyper-V；由于选项 10 没有保存原始状态，删除覆盖不等于精确恢复用户原配置。
 | 注册表还原 | 删除下表 5 个值 | 恢复"未配置"（跟随系统默认），比写回 1（强制开启）更干净 |
 
 | 注册表路径 | 值名 | 选项 10 写入值 | 还原操作 |
