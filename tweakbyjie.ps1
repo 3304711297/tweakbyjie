@@ -725,7 +725,7 @@ Write-Host "   5. 关闭安全中心（Defender / SmartScreen）" -ForegroundCol
 Write-Host "   6. 服务优化（A/B 分组）" -ForegroundColor White
 Write-Host "   7. 超性能电源计划" -ForegroundColor White
 Write-Host "   8. 原生 NVMe 驱动" -ForegroundColor White
-Write-Host "   9. Device Guard EFI 锁定" -ForegroundColor White
+Write-Host "   9. 清除 Device Guard EFI 锁定" -ForegroundColor White
 Write-Host "  10. 虚拟化 / VBS / Hyper-V 管理" -ForegroundColor White
 Write-Host "  11. MPO 设置管理（独立排障）" -ForegroundColor White
 Write-Host ""

@@ -56,7 +56,7 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 | **6** | 服务优化 | 30 个服务设为 Disabled、7 个服务设为 Manual；修改前保存 `service-backup.json`，子选项 2 恢复启动类型 |
 | **7** | 超性能电源计划 | 备份当前计划后导入 `ultimate-performance.pow`，支持恢复备份 |
 | **8** | 原生 NVMe 驱动 | 需要 ViVeTool 和符合条件的系统/设备；使用 `nvme-backup.json`，重启后检查驱动状态 |
-| **9** | Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 |
+| **9** | 清除 Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 |
 | **10** | 虚拟化 / VBS / Hyper-V | 查看、关闭或删除脚本覆盖并尝试启用 Hyper-V；恢复不是原始状态精确回滚 |
 | **11** | MPO 设置管理 | 三种互斥的社区排障方案，首次修改前备份，子选项 4 恢复 |
 
