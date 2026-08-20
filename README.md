@@ -28,7 +28,7 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 | 文件 | 用途 | 说明 |
 |---|---|---|
 | `tweakbyjie.ps1` | 主优化脚本 | 菜单 0–11，包含普通优化、高级启动、安全和显示排障功能 |
-| `ultimate-performance.pow` | 超性能电源计划 | 必须和主脚本同目录，菜单 7 使用 |
+| `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本同目录，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
 | `defender-removal.ps1` | Defender 物理移除脚本 | 独立的不可逆高级脚本，不属于普通优化流程 |
@@ -86,6 +86,7 @@ powershell -ExecutionPolicy Bypass -File .\defender-removal.ps1
 ## 文档导航
 
 - [优化详情参考](./docs/reference/OPTIMIZATION-DETAILS.md)：每个菜单和目标值的详细说明
+- [电源计划来源与校验](./docs/POWER-PLAN-SOURCE.md)：`ultimate-performance.pow` 的哈希、来源与复现方法
 - [覆盖与映射文档](./docs/coverage/)：CPU 覆盖、项目追踪和 `tweakbyjie → youshouldknow` 对应关系
 - [设计与开发文档](./docs/design/)：模块接口、检测、备份、路线图和内部设计
 - [CPU 覆盖状态](./docs/coverage/CPU-COVERAGE-STATUS.md)：当前跨项目逐项核对结果
