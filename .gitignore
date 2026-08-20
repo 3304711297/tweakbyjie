@@ -21,3 +21,4 @@ Thumbs.db
 
 # ZCode session data
 .zcode/
+.bak*
