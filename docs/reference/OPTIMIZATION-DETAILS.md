@@ -177,7 +177,7 @@
 | `disabledynamictick` | `Yes` | 禁用动态 tick；可能影响功耗和计时行为 |
 | `tscsyncpolicy` | `Enhanced` | TSC 同步策略；属于高级/调试用途，依硬件 |
 
-源码应用 `tweakbyjie.ps1:913`，逐项由 `Verify-BcdValue:279-303` 回读。修改前先由 `Ensure-BcdBackup:601-630` 保存快照；子项 2 恢复这四项。
+源码通过 `Invoke-BcdEdit` 写入、逐项由 `Verify-BcdValue` 回读。修改前先由 `Ensure-BcdBackup` 保存快照；子项 2 恢复这四项。
 
 #### 子项 3：启动安全配置
 
@@ -187,7 +187,7 @@
 | `tpmbootentropy` | `ForceDisable` | 改变 TPM 启动熵来源，依系统支持 |
 | `nointegritychecks` | `Yes` | 关闭部分驱动完整性检查，可能允许不受信任驱动 |
 
-源码应用 `tweakbyjie.ps1:915`，逐项回读并与前四项共用 `bcd-backup.json`；子项 4 恢复这三项。不要把这些设置当作普通游戏优化。
+源码通过 `Invoke-BcdEdit` 写入、逐项回读并与前四项共用 `bcd-backup.json`；子项 4 恢复这三项。不要把这些设置当作普通游戏优化。
 
 ### Part 3：开启测试模式（选项 3）
 

@@ -1,0 +1,9 @@
+# 固定换行，避免 LF will be replaced by CRLF 噪音
+*.ps1 text eol=crlf
+*.psd1 text eol=crlf
+*.pow binary
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.sh text eol=lf
