@@ -14,4 +14,8 @@
 
 ## 运行目录约定
 
-PowerShell 主脚本仍在仓库根目录，并通过 `$PSScriptRoot` 读取/生成旁车文件。不要把 `ultimate-performance.pow`、`ViVeTool.exe` 或运行后生成的备份文件移动到 `docs/`；它们必须和 `tweakbyjie.ps1` 保持同一运行目录。
+PowerShell 主脚本仍在仓库根目录，并通过 `$PSScriptRoot` 读取/生成旁车文件。不要把 `ultimate-performance.pow`、`ViVeTool.exe`、`Modules/` 或运行后生成的备份文件移动到 `docs/`；它们必须和 `tweakbyjie.ps1` 保持同一运行目录。
+
+## 模块化状态（2026-08-20）
+
+`tweakbyjie.ps1` 已精简为 Loader（81 行），功能拆至 `Modules/`（`Common` + 5 个 `Backup.*` + `Menu`）。详见 `design/CODE-REFACTOR-STATUS.md` 与 `design/MODULE-ROADMAP.md`。后续 Parts 拆分见路线图，不影响当前 Loader 的分发兼容。
