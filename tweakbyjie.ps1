@@ -738,6 +738,7 @@ function Verify-HypervisorRuntime {
     catch { Write-Host "[VERIFY SKIP] 无法读取 HypervisorPresent：$($_.Exception.Message)" -ForegroundColor Yellow;$script:skip++;return $true }
 }
 
+function Show-TweakMenu {
 # ============================ Menu ============================
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " Windows Game Optimization + BCDEdit - Menu Edition" -ForegroundColor Cyan
@@ -2093,4 +2094,9 @@ if ($choice -eq "0") {
  } else {
     Write-Host "[ERROR] 无效输入：$choice 。请输入 0-11 / Invalid input. Enter 0-11." -ForegroundColor Red
 }
+}
+}
+
+if ($MyInvocation.InvocationName -ne '.' -and $MyInvocation.CommandOrigin -ne 'DotSource') {
+    Show-TweakMenu
 }
