@@ -619,7 +619,7 @@
 
 **子选项 2：还原**：依赖启用时可用的 ViVeTool，按 `nvme-backup.json` 恢复两个 Feature 的原始状态；同时恢复首次修改前的 Minimal/Network SafeBoot 默认值和三个旧版 Override。缺少 ViVeTool 或 Version 3 快照无效时拒绝声称已精确恢复。配置变更需重启后再确认 `nvmedisk` 是否停止运行。
 
-**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）可作为辅助信号；脚本当前调用的 `Test-NativeNvmeConfigured` 与 `Test-NativeNvmeEffective` 在源码中未找到定义，因此菜单状态检查和启用后的自动验证可能运行时失败，不能把脚本提示当作已完成生效证明。最终应以重启后驱动状态、系统稳定性和 NVMe 实际行为核对。
+**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）可作为辅助信号；菜单状态检查与启用后验证由 `Modules/Backup.Nvme.ps1:75 Test-NativeNvmeConfigured`（查询 ViVeTool 两个 Feature 是否均为 Enabled）与 `Modules/Backup.Nvme.ps1:83 Test-NativeNvmeEffective`（检查 `nvmedisk.sys` 文件与 `nvmedisk` 驱动状态）提供，CI 在 Pester 5 环境下对二者的定义与返回值已有覆盖（`tests/Backup.Tests.ps1:27`），最终仍应以重启后驱动状态、系统稳定性和 NVMe 实际行为核对。
 
 > 实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
 
