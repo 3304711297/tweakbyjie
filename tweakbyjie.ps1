@@ -501,6 +501,34 @@ function Find-ViVeTool {
     return $null
 }
 
+function Test-NativeNvmeConfigured {
+    param([string]$ViVeTool)
+    $s1 = Get-ViVeFeatureState $ViVeTool '60786016'
+    $s2 = Get-ViVeFeatureState $ViVeTool '48433719'
+    $both = ($s1 -eq 'Enabled' -and $s2 -eq 'Enabled')
+    [pscustomobject]@{ Feature60786016 = $s1; Feature48433719 = $s2; BothEnabled = $both }
+}
+
+function Test-NativeNvmeEffective {
+    $file = Join-Path $env:SystemRoot 'System32\drivers\nvmedisk.sys'
+    $exists = Test-Path $file
+    $state = 'NotFound'
+    try {
+        $svc = Get-Service -Name 'nvmedisk' -ErrorAction SilentlyContinue
+        if ($svc) {
+            $state = $svc.Status.ToString()
+        } else {
+            $drv = Get-CimInstance Win32_SystemDriver -Filter "Name='nvmedisk'" -ErrorAction SilentlyContinue
+            if ($drv) { $state = $drv.State }
+            elseif ($exists) { $state = 'Stopped' }
+            else { $state = 'NotFound' }
+        }
+    } catch {
+        $state = if ($exists) { 'Unknown' } else { 'NotFound' }
+    }
+    [pscustomobject]@{ FileExists = $exists; State = $state; FilePath = $file }
+}
+
 function Ensure-NvmeBackup {
     param([string]$Guid, [string]$ViVeTool, [string]$LegacyPath)
     try {
