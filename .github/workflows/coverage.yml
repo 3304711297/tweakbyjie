@@ -1,0 +1,20 @@
+name: coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  cross-repo-coverage:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run cross-repository coverage audit
+        shell: pwsh
+        env:
+          KNOWLEDGE_REF: main
+        run: |
+          ./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef $env:KNOWLEDGE_REF
