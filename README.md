@@ -27,7 +27,8 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 
 | 文件 | 用途 | 说明 |
 |---|---|---|
-| `tweakbyjie.ps1` | 主优化脚本 | 菜单 0–11，包含普通优化、高级启动、安全和显示排障功能 |
+| `tweakbyjie.ps1` | 主入口（Loader，81 行，点源 `Modules/`） | 菜单 0–11 的调度入口，需与 `Modules/` 整仓下载 |
+| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Menu.ps1` 菜单调度；缺失任一模块将提示整仓下载 |
 | `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本同目录，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
