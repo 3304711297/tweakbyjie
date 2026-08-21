@@ -16,6 +16,11 @@
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
+param(
+    # 非交互执行指定模块：编号 0-11，支持逗号分隔（如 -RunModule '7,11'）；省略则进入交互菜单
+    [string]$RunModule = ''
+)
+
 $ErrorActionPreference = "Continue"
 # 版本号：与 Git tag（v*）及 CHANGELOG.md 对应，菜单标题会显示
 $script:TweakVersion = '0.1.0'
@@ -30,6 +35,22 @@ if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1') {
     Write-Host "[ERROR] 请以管理员身份运行此脚本 / Please run this script as Administrator." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
+}
+
+
+# --- Session log ---
+# 仅在作为脚本执行时记录（点源加载不记录，避免测试污染）；日志位于 %LOCALAPPDATA%\tweakbyjie\logs
+$__isScript = ($MyInvocation.InvocationName -ne '.' -and $MyInvocation.CommandOrigin -ne 'DotSource')
+if ($__isScript) {
+    try {
+        $__logDir = Join-Path $env:LOCALAPPDATA 'tweakbyjie\logs'
+        New-Item -ItemType Directory -Path $__logDir -Force -ErrorAction Stop | Out-Null
+        $__logFile = Join-Path $__logDir ("session-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        Start-Transcript -Path $__logFile -ErrorAction Stop | Out-Null
+        Write-Host "[LOG] 本次会话输出将记录到 $__logFile"
+    } catch {
+        Write-Host "[WARN] 会话日志启动失败：$($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 
@@ -85,6 +106,15 @@ foreach ($__m in $__tweakModules) {
 }
 Remove-Variable __tweakModules,__m,__p -ErrorAction SilentlyContinue
 
-if ($MyInvocation.InvocationName -ne '.' -and $MyInvocation.CommandOrigin -ne 'DotSource') {
-    Show-TweakMenu
+if ($__isScript) {
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11')
+    $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
+    $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
+    if ($__bad.Count -gt 0) {
+        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-11）" -ForegroundColor Red
+        try { Stop-Transcript } catch {}
+        exit 1
+    }
+    Show-TweakMenu -RunModules ($__requested -join ',')
+    try { Stop-Transcript } catch {}
 }

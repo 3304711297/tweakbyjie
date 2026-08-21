@@ -4,6 +4,11 @@
 
 ## 未发布
 
+### 新增
+
+- 非交互执行入口：`-RunModule` 参数可直接指定模块编号（支持逗号分隔，如 `-RunModule '7,11'`），执行完毕统一询问重启
+- 会话日志：作为脚本运行时自动将全部输出记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`
+
 ### 修复
 
 - 服务恢复不再把无法识别的启动类型一律当作"禁用"处理：显式支持 Auto/Manual/Disabled/System/Boot，未知类型跳过并警告

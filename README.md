@@ -26,6 +26,17 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 
 5. 先使用菜单中的查看/备份能力，再决定是否应用修改；需要重启的操作会在退出主菜单时统一询问。
 
+### 非交互执行（可选）
+
+支持直接指定模块编号跳过菜单，编号间用逗号分隔，执行完毕后统一询问是否重启：
+
+```powershell
+.\tweakbyjie.cmd -RunModule 7          # 只执行模块 7（超性能电源计划）
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
+```
+
+作为脚本运行时，全部输出会自动记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`，便于回溯本次改动。
+
 `-ExecutionPolicy Bypass` 只对本次 PowerShell 进程生效，通常不需要为了运行本项目而修改系统级执行策略。脚本会自行检查管理员权限；普通权限运行会被拒绝（本地开发/CI 可设 `TWEAK_SKIP_ADMIN_CHECK=1` 跳过检查）。主脚本在 Windows PowerShell 5.1 与 PowerShell 7+ 下均已验证可运行；CI 同时覆盖两个运行时。
 
 ### 运行文件与旁车资源

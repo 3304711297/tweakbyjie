@@ -1,4 +1,8 @@
 ﻿function Show-TweakMenu {
+    # RunModules：非交互模式，逗号分隔的模块编号队列；为空则进入交互菜单
+    param([string]$RunModules = '')
+    $__queue = @($RunModules -split '[,，\s]+' | Where-Object { $_ })
+    $__autoMode = ($RunModules -ne '')
 # ============================ Menu ============================
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " Windows Game Optimization + BCDEdit - Menu Edition  v$($script:TweakVersion)" -ForegroundColor Cyan
@@ -22,7 +26,17 @@ Write-Host "提示：一次运行可以连续执行多个模块；修改完成�
 Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow
 Write-Host ""
 while ($true) {
-$choice = Read-Host "请输入 0-11 并回车 (Enter 0-11)"
+if ($__autoMode -and $__queue.Count -eq 0) {
+    # 队列执行完毕后自动走退出流程（统一重启询问）
+    $choice = '0'
+} elseif ($__queue.Count -gt 0) {
+    $choice = [string]($__queue | Select-Object -First 1)
+    $__queue = @($__queue | Select-Object -Skip 1)
+    Write-Host ""
+    Write-Host ("[AUTO] 自动执行模块 " + $choice) -ForegroundColor Cyan
+} else {
+    $choice = Read-Host "请输入 0-11 并回车 (Enter 0-11)"
+}
 
 if ($choice -eq "0") {
     Invoke-FinalRestartPrompt
