@@ -100,7 +100,10 @@ jobs:
           LAST=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo 'v0.1.0')
           BASE=${LAST%.*}
           PATCH=${LAST##*.}
-          echo "version=${BASE}.$((PATCH + 1))" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${BASE}.$((PATCH + 1))"
+            echo "last=${LAST}"
+          } >> "$GITHUB_OUTPUT"
           echo "next version: ${BASE}.$((PATCH + 1)) (last tag: ${LAST})"
       - name: Stamp version into packaged script
         run: |
@@ -117,7 +120,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           V="${{ steps.ver.outputs.version }}"
+          LAST="${{ steps.ver.outputs.last }}"
+          REPO="https://github.com/${{ github.repository }}"
           gh release create "$V" \
             --title "tweakbyjie $V" \
-            --notes "CI 全绿后自动构建。包内脚本版本已同步为 ${V}；变更内容见提交历史与 CHANGELOG（里程碑变更以手动维护的条目为准）。" \
+            --notes "变更内容：[${LAST} → ${V}](${REPO}/compare/${LAST}...${V}) · [CHANGELOG](${REPO}/blob/main/CHANGELOG.md)
+
+包内脚本版本已同步为 ${V}，完整性校验见附件 SHA256SUMS.txt。" \
             "tweakbyjie-${V}.zip" "SHA256SUMS.txt"
