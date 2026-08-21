@@ -92,9 +92,13 @@ $__tweakModules = @(
     'Modules/Backup.SecurityMitigation.ps1',
     'Modules/Backup.Nvme.ps1',
     'Modules/Backup.Defender.ps1',
+    'Modules/Bcd.ps1',
     'Modules/Defender.ps1',
-    'Modules/Registry.ps1',
+    'Modules/Mpo.ps1',
     'Modules/Nvme.ps1',
+    'Modules/Power.ps1',
+    'Modules/Registry.ps1',
+    'Modules/Service.ps1',
     'Modules/Virtualization.ps1',
     'Modules/Menu.ps1'
 )

@@ -2,6 +2,12 @@
 
 本文件记录用户视角的重要变更；开发细节见 Git 提交历史。版本号与 Git tag（`v*`）及脚本内 `$script:TweakVersion` 一一对应，Release 附件（整仓 ZIP + SHA256SUMS）可在 GitHub Releases 页下载。
 
+## 未发布
+
+### 变更
+
+- 模块化最终收尾：Part 2/3/4（BCD 与测试模式）、Part 6（服务）、Part 7（电源）、Part 11（MPO）迁出为独立模块（Bcd/Service/Power/Mpo），Menu.ps1 精简至约 105 行纯调度链
+
 ## 0.2.0 - 2026-08-21
 
 ### 新增
