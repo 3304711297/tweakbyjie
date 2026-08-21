@@ -8,10 +8,10 @@
 }
 
 function Test-SecurityMitigationBackupSchema {
-    param([object]$Backup)
+    param([object]$Backup, [object[]]$Definitions = $script:securityMitigationValues)
     if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
     $records = @($Backup.Values)
-    $expected = @($script:securityMitigationValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    $expected = @($Definitions | ForEach-Object { "$($_.Path)|$($_.Name)" })
     $actual = @($records | ForEach-Object { "$($_.Path)|$($_.Name)" })
     if ($records.Count -ne $expected.Count -or @($actual | Sort-Object -Unique).Count -ne $expected.Count) { return $false }
     if (@($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
@@ -24,27 +24,30 @@ function Test-SecurityMitigationBackupSchema {
 }
 
 function Ensure-SecurityMitigationBackup {
+    # Definitions 可注入自定义清单（测试用 HKCU 临时键做往返验证）；默认用内置清单
+    param([object[]]$Definitions = $script:securityMitigationValues)
     try {
         if (Test-Path $script:securityMitigationBackupFile) {
             $backup = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw 'security-mitigation-backup.json 结构不正确' }
+            if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw 'security-mitigation-backup.json 结构不正确' }
             return $true
         }
-        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @($script:securityMitigationValues | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
-        if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw '生成的安全缓解备份未通过结构校验' }
+        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
+        if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw '生成的安全缓解备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:securityMitigationBackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-SecurityMitigationBackupSchema $check)) { throw '写入后的安全缓解备份校验失败' }
+        if (-not (Test-SecurityMitigationBackupSchema $check $Definitions)) { throw '写入后的安全缓解备份校验失败' }
         Write-Host "[OK] CPU 安全缓解原始状态已备份：$script:securityMitigationBackupFile" -ForegroundColor Green
         return $true
     } catch { Write-Host "[FAIL] CPU 安全缓解备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
 }
 
 function Restore-SecurityMitigationBackup {
+    param([object[]]$Definitions = $script:securityMitigationValues)
     if (-not (Test-Path $script:securityMitigationBackupFile)) { Write-Host '[FAIL] 未找到 security-mitigation-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-SecurityMitigationBackupSchema $backup)) { throw 'security-mitigation-backup.json 结构不正确' }
+        if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw 'security-mitigation-backup.json 结构不正确' }
         $allOk = $true
         foreach ($r in @($backup.Values)) {
             $before = $script:fail

@@ -27,6 +27,9 @@ jobs:
           $config = New-PesterConfiguration
           $config.Run.Path = "./tests"
           $config.Output.Verbosity = "Detailed"
+          $config.CodeCoverage.Enabled = $true
+          $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
+          $config.CodeCoverage.CoveragePercentTarget = 0
           Invoke-Pester -Configuration $config
 
   smoke-windows-powershell:

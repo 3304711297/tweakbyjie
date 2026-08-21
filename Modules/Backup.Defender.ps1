@@ -128,15 +128,16 @@ function Get-DefenderValueSnapshot {
 }
 
 function Test-DefenderBackupSchema {
-    param([object]$Backup)
+    # Definitions/StartupDefinitions 可注入自定义清单（测试用 HKCU 临时键做往返验证）；默认用内置清单
+    param([object]$Backup, [object[]]$PolicyDefinitions = $script:defenderPolicyValues, [object[]]$StartupDefinitions = $script:defenderStartupValues)
     try {
         if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
         $records = @($Backup.Values)
         $startup = @($Backup.StartupValues)
         if ($records.Count -eq 0 -or $startup.Count -eq 0) { return $false }
         foreach ($pair in @(
-                @{ Actual = $records; Expected = $script:defenderPolicyValues },
-                @{ Actual = $startup; Expected = $script:defenderStartupValues }
+                @{ Actual = $records; Expected = $PolicyDefinitions },
+                @{ Actual = $startup; Expected = $StartupDefinitions }
             )) {
             $expectedKeys = @($pair.Expected | ForEach-Object { "$($_.Path)|$($_.Name)" })
             $actualKeys = @($pair.Actual | ForEach-Object { "$($_.Path)|$($_.Name)" })
@@ -162,23 +163,25 @@ function Test-DefenderBackupSchema {
 }
 
 function Ensure-DefenderPolicyBackup {
+    # Definitions/StartupDefinitions 可注入自定义清单（测试用 HKCU 临时键做往返验证）；默认用内置清单
+    param([object[]]$Definitions = $script:defenderPolicyValues, [object[]]$StartupDefinitions = $script:defenderStartupValues)
     try {
         if (Test-Path $script:defenderPolicyBackupFile) {
             $backup = Get-Content $script:defenderPolicyBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-DefenderBackupSchema $backup)) { throw 'defender-policy-backup.json 结构不正确或与当前清单不匹配' }
+            if (-not (Test-DefenderBackupSchema $backup $Definitions $StartupDefinitions)) { throw 'defender-policy-backup.json 结构不正确或与当前清单不匹配' }
             Write-Host "[OK] 已存在有效的 Defender 策略快照：$script:defenderPolicyBackupFile" -ForegroundColor Green
             return $true
         }
         $backup = [pscustomobject]@{
             Version       = 1
             CreatedAt     = (Get-Date).ToString('o')
-            Values        = @($script:defenderPolicyValues | ForEach-Object { Get-DefenderValueSnapshot $_ })
-            StartupValues = @($script:defenderStartupValues | ForEach-Object { Get-DefenderValueSnapshot $_ })
+            Values        = @($Definitions | ForEach-Object { Get-DefenderValueSnapshot $_ })
+            StartupValues = @($StartupDefinitions | ForEach-Object { Get-DefenderValueSnapshot $_ })
         }
-        if (-not (Test-DefenderBackupSchema $backup)) { throw '生成的 Defender 策略备份未通过结构校验' }
+        if (-not (Test-DefenderBackupSchema $backup $Definitions $StartupDefinitions)) { throw '生成的 Defender 策略备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:defenderPolicyBackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $script:defenderPolicyBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-DefenderBackupSchema $check)) { throw '写入后的 Defender 策略备份校验失败' }
+        if (-not (Test-DefenderBackupSchema $check $Definitions $StartupDefinitions)) { throw '写入后的 Defender 策略备份校验失败' }
         Write-Host "[OK] Defender 策略原始状态已备份：$script:defenderPolicyBackupFile" -ForegroundColor Green
         return $true
     } catch { Write-Host "[FAIL] Defender 策略备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
@@ -217,8 +220,15 @@ function Restore-DefenderStartupValue {
     $label = "恢复启动项 {0} -> {1}" -f $Record.Path, $Record.Name
     try {
         if (-not [bool]$Record.Present) {
-            Write-Host "[SKIP] $label：原始状态不存在，无需恢复" -ForegroundColor Yellow
-            $script:skip++
+            $existing = Get-ItemProperty -Path $Record.Path -Name $Record.Name -ErrorAction SilentlyContinue
+            if (-not $existing) {
+                Write-Host "[SKIP] $label：原始状态不存在，当前也不存在，无需处理" -ForegroundColor Yellow
+                $script:skip++
+                return
+            }
+            Remove-ItemProperty -Path $Record.Path -Name $Record.Name -Force -ErrorAction Stop
+            Write-Host "[OK] $label（删除快照后新增的值，恢复原始未设置状态）"
+            $script:ok++
             return
         }
         if (-not (Test-Path $Record.Path)) { New-Item -Path $Record.Path -Force -ErrorAction Stop | Out-Null }
@@ -247,10 +257,11 @@ function Restore-DefenderStartupValue {
 }
 
 function Restore-DefenderPolicyBackup {
+    param([object[]]$Definitions = $script:defenderPolicyValues, [object[]]$StartupDefinitions = $script:defenderStartupValues)
     if (-not (Test-Path $script:defenderPolicyBackupFile)) { Write-Host '[FAIL] 未找到 defender-policy-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:defenderPolicyBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-DefenderBackupSchema $backup)) { throw 'defender-policy-backup.json 结构不正确或与当前清单不匹配' }
+        if (-not (Test-DefenderBackupSchema $backup $Definitions $StartupDefinitions)) { throw 'defender-policy-backup.json 结构不正确或与当前清单不匹配' }
         $allOk = $true
         foreach ($r in @($backup.Values)) {
             $before = $script:fail
