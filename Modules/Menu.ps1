@@ -225,7 +225,7 @@ if ($choice -eq "0") {
     Write-Host " FAIL : $fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "提示：开启测试模式后桌面右下角会显示“测试模式”水印，属正常现象。" -ForegroundColor Yellow
+    Write-Host "提示：开启测试模式后桌面右下角会显示「测试模式」水印，属正常现象。" -ForegroundColor Yellow
     Write-Host "如需关闭测试模式，可运行: bcdedit /set testsigning off" -ForegroundColor Yellow
 
     Request-Restart
@@ -439,6 +439,7 @@ if ($choice -eq "0") {
                     Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)"
                     $ok++
                     $script:rebootRequired = $true
+                    Invoke-PowerPlanDedupe
                 } catch {
                     Write-Host "[FAIL] 导入/应用超性能电源计划 : $($_.Exception.Message)" -ForegroundColor Red
                     $fail++
@@ -468,6 +469,7 @@ if ($choice -eq "0") {
                 Write-Host "[OK] 已恢复备份的电源计划 ($newGuid)"
                 $ok++
                 $script:rebootRequired = $true
+                Invoke-PowerPlanDedupe
             } catch {
                 Write-Host "[FAIL] 恢复备份的电源计划 : $($_.Exception.Message)" -ForegroundColor Red
                 $fail++

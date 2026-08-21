@@ -40,6 +40,8 @@ function Ensure-BcdBackup {
         $backup = [pscustomobject]@{ Version = 1; Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
         if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw '生成的 BCD 备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:bcdBackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-BcdBackupSchema $check $managedNames)) { throw '写入后的 BCD 备份校验失败' }
         Write-Host "[OK] BCD 原始状态已备份：$script:bcdBackupFile" -ForegroundColor Green
         return $true
     } catch {

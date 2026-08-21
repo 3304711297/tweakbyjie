@@ -40,6 +40,8 @@ function Ensure-MpoBackup {
         $backup = [pscustomobject]@{ Version = 1; Values = $snapshots }
         if (-not (Test-MpoBackupSchema $backup)) { throw '生成的 MPO 备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:mpoBackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-MpoBackupSchema $check)) { throw '写入后的 MPO 备份校验失败' }
         $script:mpoBackupReady = $true
         Write-Host "[OK] MPO 原始状态已备份：$script:mpoBackupFile" -ForegroundColor Green
         return $true
@@ -86,7 +88,7 @@ function Restore-MpoBackup {
             }
             $regPath = Convert-RegExePath $r.Path
             $regType = Convert-RegKindForExe $r.Kind
-            $data = if ($r.Kind -eq 'Binary') { [string]$r.Data } else { [string]$r.Data }
+            $data = [string]$r.Data
             & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
             if ($LASTEXITCODE -ne 0) { throw "恢复 $($r.Name) 失败，reg.exe exit code $LASTEXITCODE" }
             Write-Host ("[OK] 已恢复 {0} 原始值 {1}" -f $r.Name, $r.Data)

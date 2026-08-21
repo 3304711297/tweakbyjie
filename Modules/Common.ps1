@@ -195,6 +195,56 @@ function Verify-HypervisorRuntime {
     catch { Write-Host "[VERIFY SKIP] 无法读取 HypervisorPresent：$($_.Exception.Message)" -ForegroundColor Yellow;$script:skip++;return $true }
 }
 
+function Get-PowerPlanDuplicateGroups {
+    # 解析 powercfg /list 输出，找出同名的重复电源计划组；纯函数便于测试
+    # 返回：@({ Name; KeepGuid; DuplicateGuids })，仅含确有重复的组
+    param([string]$ListOutput)
+    $plans = @()
+    foreach ($line in ($ListOutput -split "`r?`n")) {
+        if ($line -match 'GUID:\s*([0-9a-fA-F\-]{36})\s*\((.*?)\)\s*(\*)?\s*$') {
+            $plans += [pscustomobject]@{ Guid = $Matches[1]; Name = $Matches[2].Trim(); Active = ($Matches[3] -eq '*') }
+        }
+    }
+    $groups = @()
+    foreach ($g in ($plans | Group-Object Name | Where-Object Count -gt 1)) {
+        $members = @($g.Group)
+        $keep = @($members | Where-Object Active)[0]
+        if (-not $keep) { $keep = $members[0] }
+        $groups += [pscustomobject]@{
+            Name           = $g.Name
+            KeepGuid       = $keep.Guid
+            DuplicateGuids = @($members | Where-Object Guid -ne $keep.Guid | ForEach-Object Guid)
+        }
+    }
+    return $groups
+}
+
+function Invoke-PowerPlanDedupe {
+    # 导入电源计划后清理历史遗留的同名重复项；删除前逐组询问
+    try {
+        $listOut = (& powercfg /list 2>&1) -join "`n"
+        $groups = Get-PowerPlanDuplicateGroups $listOut
+        if (@($groups).Count -eq 0) { return }
+        foreach ($grp in $groups) {
+            Write-Host ("[WARN] 检测到 {0} 个名为 [{1}] 的电源计划（可能是以往导入的重复）" -f (1 + @($grp.DuplicateGuids).Count), $grp.Name) -ForegroundColor Yellow
+            $answer = Read-Host ("是否删除 {0} 个重复项并保留当前激活的计划？Y = 删除 / 其他键保留" -f @($grp.DuplicateGuids).Count)
+            if ($answer -match '^[Yy]$') {
+                foreach ($dupGuid in $grp.DuplicateGuids) {
+                    & powercfg /delete $dupGuid *> $null
+                    if ($LASTEXITCODE -eq 0) { Write-Host "[OK] 已删除重复电源计划 $dupGuid"; $script:ok++ }
+                    else { Write-Host "[FAIL] 删除电源计划 $dupGuid 失败" -ForegroundColor Red; $script:fail++ }
+                }
+            } else {
+                Write-Host "[SKIP] 保留重复电源计划" -ForegroundColor Yellow
+                $script:skip++
+            }
+        }
+    } catch {
+        Write-Host "[WARN] 电源计划重复检查失败：$($_.Exception.Message)" -ForegroundColor Yellow
+        $script:skip++
+    }
+}
+
 function Request-Restart {
     if (-not $script:rebootRequired) { return }
     Write-Host '[待重启] 当前模块产生了需要重启后生效的修改；本模块不会单独触发重启。' -ForegroundColor Yellow
