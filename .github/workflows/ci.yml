@@ -1,8 +1,9 @@
 name: ci
 
 on:
+  # push 不过滤 refs：branches 与 tags 同用为 AND 语义，会导致 tag 推送不触发；
+  # 分支与 tag 的取舍由各任务的 if 守卫完成
   push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
