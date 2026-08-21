@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Package repository as ZIP with checksum
+        run: |
+          zip -r "tweakbyjie-${GITHUB_REF_NAME}.zip" . -x '.git/*' '.github/*'
+          sha256sum "tweakbyjie-${GITHUB_REF_NAME}.zip" > SHA256SUMS.txt
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "tweakbyjie $GITHUB_REF_NAME" \
+            --generate-notes \
+            "tweakbyjie-${GITHUB_REF_NAME}.zip" \
+            "SHA256SUMS.txt"

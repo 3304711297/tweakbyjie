@@ -30,7 +30,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "1") {
 
-    $script:moduleFailBaseline = $fail
     Write-Host ""; Write-Host "============ [Part 1] 核心游戏 / 系统性能优化 ============" -ForegroundColor Cyan; Write-Host ""
     Write-Host "  1. 核心游戏优化（GameDVR / GameBar / Multimedia / Win32PrioritySeparation / HAGS / Games Task / Game Mode / ActivationType）" -ForegroundColor White
     Write-Host "  2. 系统行为优化（Search / Prefetch / Memory Compression / NTFS 8.3 / TRIM / Visual Effects）" -ForegroundColor White
@@ -187,7 +186,6 @@ if ($choice -eq "0") {
     }
 
 } elseif ($choice -eq "2") {
-    $script:moduleFailBaseline = $fail
     Write-Host ""; Write-Host "============ [Part 2] 高级 BCD / Advanced BCD ============" -ForegroundColor Cyan; Write-Host ""
     Write-Host "  0. 查看当前高级 BCD 状态（只读）" -ForegroundColor White
     Write-Host "  1. 应用高级计时器配置（useplatformclock / useplatformtick / disabledynamictick / tscsyncpolicy）" -ForegroundColor White
@@ -208,7 +206,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "3") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 3: 开启测试模式 =======================
     # 独立步骤：开启测试模式 / Enable Test Mode (bcdedit)
     Write-Host ""
@@ -235,7 +232,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "4") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 4: 关闭测试模式 =======================
     # 独立步骤：关闭测试模式 / Disable Test Mode（保留 nointegritychecks）
     Write-Host ""
@@ -262,7 +258,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "5") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 5: 关闭安全中心 =======================
     # 独立步骤：关闭 Windows Defender 安全中心 / Disable Security Center
     Write-Host ""
@@ -590,7 +585,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "6") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 6: 优化服务项 =======================
     # 独立步骤：禁用可安全禁用的服务 + 将 Xbox / 蓝牙 / 嵌入模式服务恢复为手动
     Write-Host ""
@@ -710,15 +704,14 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "7") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 7: 应用超性能电源计划 =======================
     # 独立步骤：备份当前电源计划 -> 导入并应用仓库自带的超性能计划 / 或恢复备份
     Write-Host ""
     Write-Host "============ [Part 7] 应用超性能电源计划 / Ultimate Performance Power Plan ============" -ForegroundColor Cyan
     Write-Host ""
 
-    $planFile   = Join-Path $PSScriptRoot "ultimate-performance.pow"
-    $backupFile = Join-Path $PSScriptRoot "power-backup.pow"
+    $planFile   = Join-Path $script:RepoRoot "ultimate-performance.pow"
+    $backupFile = Join-Path $script:RepoRoot "power-backup.pow"
 
     Write-Host "  1. 备份当前电源计划，然后导入并应用超性能电源计划" -ForegroundColor White
     Write-Host "  2. 恢复之前备份的电源计划" -ForegroundColor White
@@ -822,7 +815,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "8") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 8: Native NVMe Driver =======================
     # Preferred path: ViVeTool feature IDs 60786016 + 48433719.
     # Legacy registry overrides are retained only for compatibility/inspection and
@@ -947,7 +939,6 @@ if ($choice -eq "0") {
                     if (-not $safeBootOk) {
                         Write-Host "[FAIL] SafeBoot 配置未完整完成，正在按启用前 Version 3 快照回滚。" -ForegroundColor Red
                         Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath | Out-Null
-                        $script:rebootRequired = $false
                     } else {
                         Write-Host ""
                         Write-Host "[3/3] Legacy Override 兼容说明" -ForegroundColor Cyan
@@ -988,7 +979,6 @@ if ($choice -eq "0") {
     Write-Host "============================================================" -ForegroundColor Cyan
 } elseif ($choice -eq "9") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 9: 清除 Device Guard EFI 锁定 =======================
     # 应对 UEFI 锁定：选项 10 的关闭子项可通过注册表关闭 VBS/HVCI/Credential Guard，
     # 但 安全中心 / msinfo32 仍显示"内存完整性"或"凭据保护"开启时，
@@ -1202,7 +1192,6 @@ if ($choice -eq "0") {
     }
 
 } elseif ($choice -eq "10") {
-    $script:moduleFailBaseline = $fail
     Write-Host ""; Write-Host "============ [Part 10] 虚拟化 / VBS / Hyper-V 管理 ============" -ForegroundColor Cyan; Write-Host ""
     $dgRegValues=@(@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity';Name='Enabled'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\LSA';Name='LsaCfgFlags'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='RequirePlatformSecurityFeatures'})
     Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）"
@@ -1221,7 +1210,6 @@ if ($choice -eq "0") {
 
 } elseif ($choice -eq "11") {
 
-    $script:moduleFailBaseline = $fail
     # ======================= Part 11: MPO 设置管理 =======================
     # MPO（Multi-Plane Overlay，多平面叠加）让显卡用独立硬件平面合成画面，异常时
     # 会引起闪屏/黑屏/切屏卡顿（N 卡多屏与 Chromium 系应用高发）。本选项管理四个

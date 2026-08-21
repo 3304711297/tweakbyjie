@@ -7,15 +7,23 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   psscriptanalyzer:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -RequiredVersion 1.25.0
           $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 -Severity Error,Warning
           if ($results) {
             $results | Format-Table -AutoSize | Out-String | Write-Host
@@ -25,15 +33,3 @@ jobs:
           } else {
             Write-Host "PSScriptAnalyzer: no findings."
           }
-
-  coverage-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check docs coverage tables reference existing files
-        run: |
-          echo "Checking that youshouldknow links in docs/coverage are not obviously broken (basic check)..."
-          if grep -r "youshouldknow" docs/coverage --include="*.md" | grep -q "http"; then
-            echo "Found external youshouldknow links, consider lychee link check in youshouldknow repo."
-          fi
-          echo "Coverage marker check done."

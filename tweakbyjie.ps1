@@ -32,7 +32,11 @@ if (-not $isAdmin) {
 
 # --- Module loader ---
 # 将功能拆到 Modules/，同时保持分发兼容与点源测试不卡死
-# 保持现有语义：整仓下载、$PSScriptRoot 锚点、管理员检查、deferred reboot
+# 保持现有语义：整仓下载、仓库根锚点、管理员检查、deferred reboot
+
+# 仓库根锚点：模块函数体内的 $PSScriptRoot 指向 Modules/，
+# 需要定位仓库根文件（ultimate-performance.pow、ViVeTool.exe 等）时一律用 $script:RepoRoot
+$script:RepoRoot = $PSScriptRoot
 
 # 统一状态（原分散在各处）
 $script:mpoManagedValues = @(
@@ -44,7 +48,6 @@ $script:mpoManagedValues = @(
 $script:mpoBackupFile = Join-Path $PSScriptRoot 'mpo-backup.json'
 $script:mpoBackupReady = $false
 $script:rebootRequired = $false
-$script:moduleFailBaseline = 0
 $script:bcdBackupFile = Join-Path $PSScriptRoot 'bcd-backup.json'
 $script:bcdManagedValues = @('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy','nx','tpmbootentropy','nointegritychecks')
 $script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'

@@ -63,7 +63,7 @@ function Get-ViVeFeatureState {
 }
 
 function Find-ViVeTool {
-    $local = Join-Path $PSScriptRoot 'ViVeTool.exe'
+    $local = Join-Path $script:RepoRoot 'ViVeTool.exe'
     if (Test-Path $local) { return $local }
     $cmd = Get-Command 'ViVeTool.exe' -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
