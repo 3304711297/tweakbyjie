@@ -26,7 +26,8 @@
 - Bcd（Part 2/3/4）
 - Mpo（Part 11）
 - Service（Part 6）
-- 剩余：Registry(Core Part 1)、Virtualization(Part 9/10)、Defender(Part 5)、Nvme 执行(Part 8)
+- Defender（Part 5）✅ 已拆出：`Modules/Defender.ps1`（Invoke-DefenderModule）+ `Modules/Backup.Defender.ps1`（95 个策略值快照/写入/恢复共用一份定义）
+- 剩余：Registry(Core Part 1)、Virtualization(Part 9/10)、Nvme 执行(Part 8)
 
 高风险 `defender-removal.ps1` 保持独立，不纳入 Modules。
 

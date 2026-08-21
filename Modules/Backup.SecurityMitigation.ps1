@@ -17,7 +17,7 @@ function Test-SecurityMitigationBackupSchema {
     if (@($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
     foreach ($r in $records) {
         if ($null -eq $r.Present -or $r.Present -isnot [bool]) { return $false }
-        if ([bool]$r.Present) { try { if ([uint64]$r.Value -gt 0xFFFFFFFF) { return $false } } catch { return $false } }
+        if ([bool]$r.Present) { try { if ([uint64]$r.Value -gt [uint32]::MaxValue) { return $false } } catch { return $false } }
         elseif ($null -ne $r.Value) { return $false }
     }
     return $true

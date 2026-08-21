@@ -7,7 +7,7 @@
 #   输入 2 回车 = 高级 BCD / 计时器与启动安全（独立配置，修改前备份）
 #   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks）
 #   输入 4 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks）
-#   输入 5 回车 = 关闭安全中心（禁用 Windows Defender / SmartScreen 策略，可选删除类优化）
+#   输入 5 回车 = 关闭安全中心（禁用 Defender/SmartScreen 策略并可选删除类优化；策略值自动快照，可按快照恢复）
 #   输入 6 回车 = 服务优化（A/B 功能依赖分组，支持快照恢复）
 #   输入 7 回车 = 超性能电源计划（备份并应用 / 恢复备份）
 #   输入 8 回车 = 原生 NVMe 驱动配置（含 SafeBoot 快照）
@@ -22,8 +22,9 @@ $fail = 0
 $skip = 0
 
 # --- Administrator check ---
+# 本地开发/CI 可设 TWEAK_SKIP_ADMIN_CHECK=1 跳过（仅跳过检查，不会获得管理员权限）
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
+if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1') {
     Write-Host "[ERROR] 请以管理员身份运行此脚本 / Please run this script as Administrator." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
@@ -57,6 +58,7 @@ $script:securityMitigationValues = @(
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverrideMask' }
 )
 $script:nvmeBackupFile = Join-Path $PSScriptRoot 'nvme-backup.json'
+$script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-backup.json'
 
 # 缺模块自检
 $__tweakModules = @(
@@ -66,6 +68,8 @@ $__tweakModules = @(
     'Modules/Backup.Service.ps1',
     'Modules/Backup.SecurityMitigation.ps1',
     'Modules/Backup.Nvme.ps1',
+    'Modules/Backup.Defender.ps1',
+    'Modules/Defender.ps1',
     'Modules/Menu.ps1'
 )
 foreach ($__m in $__tweakModules) {

@@ -71,8 +71,9 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 - `security-mitigation-backup.json`
 - `nvme-backup.json`
 - `power-backup.pow`
+- `defender-policy-backup.json`（Part 5 的约 95 个策略值与 4 个自启动项）
 
-不同模块的恢复能力不同：MPO、BCD、服务、电源和 NVMe 有相应快照；核心注册表、Part 5 安全中心停用、VBS/EFI 操作不能保证精确回滚。恢复前先确认备份文件属于当前这台机器和当前脚本版本。
+不同模块的恢复能力不同：MPO、BCD、服务、电源、NVMe 和 Part 5 Defender 策略值有相应快照（Part 5 经 `5 → 2` 恢复）；核心注册表、VBS/EFI 操作以及 Part 5 的服务停用/任务删除/SecHealthUI 移除不能保证精确回滚。恢复前先确认备份文件属于当前这台机器和当前脚本版本。
 
 ## Defender 物理移除脚本
 

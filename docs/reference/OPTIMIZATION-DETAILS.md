@@ -215,6 +215,8 @@
 
 ### Part 5：关闭安全中心（选项 5）
 
+> 快照与恢复：实现位于 `Modules/Defender.ps1`（Invoke-DefenderModule）与 `Modules/Backup.Defender.ps1`。首次应用前自动将本节全部策略值及 4 个自启动项的原始状态（存在性/类型/值）快照到 `defender-policy-backup.json`；选项 `5 → 2` 可按快照恢复注册表值。服务停用、计划任务删除与 SecHealthUI 移除不在快照范围内。
+
 #### Defender 策略 — 父键
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
