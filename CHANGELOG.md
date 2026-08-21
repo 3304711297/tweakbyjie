@@ -6,6 +6,7 @@
 
 ### 新增
 
+- CI 全绿自动发布：main 分支推送且 lint/test/5.1 冒烟/Coverage 审计全部通过后，自动递增补丁版本号（基于最新 tag）并创建 GitHub Release，包内脚本版本号同步注入
 - 非交互执行入口：`-RunModule` 参数可直接指定模块编号（支持逗号分隔，如 `-RunModule '7,11'`），执行完毕统一询问重启
 - 会话日志：作为脚本运行时自动将全部输出记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`
 
