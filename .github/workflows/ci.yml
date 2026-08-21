@@ -122,9 +122,8 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           LAST="${{ steps.ver.outputs.last }}"
           REPO="https://github.com/${{ github.repository }}"
+          NOTES=$(printf '变更内容：[%s → %s](%s/compare/%s...%s) · [CHANGELOG](%s/blob/main/CHANGELOG.md)\n\n包内脚本版本已同步为 %s，完整性校验见附件 SHA256SUMS.txt。' "$LAST" "$V" "$REPO" "$LAST" "$V" "$REPO" "$V")
           gh release create "$V" \
             --title "tweakbyjie $V" \
-            --notes "变更内容：[${LAST} → ${V}](${REPO}/compare/${LAST}...${V}) · [CHANGELOG](${REPO}/blob/main/CHANGELOG.md)
-
-包内脚本版本已同步为 ${V}，完整性校验见附件 SHA256SUMS.txt。" \
+            --notes "$NOTES" \
             "tweakbyjie-${V}.zip" "SHA256SUMS.txt"
