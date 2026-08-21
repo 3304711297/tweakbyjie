@@ -17,6 +17,8 @@
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 $ErrorActionPreference = "Continue"
+# 版本号：与 Git tag（v*）及 CHANGELOG.md 对应，菜单标题会显示
+$script:TweakVersion = '0.1.0'
 $ok = 0
 $fail = 0
 $skip = 0

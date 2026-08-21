@@ -36,9 +36,9 @@ function Get-Ids {
     return @([regex]::Matches($Text, $pattern) | ForEach-Object Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 }
 
-$manifestPath = '项目导航/tweakbyjie-coverage-manifest.json'
-$mappingPath = '项目导航/tweakbyjie-optimization-mapping.md'
-$referencePath = '项目导航/tweakbyjie全量执行参考.md'
+$manifestPath = 'docs/项目导航/tweakbyjie-coverage-manifest.json'
+$mappingPath = 'docs/项目导航/tweakbyjie-optimization-mapping.md'
+$referencePath = 'docs/项目导航/tweakbyjie全量执行参考.md'
 
 $failures = [System.Collections.Generic.List[string]]::new()
 $warnings = [System.Collections.Generic.List[string]]::new()

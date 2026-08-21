@@ -1,7 +1,7 @@
 ﻿function Show-TweakMenu {
 # ============================ Menu ============================
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " Windows Game Optimization + BCDEdit - Menu Edition" -ForegroundColor Cyan
+Write-Host " Windows Game Optimization + BCDEdit - Menu Edition  v$($script:TweakVersion)" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host " 请选择执行模式 / Select an option:" -ForegroundColor Cyan
