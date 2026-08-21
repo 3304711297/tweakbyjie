@@ -28,3 +28,22 @@ jobs:
           $config.Run.Path = "./tests"
           $config.Output.Verbosity = "Detailed"
           Invoke-Pester -Configuration $config
+
+  smoke-windows-powershell:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Loader smoke under Windows PowerShell 5.1
+        shell: powershell
+        env:
+          TWEAK_SKIP_ADMIN_CHECK: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . .\tweakbyjie.ps1
+          $required = @('Show-TweakMenu','Invoke-DefenderModule','Ensure-DefenderPolicyBackup','Restore-DefenderPolicyBackup','Test-DefenderBackupSchema','Set-RegDword','Verify-RegDword')
+          $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+          if ($missing.Count -gt 0) { throw ("missing functions: " + ($missing -join ',')) }
+          if (@($script:defenderPolicyValues).Count -ne 95) { throw 'defender policy value count mismatch' }
+          if (Test-DefenderBackupSchema $null) { throw 'schema accepted null' }
+          Write-Host 'Windows PowerShell 5.1 smoke OK'

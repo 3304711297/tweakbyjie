@@ -11,15 +11,20 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 1. 将整个仓库下载到本地，不要单独移动脚本或旁车文件。
 2. 确认 `tweakbyjie.ps1`、`ultimate-performance.pow` 位于同一目录。
 3. 右键“开始”→ **Windows 终端（管理员）**，进入仓库目录。
-4. 运行主脚本：
+4. 运行主脚本（任选其一）：
 
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
+   # 推荐：启动器会自动优先使用 PowerShell 7（pwsh），未安装时回退系统内置的 Windows PowerShell 5.1
+   .\tweakbyjie.cmd
+
+   # 或手动指定运行时
+   powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1   # Windows PowerShell 5.1（系统内置）
+   pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1   # PowerShell 7+（需自行安装）
    ```
 
 5. 先使用菜单中的查看/备份能力，再决定是否应用修改；需要重启的操作会在退出主菜单时统一询问。
 
-`-ExecutionPolicy Bypass` 只对本次 PowerShell 进程生效，通常不需要为了运行本项目而修改系统级执行策略。脚本会自行检查管理员权限；普通权限运行会被拒绝。
+`-ExecutionPolicy Bypass` 只对本次 PowerShell 进程生效，通常不需要为了运行本项目而修改系统级执行策略。脚本会自行检查管理员权限；普通权限运行会被拒绝（本地开发/CI 可设 `TWEAK_SKIP_ADMIN_CHECK=1` 跳过检查）。主脚本在 Windows PowerShell 5.1 与 PowerShell 7+ 下均已验证可运行；CI 同时覆盖两个运行时。
 
 ### 运行文件与旁车资源
 
@@ -27,8 +32,8 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 
 | 文件 | 用途 | 说明 |
 |---|---|---|
-| `tweakbyjie.ps1` | 主入口（Loader，81 行，点源 `Modules/`） | 菜单 0–11 的调度入口，需与 `Modules/` 整仓下载 |
-| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Menu.ps1` 菜单调度；缺失任一模块将提示整仓下载 |
+| `tweakbyjie.ps1` | 主入口（Loader，点源 `Modules/`；也可用 `tweakbyjie.cmd` 启动器自动选择 pwsh/5.1） | 菜单 0–11 的调度入口，需与 `Modules/` 整仓下载 |
+| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Defender.ps1` 安全中心模块 + `Menu.ps1` 菜单调度；缺失任一模块将提示整仓下载 |
 | `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本同目录，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
