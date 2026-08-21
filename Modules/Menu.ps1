@@ -64,7 +64,7 @@ if ($choice -eq "0") {
     } elseif($bChoice -eq '3'){Write-Host '[WARNING] 启动安全高级项会降低系统安全边界。' -ForegroundColor Yellow;if(Ensure-BcdBackup $allAdvancedValues){Invoke-BcdEdit "/set nx AlwaysOff" "NX (DEP) AlwaysOff";Invoke-BcdEdit "/set tpmbootentropy ForceDisable" "TPM Boot Entropy Disabled";Invoke-BcdEdit "/set nointegritychecks on" "Driver Integrity Checks Disabled";Verify-BcdValue 'nx' 'AlwaysOff' 'nx'|Out-Null;Verify-BcdValue 'tpmbootentropy' 'ForceDisable' 'tpmbootentropy'|Out-Null;Verify-BcdValue 'nointegritychecks' 'Yes' 'nointegritychecks'|Out-Null}
     } elseif($bChoice -eq '4'){Restore-BcdBackup $securityValues
     } else {Write-Host "[ERROR] 无效输入：$bChoice 。请输入 0、1、2、3 或 4" -ForegroundColor Red}
-    Write-Host "Finished (Part 2 - Advanced BCD)" -ForegroundColor Cyan; Write-Host " OK : $ok  FAIL : $fail  SKIP : $skip"; Request-Restart
+    Write-Host "Finished (Part 2 - Advanced BCD)" -ForegroundColor Cyan; Write-Host " OK : $script:ok  FAIL : $script:fail  SKIP : $script:skip"; Request-Restart
 
 } elseif ($choice -eq "3") {
 
@@ -83,8 +83,8 @@ if ($choice -eq "0") {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host " Finished (Part 3 - Enable Test Mode)" -ForegroundColor Cyan
-    Write-Host " OK : $ok" -ForegroundColor Green
-    Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " OK : $script:ok" -ForegroundColor Green
+    Write-Host " FAIL : $script:fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：开启测试模式后桌面右下角会显示「测试模式」水印，属正常现象。" -ForegroundColor Yellow
@@ -109,8 +109,8 @@ if ($choice -eq "0") {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host " Finished (Part 4 - Disable Test Mode)" -ForegroundColor Cyan
-    Write-Host " OK : $ok" -ForegroundColor Green
-    Write-Host " FAIL : $fail" -ForegroundColor Red
+    Write-Host " OK : $script:ok" -ForegroundColor Green
+    Write-Host " FAIL : $script:fail" -ForegroundColor Red
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host '提示：测试模式已关闭，桌面右下角的"测试模式"水印将在重启后消失。' -ForegroundColor Yellow
@@ -173,20 +173,20 @@ if ($choice -eq "0") {
                 Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
                 Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
                 Write-Host "[OK] Service $svc stopped and disabled"
-                $ok++
+                $script:ok++
             } catch {
                 & sc.exe config $svc start= disabled *> $null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "[OK] Service $svc disabled (stop rejected: protected service)"
-                    $ok++
+                    $script:ok++
                 } else {
                     Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
-                    $fail++
+                    $script:fail++
                 }
             }
         } else {
             Write-Host "[SKIP] Service $svc not found" -ForegroundColor Yellow
-            $skip++
+            $script:skip++
         }
     }
 
@@ -199,20 +199,20 @@ if ($choice -eq "0") {
             try {
                 Set-Service -Name $svc -StartupType Manual -ErrorAction Stop
                 Write-Host "[OK] Service $svc StartupType = Manual"
-                $ok++
+                $script:ok++
             } catch {
                 & sc.exe config $svc start= demand *> $null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "[OK] Service $svc StartupType = Manual (sc.exe)"
-                    $ok++
+                    $script:ok++
                 } else {
                     Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
-                    $fail++
+                    $script:fail++
                 }
             }
         } else {
             Write-Host "[SKIP] Service $svc not found" -ForegroundColor Yellow
-            $skip++
+            $script:skip++
         }
     }
 
@@ -232,9 +232,9 @@ if ($choice -eq "0") {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host " Finished (Part 6 - Service Optimization)" -ForegroundColor Cyan
-    Write-Host " OK : $ok" -ForegroundColor Green
-    Write-Host " FAIL : $fail" -ForegroundColor Red
-    Write-Host " SKIP : $skip" -ForegroundColor Yellow
+    Write-Host " OK : $script:ok" -ForegroundColor Green
+    Write-Host " FAIL : $script:fail" -ForegroundColor Red
+    Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
 
     Request-Restart
@@ -262,13 +262,13 @@ if ($choice -eq "0") {
 
         if (-not (Test-Path $planFile)) {
             Write-Host "[FAIL] 未找到 ultimate-performance.pow（需与本脚本放在同一目录）" -ForegroundColor Red
-            $fail++
+            $script:fail++
         } else {
 
             # 1) Backup current active scheme (keep the earliest backup)
             if (Test-Path $backupFile) {
                 Write-Host "[SKIP] 备份文件已存在，不覆盖（保护最初的原计划备份）: $backupFile" -ForegroundColor Yellow
-                $skip++
+                $script:skip++
             } else {
                 try {
                     $activeOut = & powercfg.exe /getactivescheme 2>$null
@@ -280,10 +280,10 @@ if ($choice -eq "0") {
                     & powercfg.exe /export $backupFile $activeGuid *> $null
                     if ($LASTEXITCODE -ne 0) { throw "powercfg /export exit code $LASTEXITCODE" }
                     Write-Host "[OK] 当前电源计划已备份: $backupFile ($activeGuid)"
-                    $ok++
+                    $script:ok++
                 } catch {
                     Write-Host "[FAIL] 备份当前电源计划 : $($_.Exception.Message)" -ForegroundColor Red
-                    $fail++
+                    $script:fail++
                 }
             }
 
@@ -299,16 +299,16 @@ if ($choice -eq "0") {
                     & powercfg.exe /setactive $newGuid *> $null
                     if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
                     Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)"
-                    $ok++
+                    $script:ok++
                     $script:rebootRequired = $true
                     Invoke-PowerPlanDedupe
                 } catch {
                     Write-Host "[FAIL] 导入/应用超性能电源计划 : $($_.Exception.Message)" -ForegroundColor Red
-                    $fail++
+                    $script:fail++
                 }
             } else {
                 Write-Host "[SKIP] 备份失败，为安全起见跳过应用超性能计划" -ForegroundColor Yellow
-                $skip++
+                $script:skip++
             }
         }
 
@@ -317,7 +317,7 @@ if ($choice -eq "0") {
         # Restore previously backed-up scheme
         if (-not (Test-Path $backupFile)) {
             Write-Host "[FAIL] 未找到备份文件 power-backup.pow（请先执行子选项 1 生成备份）" -ForegroundColor Red
-            $fail++
+            $script:fail++
         } else {
             try {
                 $importOut = & powercfg.exe /import $backupFile 2>$null
@@ -329,12 +329,12 @@ if ($choice -eq "0") {
                 & powercfg.exe /setactive $newGuid *> $null
                 if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
                 Write-Host "[OK] 已恢复备份的电源计划 ($newGuid)"
-                $ok++
+                $script:ok++
                 $script:rebootRequired = $true
                 Invoke-PowerPlanDedupe
             } catch {
                 Write-Host "[FAIL] 恢复备份的电源计划 : $($_.Exception.Message)" -ForegroundColor Red
-                $fail++
+                $script:fail++
             }
         }
 
@@ -346,9 +346,9 @@ if ($choice -eq "0") {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host " Finished (Part 7 - Ultimate Performance Power Plan)" -ForegroundColor Cyan
-    Write-Host " OK : $ok" -ForegroundColor Green
-    Write-Host " FAIL : $fail" -ForegroundColor Red
-    Write-Host " SKIP : $skip" -ForegroundColor Yellow
+    Write-Host " OK : $script:ok" -ForegroundColor Green
+    Write-Host " FAIL : $script:fail" -ForegroundColor Red
+    Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：可用 powercfg /getactivescheme 查看当前电源计划；" -ForegroundColor Yellow
@@ -466,9 +466,9 @@ if ($choice -eq "0") {
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host " Finished (Part 11 - MPO $schemeLabel)" -ForegroundColor Cyan
-        Write-Host " OK : $ok" -ForegroundColor Green
-        Write-Host " FAIL : $fail" -ForegroundColor Red
-        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host " OK : $script:ok" -ForegroundColor Green
+        Write-Host " FAIL : $script:fail" -ForegroundColor Red
+        Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
         Write-Host " 重启后可用 dxdiag -> 保存所有信息 -> 搜索 MPO 作辅助判断；最终请结合实际应用测试" -ForegroundColor Yellow
@@ -485,9 +485,9 @@ if ($choice -eq "0") {
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host " Finished (Part 11 - MPO Restore)" -ForegroundColor Cyan
-        Write-Host " OK : $ok" -ForegroundColor Green
-        Write-Host " FAIL : $fail" -ForegroundColor Red
-        Write-Host " SKIP : $skip" -ForegroundColor Yellow
+        Write-Host " OK : $script:ok" -ForegroundColor Green
+        Write-Host " FAIL : $script:fail" -ForegroundColor Red
+        Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
         if (Test-Path $script:mpoBackupFile) {

@@ -28,8 +28,7 @@ function Invoke-DeviceGuardModule {
         Write-Host "           禁用 Credential Guard；错过或拒绝则本次不生效（一次性引导项不会再次出现，可重跑）。" -ForegroundColor Yellow
         Write-Host " [WARNING] 若机器开启了 BitLocker，清除 EFI 变量会改变 TPM 度量值，可能触发恢复模式" -ForegroundColor Yellow
         Write-Host "           （要求输入 48 位恢复密钥）。本选项已内置 BitLocker 预检查，检测到已开启会拒绝执行。" -ForegroundColor Yellow
-        $confirmDg = Read-Host "确定执行吗？(Y = 执行 / N = 取消)"
-        if ($confirmDg -notin @('Y','y')) {
+        if (-not (Test-ConfirmChoice "确定执行吗？(Y = 执行 / N = 取消)")) {
             Write-Host "[SKIP] 已取消，未做任何修改（不重启）" -ForegroundColor Yellow
         } else {
 

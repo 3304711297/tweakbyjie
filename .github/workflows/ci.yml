@@ -83,8 +83,10 @@ jobs:
           ./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef $env:KNOWLEDGE_REF
 
   release:
-    # 四项检查全绿且为 main 分支推送时自动发布；版本号取最新 tag 补丁位 +1
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # main 推送四项全绿 → 自动补丁版本；推送 v* tag → 按该 tag 发布里程碑版本
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [lint, test, smoke-windows-powershell, coverage-audit]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -97,14 +99,20 @@ jobs:
       - name: Compute next version
         id: ver
         run: |
-          LAST=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo 'v0.1.0')
-          BASE=${LAST%.*}
-          PATCH=${LAST##*.}
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="$GITHUB_REF_NAME"
+            PREV=$(git describe --tags --match 'v*' --abbrev=0 "${VERSION}^" 2>/dev/null || echo 'v0.1.0')
+          else
+            PREV=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo 'v0.1.0')
+            BASE=${PREV%.*}
+            PATCH=${PREV##*.}
+            VERSION="${BASE}.$((PATCH + 1))"
+          fi
           {
-            echo "version=${BASE}.$((PATCH + 1))"
-            echo "last=${LAST}"
+            echo "version=${VERSION}"
+            echo "last=${PREV}"
           } >> "$GITHUB_OUTPUT"
-          echo "next version: ${BASE}.$((PATCH + 1)) (last tag: ${LAST})"
+          echo "version: ${VERSION} (previous tag: ${PREV})"
       - name: Stamp version into packaged script
         run: |
           V="${{ steps.ver.outputs.version }}"

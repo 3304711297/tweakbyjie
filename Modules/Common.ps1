@@ -85,8 +85,19 @@ function Remove-RegDwordValue {
 function Invoke-BcdEdit {
     param([string]$Arguments, [string]$Label)
     try {
-        $process = Start-Process -FilePath "bcdedit.exe" -ArgumentList $Arguments -NoNewWindow -Wait -PassThru
-        if ($process.ExitCode -ne 0) { throw "Exit code $($process.ExitCode)" }
+        # 捕获 bcdedit 输出：失败时把具体报错文本带进日志，便于排障
+        $outFile = [IO.Path]::GetTempFileName()
+        $errFile = [IO.Path]::GetTempFileName()
+        try {
+            $process = Start-Process -FilePath "bcdedit.exe" -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+            if ($process.ExitCode -ne 0) {
+                $errText = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue)
+                if ([string]::IsNullOrWhiteSpace($errText)) { $errText = (Get-Content $outFile -Raw -ErrorAction SilentlyContinue) }
+                throw "Exit code $($process.ExitCode)$(if ($errText) { " ：" + $errText.Trim() })"
+            }
+        } finally {
+            Remove-Item $outFile, $errFile -Force -ErrorAction SilentlyContinue
+        }
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
         $script:rebootRequired = $true
@@ -195,6 +206,12 @@ function Verify-HypervisorRuntime {
     catch { Write-Host "[VERIFY SKIP] 无法读取 HypervisorPresent：$($_.Exception.Message)" -ForegroundColor Yellow;$script:skip++;return $true }
 }
 
+function Test-ConfirmChoice {
+    # 统一的 Y/N 确认入口：返回 $true 仅当用户输入 Y/y
+    param([string]$Prompt)
+    return ((Read-Host $Prompt) -match '^[Yy]$')
+}
+
 function Get-PowerPlanDuplicateGroups {
     # 解析 powercfg /list 输出，找出同名的重复电源计划组；纯函数便于测试
     # 返回：@({ Name; KeepGuid; DuplicateGuids })，仅含确有重复的组
@@ -227,8 +244,7 @@ function Invoke-PowerPlanDedupe {
         if (@($groups).Count -eq 0) { return }
         foreach ($grp in $groups) {
             Write-Host ("[WARN] 检测到 {0} 个名为 [{1}] 的电源计划（可能是以往导入的重复）" -f (1 + @($grp.DuplicateGuids).Count), $grp.Name) -ForegroundColor Yellow
-            $answer = Read-Host ("是否删除 {0} 个重复项并保留当前激活的计划？Y = 删除 / 其他键保留" -f @($grp.DuplicateGuids).Count)
-            if ($answer -match '^[Yy]$') {
+            if (Test-ConfirmChoice ("是否删除 {0} 个重复项并保留当前激活的计划？Y = 删除 / 其他键保留" -f @($grp.DuplicateGuids).Count)) {
                 foreach ($dupGuid in $grp.DuplicateGuids) {
                     & powercfg /delete $dupGuid *> $null
                     if ($LASTEXITCODE -eq 0) { Write-Host "[OK] 已删除重复电源计划 $dupGuid"; $script:ok++ }
@@ -256,9 +272,8 @@ function Invoke-FinalRestartPrompt {
     Write-Host ''; Write-Host '============================================================' -ForegroundColor Cyan
     Write-Host ' 本次会话存在待重启修改 / Restart Pending' -ForegroundColor Yellow
     if ($script:fail -gt 0) { Write-Host " [警告] 本次会话存在 $($script:fail) 个失败或验证失败项；重启不会自动解决失败项。" -ForegroundColor Red }
-    $r = Read-Host '退出前现在重启吗？输入 Y 立即重启；输入 N 返回系统（默认 N）'
-    if ($r -match '^[Yy]$') {
-        if ($script:fail -gt 0) { $confirm = Read-Host '检测到失败/验证失败，仍要重启吗？输入 Y 确认；其他键取消'; if ($confirm -notmatch '^[Yy]$') { Write-Host '[取消] 已取消重启。' -ForegroundColor Yellow; return } }
+    if (Test-ConfirmChoice '退出前现在重启吗？输入 Y 立即重启；输入 N 返回系统（默认 N）') {
+        if ($script:fail -gt 0) { if (-not (Test-ConfirmChoice '检测到失败/验证失败，仍要重启吗？输入 Y 确认；其他键取消')) { Write-Host '[取消] 已取消重启。' -ForegroundColor Yellow; return } }
         Write-Host '[重启] 立即重启 / Restarting now...' -ForegroundColor Red
         Restart-Computer -Force
     } else { Write-Host '[结束] 本次不重启；待重启设置仍会保留。' -ForegroundColor Green }

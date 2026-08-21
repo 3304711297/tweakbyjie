@@ -2,20 +2,23 @@
 
 本文件记录用户视角的重要变更；开发细节见 Git 提交历史。版本号与 Git tag（`v*`）及脚本内 `$script:TweakVersion` 一一对应，Release 附件（整仓 ZIP + SHA256SUMS）可在 GitHub Releases 页下载。
 
-## 未发布
+## 0.2.0 - 2026-08-21
 
 ### 新增
 
-- CI 全绿自动发布：main 分支推送且 lint/test/5.1 冒烟/Coverage 审计全部通过后，自动递增补丁版本号（基于最新 tag）并创建 GitHub Release，包内脚本版本号同步注入
+- CI 全绿自动发布：main 分支推送且 lint/test/5.1 冒烟/Coverage 审计全部通过后，自动递增补丁版本号（基于最新 tag）并创建 GitHub Release，包内脚本版本号同步注入；推送 `v*` tag 可发布里程碑版本
 - 非交互执行入口：`-RunModule` 参数可直接指定模块编号（支持逗号分隔，如 `-RunModule '7,11'`），执行完毕统一询问重启
 - 会话日志：作为脚本运行时自动将全部输出记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`
 
 ### 变更
 
 - 模块化收尾：Part 1（核心优化）、Part 8（NVMe）、Part 9/10（Device Guard/VBS）迁出为独立模块（Registry/Nvme/Virtualization），Menu.ps1 精简至约 509 行，11 个功能模块全部为独立函数
+- 计数器统一：Menu.ps1 全部内联模块的 OK/FAIL/SKIP 计数迁移到 `$script:` 作用域，与会话级统计口径一致
+- Y/N 确认交互统一为 `Test-ConfirmChoice` 公共函数（电源计划去重、重启确认、Defender 删除类、Device Guard 确认）
 
 ### 修复
 
+- `Invoke-BcdEdit` 失败时捕获并显示 bcdedit 的具体报错文本，不再只有退出码
 - 服务恢复不再把无法识别的启动类型一律当作"禁用"处理：显式支持 Auto/Manual/Disabled/System/Boot，未知类型跳过并警告
 - 服务快照新增延迟启动（delayed-auto）标记，恢复时还原，不再把延迟启动服务变成开机即启
 - MPO / BCD / 服务的备份文件写入后增加回读校验（与安全缓解、NVMe、Defender 模块标准一致）
