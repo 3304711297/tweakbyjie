@@ -104,7 +104,8 @@ jobs:
           echo "next version: ${BASE}.$((PATCH + 1)) (last tag: ${LAST})"
       - name: Stamp version into packaged script
         run: |
-          sed -i "s/\$script:TweakVersion = '[^']*'/\$script:TweakVersion = '${{ steps.ver.outputs.version }}'/" tweakbyjie.ps1
+          V="${{ steps.ver.outputs.version }}"
+          sed -i "s/\$script:TweakVersion = '[^']*'/\$script:TweakVersion = '${V#v}'/" tweakbyjie.ps1
           grep -n "TweakVersion =" tweakbyjie.ps1
       - name: Package ZIP with checksum
         run: |
