@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
     [string]$KnowledgeRepo = '3304711297/youshouldknow',
-    [string]$KnowledgeRef = 'main'
+    [string]$KnowledgeRef = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +39,28 @@ function Get-Ids {
 $manifestPath = 'docs/项目导航/tweakbyjie-coverage-manifest.json'
 $mappingPath = 'docs/项目导航/tweakbyjie-optimization-mapping.md'
 $referencePath = 'docs/项目导航/tweakbyjie全量执行参考.md'
+
+# 知识库版本解析:显式 -KnowledgeRef > tools/knowledge.lock.json > main。
+# 默认走锁定,使审计结果由 tweakbyjie commit 与知识库 ref 共同决定、可复现,
+# 不随 youshouldknow/main 推进而漂移;对最新 main 试跑用 -KnowledgeRef main。
+if (-not $KnowledgeRef) {
+    $lockPath = Join-Path $PSScriptRoot 'knowledge.lock.json'
+    if (Test-Path -LiteralPath $lockPath -PathType Leaf) {
+        # -Encoding UTF8 必须显式指定:Windows PowerShell 5.1 默认按系统码页读无 BOM 文件
+        $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$lock.repository -ne $KnowledgeRepo) {
+            throw "knowledge.lock.json 的 repository 与参数不一致：$($lock.repository) / $KnowledgeRepo"
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$lock.ref)) {
+            throw 'knowledge.lock.json 缺少有效 ref'
+        }
+        $KnowledgeRef = [string]$lock.ref
+        Write-Host "[INFO] Knowledge ref locked: $KnowledgeRef"
+    } else {
+        $KnowledgeRef = 'main'
+        Write-Host '[WARN] 未找到 knowledge.lock.json，回退到 main（结果不可复现）' -ForegroundColor Yellow
+    }
+}
 
 $failures = [System.Collections.Generic.List[string]]::new()
 $warnings = [System.Collections.Generic.List[string]]::new()

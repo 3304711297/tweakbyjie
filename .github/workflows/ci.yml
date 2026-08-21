@@ -80,12 +80,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+      # 知识库版本由 tools/knowledge.lock.json 锁定,同一 commit 审计结果可复现;
+      # youshouldknow 内容更新后按 tools/Coverage-Audit-README.md 流程提升锁定
       - name: Run cross-repository coverage audit
         shell: pwsh
-        env:
-          KNOWLEDGE_REF: main
         run: |
-          ./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef $env:KNOWLEDGE_REF
+          ./tools/Test-CrossRepoCoverage.ps1
 
   release:
     # main 推送四项全绿 → 自动补丁版本；推送 v* tag → 按该 tag 发布里程碑版本

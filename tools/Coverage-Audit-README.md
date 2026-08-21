@@ -6,4 +6,15 @@
 
 CI 会在 `push`、Pull Request 和手动触发时执行。
 
+## 知识库版本锁定
+
+审计默认从 `tools/knowledge.lock.json` 记录的固定 commit 读取 manifest、映射文档和执行参考，因此同一个 tweakbyjie commit 的审计结果不随 youshouldknow/main 的推进而漂移（跨仓库可复现性）。显式传 `-KnowledgeRef` 可覆盖锁定，例如本地对最新 main 试跑：`./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef main`。
+
+youshouldknow 内容有变更时按以下流程提升锁定：
+
+1. `./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef main` 对最新 main 试跑，确认全绿；
+2. 将 `knowledge.lock.json` 的 `ref` 更新为该 commit 的完整 SHA 并提交。
+
+只改 tweakbyjie 自身不需要动锁定。若锁定文件缺失，脚本会回退到 `main` 并输出警告（此时结果不可复现）。
+
 首次启用时，需要先让 `youshouldknow` 的 Coverage Manifest 进入 `main`；否则 CI 会明确报告远端 manifest 不存在，而不是误判为覆盖通过。
