@@ -84,6 +84,9 @@ Write-Host ("Reference: {0} ids" -f $referenceIds.Count)
 Write-Host ("Coverage : {0} ids" -f $coverageIds.Count)
 Write-Host ''
 
+# 每份资料都必须独立做到与 manifest 完全一致:
+# 缺少已登记 ID(missing)与出现未登记 ID(extra)都算失败。
+# 不允许"另一份资料补上了"的宽松口径——否则单份文档漏项时 CI 仍然绿。
 function Compare-IdSet {
     param(
         [string]$Name,
@@ -92,22 +95,16 @@ function Compare-IdSet {
     )
     $missing = @($Expected | Where-Object { $_ -notin $Actual })
     $extra = @($Actual | Where-Object { $_ -notin $Expected })
+    foreach ($id in $missing) { $script:failures.Add("$Name 缺少清单内项目 $id") }
     foreach ($id in $extra) { $script:failures.Add("$Name 存在未登记项目 $id") }
-    if ($extra.Count -eq 0) {
-        Write-Host "[PASS] $Name 未发现清单外 ID" -ForegroundColor Green
+    if ($missing.Count -eq 0 -and $extra.Count -eq 0) {
+        Write-Host "[PASS] $Name 与 Manifest 完全一致 ($($Expected.Count) ids)" -ForegroundColor Green
     }
-    return $missing
 }
 
-Compare-IdSet -Name 'Mapping vs Manifest' -Expected $manifestIds -Actual $mappingIds | Out-Null
-Compare-IdSet -Name 'Execution Reference vs Manifest' -Expected $manifestIds -Actual $referenceIds | Out-Null
-Compare-IdSet -Name 'Coverage Check vs Manifest' -Expected $manifestIds -Actual $coverageIds | Out-Null
-$documentedIds = @($mappingIds) + @($referenceIds) + @($coverageIds) | Sort-Object -Unique
-$undocumented = @($manifestIds | Where-Object { $_ -notin $documentedIds })
-foreach ($id in $undocumented) { $failures.Add("所有覆盖资料均缺少 $id") }
-if ($undocumented.Count -eq 0) {
-    Write-Host '[PASS] 三份覆盖资料的 ID 并集覆盖完整 Manifest' -ForegroundColor Green
-}
+Compare-IdSet -Name 'Mapping vs Manifest' -Expected $manifestIds -Actual $mappingIds
+Compare-IdSet -Name 'Execution Reference vs Manifest' -Expected $manifestIds -Actual $referenceIds
+Compare-IdSet -Name 'Coverage Check vs Manifest' -Expected $manifestIds -Actual $coverageIds
 
 # Detect stale source-location style that was intentionally removed by module refactor.
 if ($mapping -match '(?m)tweakbyjie\.ps1:\d+') {

@@ -14,15 +14,37 @@ tweakbyjie 优化项
 
 ## 检查分类
 
+以下条目与 youshouldknow 的 `docs/项目导航/tweakbyjie-coverage-manifest.json` 44 个清单项一一对应，编号即清单 ID。
+
+- Core（主注册表执行项）
+  - CORE-001：GameDVR AppCaptureEnabled
+  - CORE-002：GameDVR_Enabled
+  - CORE-003：GameBar Presence ActivationType
+  - CORE-004：UseNexusForGameBarEnabled
+  - CORE-005：NetworkThrottlingIndex
+  - CORE-006：SystemResponsiveness
+  - CORE-007：Win32PrioritySeparation
+  - CORE-008：HAGS（HwSchMode）
+  - CORE-009：Tasks\Games
+  - CORE-010：Game Mode
+  - CORE-011：Search / Bing / Cortana
+  - CORE-012：EnablePrefetcher
+  - CORE-013：NtfsDisable8dot3NameCreation
+  - CORE-014：Memory Compression
+  - CORE-015：TRIM
+  - CORE-016：Visual Effects
+
 - CPU 调度
-  - Win32PrioritySeparation
-  - Multimedia SystemProfile
-  - Games Task
+  - CPU-001：Win32PrioritySeparation
+  - CPU-002：Multimedia SystemProfile
+  - CPU-003：SystemResponsiveness
+  - CPU-004：NetworkThrottlingIndex
+  - CPU-005：Games Task（Tasks\Games）
 
 - GPU
   - GPU-001：HAGS（HwSchMode）
   - GPU-002：MPO / Overlay（DisableMPO、OverlayTestMode、DisableOverlays、OverlayMinFPS）
-  - DirectX：当前仅作为图形管线背景说明，未发现脚本直接修改项
+  - （非清单项）DirectX：当前仅作为图形管线背景说明，未发现脚本直接修改项
 
 - 内存
   - MEMORY-001：EnablePrefetcher
@@ -42,8 +64,7 @@ tweakbyjie 优化项
   - SECURITY-003：Device Guard EFI 锁定清除
 
 - 游戏功能
-  - GameDVR
-  - Game Mode
+  - GameDVR、Game Bar、Game Mode、Games Task 对应 Core 与 CPU 分类中的同名条目，不单独设编号
 
 - 服务
   - SERVICE-001：Part 6 服务启动类型（37 个目标）
@@ -57,8 +78,12 @@ tweakbyjie 优化项
   - BOOT-005：Device Guard EFI 锁定清除
   - BOOT-006：VBS/Hyper-V 启动项
 
+- 电源计划
+  - POWER-001：卓越性能电源计划（Ultimate Performance）
+
 - 注册表
-  - Part 1 独立注册表执行项
+  - REGISTRY-001：Defender/安全注册表高风险删除项
+  - Part 1 独立注册表执行项（已逐项登记为 CORE 编号）
   - Part 5 Defender/SmartScreen/Security Center 策略
   - defender-removal.ps1 高风险删除项
 
