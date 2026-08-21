@@ -93,6 +93,9 @@ $__tweakModules = @(
     'Modules/Backup.Nvme.ps1',
     'Modules/Backup.Defender.ps1',
     'Modules/Defender.ps1',
+    'Modules/Registry.ps1',
+    'Modules/Nvme.ps1',
+    'Modules/Virtualization.ps1',
     'Modules/Menu.ps1'
 )
 foreach ($__m in $__tweakModules) {

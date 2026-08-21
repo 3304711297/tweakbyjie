@@ -9,6 +9,10 @@
 - 非交互执行入口：`-RunModule` 参数可直接指定模块编号（支持逗号分隔，如 `-RunModule '7,11'`），执行完毕统一询问重启
 - 会话日志：作为脚本运行时自动将全部输出记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`
 
+### 变更
+
+- 模块化收尾：Part 1（核心优化）、Part 8（NVMe）、Part 9/10（Device Guard/VBS）迁出为独立模块（Registry/Nvme/Virtualization），Menu.ps1 精简至约 509 行，11 个功能模块全部为独立函数
+
 ### 修复
 
 - 服务恢复不再把无法识别的启动类型一律当作"禁用"处理：显式支持 Auto/Manual/Disabled/System/Boot，未知类型跳过并警告
