@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$KnowledgeRepo = '3304711297/youshouldknow',
     [string]$KnowledgeRef = 'main'
@@ -16,15 +16,29 @@ function Get-RawFile {
     return (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30).Content
 }
 
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+
+function Get-LocalFile {
+    param(
+        [Parameter(Mandatory)] [string]$Path
+    )
+    $localPath = Join-Path $repoRoot ($Path -replace '/', [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $localPath -PathType Leaf)) {
+        throw "本地覆盖检查文件不存在：$localPath"
+    }
+    Write-Host "[INFO] Read local file $localPath"
+    return Get-Content -LiteralPath $localPath -Raw
+}
+
 function Get-Ids {
     param([string]$Text)
-    return @([regex]::Matches($Text, '\b(?:CORE|CPU|GPU|MEMORY|STORAGE|SECURITY|SERVICE|BOOT|POWER|REGISTRY)-\d{3}\b') | ForEach-Object Value | Sort-Object -Unique)
+    $pattern = '(?<![A-Z0-9])(?:CORE|CPU|GPU|MEMORY|STORAGE|SECURITY|SERVICE|BOOT|POWER|REGISTRY)-\d{3}(?![A-Z0-9])'
+    return @([regex]::Matches($Text, $pattern) | ForEach-Object Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 }
 
 $manifestPath = '项目导航/tweakbyjie-coverage-manifest.json'
 $mappingPath = '项目导航/tweakbyjie-optimization-mapping.md'
 $referencePath = '项目导航/tweakbyjie全量执行参考.md'
-$coveragePath = 'docs/coverage/YOUSEHOULDKNOW-COVERAGE-CHECK.md'
 
 $failures = [System.Collections.Generic.List[string]]::new()
 $warnings = [System.Collections.Generic.List[string]]::new()
@@ -33,13 +47,31 @@ try {
     $manifest = Get-RawFile $manifestPath | ConvertFrom-Json
     $mapping = Get-RawFile $mappingPath
     $reference = Get-RawFile $referencePath
-    $coverage = Get-RawFile $coveragePath
+    $coverageRepository = [string]$manifest.sourceRepository
+    if ($manifest.coverageRepository) {
+        $coverageRepository = [string]$manifest.coverageRepository
+    }
+    $coverageBranch = [string]$manifest.sourceBranch
+    if ($manifest.coverageBranch) {
+        $coverageBranch = [string]$manifest.coverageBranch
+    }
+    $coveragePath = [string]$manifest.coverageCheck
+    if ($coverageRepository -ne '3304711297/tweakbyjie') {
+        throw "Manifest coverageRepository 不指向源仓库：$coverageRepository"
+    }
+    if ($coverageBranch -ne 'main') {
+        throw "Manifest coverageBranch 不是 main：$coverageBranch"
+    }
+    if ([string]::IsNullOrWhiteSpace($coveragePath) -or $coveragePath.StartsWith('../') -or $coveragePath.StartsWith('..\\')) {
+        throw "Manifest coverageCheck 必须是源仓库内的相对路径：$coveragePath"
+    }
+    $coverage = Get-LocalFile $coveragePath
 } catch {
-    Write-Host "[FAIL] 无法读取 youshouldknow 覆盖审计资料：$($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[FAIL] 无法读取跨仓库覆盖审计资料：$($_.Exception.Message)" -ForegroundColor Red
     exit 2
 }
 
-$manifestIds = @($manifest.items | ForEach-Object id | Sort-Object -Unique)
+$manifestIds = @($manifest.items | ForEach-Object id | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 $mappingIds = Get-Ids $mapping
 $referenceIds = Get-Ids $reference
 $coverageIds = Get-Ids $coverage
@@ -60,22 +92,28 @@ function Compare-IdSet {
     )
     $missing = @($Expected | Where-Object { $_ -notin $Actual })
     $extra = @($Actual | Where-Object { $_ -notin $Expected })
-    foreach ($id in $missing) { $script:failures.Add("$Name 缺少 $id") }
     foreach ($id in $extra) { $script:failures.Add("$Name 存在未登记项目 $id") }
-    if ($missing.Count -eq 0 -and $extra.Count -eq 0) {
-        Write-Host "[PASS] $Name ID 集合一致" -ForegroundColor Green
+    if ($extra.Count -eq 0) {
+        Write-Host "[PASS] $Name 未发现清单外 ID" -ForegroundColor Green
     }
+    return $missing
 }
 
-Compare-IdSet -Name 'Mapping vs Manifest' -Expected $manifestIds -Actual $mappingIds
-Compare-IdSet -Name 'Execution Reference vs Manifest' -Expected $manifestIds -Actual $referenceIds
-Compare-IdSet -Name 'Coverage Check vs Manifest' -Expected $manifestIds -Actual $coverageIds
+Compare-IdSet -Name 'Mapping vs Manifest' -Expected $manifestIds -Actual $mappingIds | Out-Null
+Compare-IdSet -Name 'Execution Reference vs Manifest' -Expected $manifestIds -Actual $referenceIds | Out-Null
+Compare-IdSet -Name 'Coverage Check vs Manifest' -Expected $manifestIds -Actual $coverageIds | Out-Null
+$documentedIds = @($mappingIds) + @($referenceIds) + @($coverageIds) | Sort-Object -Unique
+$undocumented = @($manifestIds | Where-Object { $_ -notin $documentedIds })
+foreach ($id in $undocumented) { $failures.Add("所有覆盖资料均缺少 $id") }
+if ($undocumented.Count -eq 0) {
+    Write-Host '[PASS] 三份覆盖资料的 ID 并集覆盖完整 Manifest' -ForegroundColor Green
+}
 
 # Detect stale source-location style that was intentionally removed by module refactor.
 if ($mapping -match '(?m)tweakbyjie\.ps1:\d+') {
     $failures.Add('Mapping 仍包含旧式 tweakbyjie.ps1:行号定位；应改用 Modules/文件/函数名')
 } else {
-    Write-Host '[PASS] Mapping 未发现旧式源码行号定位' -ForegroundColor Green
+    Write-Host -Object '[PASS] Mapping 未发现旧式源码行号定位' -ForegroundColor Green
 }
 
 # Validate every referenced Modules/*.ps1 path and function name against the current checkout.
@@ -83,15 +121,16 @@ $moduleRefs = @([regex]::Matches($mapping, 'Modules/[A-Za-z0-9_.-]+\.ps1(?:[:/]\
 foreach ($ref in $moduleRefs) {
     $match = [regex]::Match($ref, '^(Modules/[A-Za-z0-9_.-]+\.ps1)(?:[:/]\d+)?(?:\s+([A-Za-z_][A-Za-z0-9_-]*))?')
     if (-not $match.Success) { continue }
-    $path = $match.Groups[1].Value -replace '/', [IO.Path]::DirectorySeparatorChar
+    $path = Join-Path $repoRoot ($match.Groups[1].Value -replace '/', [IO.Path]::DirectorySeparatorChar)
     $function = $match.Groups[2].Value
-    if (-not (Test-Path $path)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         $failures.Add("Mapping 引用的源码文件不存在：$path")
         continue
     }
     if ($function) {
         $source = Get-Content -LiteralPath $path -Raw
-        if ($source -notmatch "(?m)^\s*function\s+$([regex]::Escape($function))\b") {
+        $functionPattern = '(?m)^\s*function\s+' + [regex]::Escape($function) + '\b'
+        if ($source -notmatch $functionPattern) {
             $failures.Add("Mapping 引用的函数不存在：$path/$function")
         }
     }
@@ -103,12 +142,17 @@ if ($moduleRefs.Count -gt 0 -and $failures.Count -eq 0) {
 # Basic repository/source drift guard: the mapped modules must be present locally and the loader must still point to them.
 $requiredModules = @('Modules/Common.ps1','Modules/Menu.ps1','Modules/Backup.Bcd.ps1','Modules/Backup.Mpo.ps1','Modules/Backup.Nvme.ps1','Modules/Backup.SecurityMitigation.ps1','Modules/Backup.Service.ps1')
 foreach ($module in $requiredModules) {
-    if (-not (Test-Path ($module -replace '/', [IO.Path]::DirectorySeparatorChar))) {
+    $modulePath = Join-Path $repoRoot ($module -replace '/', [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) {
         $failures.Add("必需模块缺失：$module")
     }
 }
-if ((Test-Path 'tweakbyjie.ps1') -and ((Get-Content 'tweakbyjie.ps1' -Raw) -notmatch 'Modules\\Menu\.ps1')) {
-    $warnings.Add('主 Loader 未检测到 Modules/Menu.ps1 点源字符串；如入口重构需同步更新审计规则。')
+$loaderPath = Join-Path $repoRoot 'tweakbyjie.ps1'
+if (Test-Path -LiteralPath $loaderPath -PathType Leaf) {
+    $loaderSource = Get-Content -LiteralPath $loaderPath -Raw
+    if ($loaderSource -notmatch 'Modules[/\\]Menu\.ps1') {
+        $warnings.Add('主 Loader 未检测到 Modules/Menu.ps1 点源字符串；如入口重构需同步更新审计规则。')
+    }
 }
 
 # Report unmapped IDs explicitly before failing, making drift actionable in CI logs.
@@ -124,7 +168,12 @@ if ($warnings.Count -gt 0) {
 }
 
 Write-Host ''
-Write-Host ("Result: {0} failure(s), {1} warning(s)" -f $failures.Count, $warnings.Count) -ForegroundColor $(if ($failures.Count -eq 0) { 'Green' } else { 'Red' })
+$resultColor = 'Green'
+if ($failures.Count -gt 0) {
+    $resultColor = 'Red'
+}
+$resultText = "Result: {0} failure(s), {1} warning(s)" -f $failures.Count, $warnings.Count
+Write-Host -Object $resultText -ForegroundColor $resultColor
 
 if ($failures.Count -gt 0) { exit 1 }
 exit 0

@@ -22,8 +22,9 @@ youshouldknow machine-readable manifest
   - 覆盖项目的机器可读清单。
   - 新增或删除项目时必须同步更新。
 - `tools/Test-CrossRepoCoverage.ps1`
-  - 从 `youshouldknow` 拉取 manifest、逐项映射、全量执行参考和覆盖检查。
-  - 检查 ID 集合是否一致。
+  - 从 `youshouldknow` 拉取 manifest、逐项映射和全量执行参考。
+  - 按 manifest 指定的源仓库路径从当前 `tweakbyjie` checkout 读取覆盖检查文件；该文件不属于 `youshouldknow`。
+  - 检查每份资料没有清单外 ID，并检查三份资料的 ID 并集完整覆盖 manifest。
   - 检查旧式 `tweakbyjie.ps1:行号` 定位是否复发。
   - 检查映射引用的 `Modules/*.ps1` 文件和函数是否仍存在。
   - 检查关键模块是否仍然存在。
@@ -39,7 +40,7 @@ youshouldknow machine-readable manifest
 3. `youshouldknow/项目导航/tweakbyjie全量执行参考.md`
 4. `tweakbyjie/docs/coverage/YOUSEHOULDKNOW-COVERAGE-CHECK.md`
 
-CI 会在集合不一致时直接失败，而不是默默接受文档漂移。
+其中第 1–3 项属于 `youshouldknow`，第 4 项属于 `tweakbyjie`。每份资料可以按不同用途只列出部分 ID，但每份资料不得出现 manifest 之外的 ID，三份资料的并集必须覆盖完整 manifest。CI 会在路径或覆盖关系不一致时直接失败，而不是默默接受文档漂移。
 
 ## 边界
 
