@@ -15,7 +15,7 @@ jobs:
       - name: Run Pester tests
         shell: pwsh
         run: |
-          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0
+          Install-Module Pester -Force -Scope CurrentUser -RequiredVersion 6.1.0
           $config = New-PesterConfiguration
           $config.Run.Path = "./tests"
           $config.Output.Verbosity = "Detailed"
