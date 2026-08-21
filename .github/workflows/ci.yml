@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   lint:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -35,6 +36,7 @@ jobs:
           }
 
   test:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -52,6 +54,7 @@ jobs:
           Invoke-Pester -Configuration $config
 
   smoke-windows-powershell:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -71,6 +74,7 @@ jobs:
           Write-Host 'Windows PowerShell 5.1 smoke OK'
 
   coverage-audit:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
