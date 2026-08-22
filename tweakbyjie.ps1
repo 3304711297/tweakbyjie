@@ -23,7 +23,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 # 版本号：与 Git tag（v*）及 CHANGELOG.md 对应，菜单标题会显示
-$script:TweakVersion = '0.2.0'
+$script:TweakVersion = '0.2.1'
 $ok = 0
 $fail = 0
 $skip = 0

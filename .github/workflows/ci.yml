@@ -106,9 +106,13 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION="$GITHUB_REF_NAME"
-            PREV=$(git describe --tags --match 'v*' --abbrev=0 "${VERSION}^" 2>/dev/null || echo 'v0.1.0')
+            PREV=$(git tag -l 'v*' | sort -V | grep -vxF "$VERSION" | tail -1)
+            [[ -n "$PREV" ]] || PREV='v0.1.0'
           else
-            PREV=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || echo 'v0.1.0')
+            # 必须取版本序最高的 tag；git describe 取的是"距 HEAD 最近"的 tag，
+            # 曾因此把 v0.2.0 之后的自动版本回退成 v0.1.x
+            PREV=$(git tag -l 'v*' | sort -V | tail -1)
+            [[ -n "$PREV" ]] || PREV='v0.1.0'
             BASE=${PREV%.*}
             PATCH=${PREV##*.}
             VERSION="${BASE}.$((PATCH + 1))"
