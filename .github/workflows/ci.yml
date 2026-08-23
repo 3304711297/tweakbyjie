@@ -53,6 +53,14 @@ jobs:
           $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
           $config.CodeCoverage.CoveragePercentTarget = 0
           Invoke-Pester -Configuration $config
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-coverage-${{ github.run_number }}
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 14
 
   smoke-windows-powershell:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
@@ -156,10 +164,18 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           sed -i "s/\$script:TweakVersion = '[^']*'/\$script:TweakVersion = '${V#v}'/" tweakbyjie.ps1
           grep -n "TweakVersion =" tweakbyjie.ps1
-      - name: Package ZIP with checksum
+      - name: Package runtime ZIP with checksum
         run: |
           V="${{ steps.ver.outputs.version }}"
-          zip -r "tweakbyjie-${V}.zip" . -x '.git/*' '.github/*'
+          zip -r "tweakbyjie-${V}.zip" \
+            tweakbyjie.ps1 \
+            tweakbyjie.cmd \
+            defender-removal.ps1 \
+            ultimate-performance.pow \
+            README.md \
+            CHANGELOG.md \
+            LICENSE \
+            Modules
           sha256sum "tweakbyjie-${V}.zip" > SHA256SUMS.txt
       - name: Create GitHub Release
         env:
@@ -168,7 +184,7 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           LAST="${{ steps.ver.outputs.last }}"
           REPO="https://github.com/${{ github.repository }}"
-          NOTES=$(printf '变更内容：[%s → %s](%s/compare/%s...%s) · [CHANGELOG](%s/blob/main/CHANGELOG.md)\n\n包内脚本版本已同步为 %s，完整性校验见附件 SHA256SUMS.txt。' "$LAST" "$V" "$REPO" "$LAST" "$V" "$REPO" "$V")
+          NOTES=$(printf '变更内容：[%s → %s](%s/compare/%s...%s) · [CHANGELOG](%s/blob/main/CHANGELOG.md)\n\n包内脚本版本已同步为 %s，完整性校验见附件 SHA256SUMS.txt。运行包仅包含实际运行所需文件；开发测试与审计资料继续保留在源码仓库中。' "$LAST" "$V" "$REPO" "$LAST" "$V" "$REPO" "$V")
           gh release create "$V" \
             --title "tweakbyjie $V" \
             --notes "$NOTES" \
