@@ -22,14 +22,17 @@ youshouldknow machine-readable manifest
   - 覆盖项目的机器可读清单。
   - 新增或删除项目时必须同步更新。
 - `tools/Test-CrossRepoCoverage.ps1`
-  - 从 `youshouldknow` 拉取 manifest、逐项映射和全量执行参考。
+  - 从锁定的 `youshouldknow` commit 拉取 manifest、逐项映射和全量执行参考。
   - 按 manifest 指定的源仓库路径从当前 `tweakbyjie` checkout 读取覆盖检查文件；该文件不属于 `youshouldknow`。
   - 检查三份资料中的每一份都不得出现 manifest 之外的 ID，并要求每一份资料都与 manifest 完全一致。
   - 检查旧式 `tweakbyjie.ps1:行号` 定位是否复发。
   - 检查映射引用的 `Modules/*.ps1` 文件和函数是否仍存在。
   - 检查关键模块是否仍然存在。
+- `tools/knowledge.lock.json`
+  - 固定 Coverage 审计所读取的 `youshouldknow` commit，保证同一个 `tweakbyjie` commit 的审计结果可复现。
 - `.github/workflows/ci.yml`
   - `coverage-audit` job 在 `push`、PR、版本 tag 和手动触发的 CI 流程中执行审计。
+  - 正式审计前先验证 lock 是否仍指向 `youshouldknow/main` 的最新 commit；锁定落后时直接失败，防止旧知识库快照被静默继续使用。
 
 ## 维护规则
 
@@ -43,6 +46,8 @@ youshouldknow machine-readable manifest
 其中第 1–3 项属于 `youshouldknow`，第 4 项属于 `tweakbyjie`。
 
 现在的审计契约是：**第 1–3 项中的每一份资料都必须单独与 manifest 完全一致**，既不能缺少 manifest 中的 ID，也不能出现 manifest 之外的 ID。CI 会在任一资料发生 `missing` 或 `extra` 时直接失败，而不是依赖三份资料的 ID 并集来兜底。
+
+`youshouldknow` 的 Coverage 资料发生变化后，还必须提升 `tweakbyjie/tools/knowledge.lock.json` 到新的完整 commit SHA。CI 会比较 lock 与 `youshouldknow/main` 当前 HEAD：两者不一致时，Coverage job 会直接失败并报告 `locked` 与 `latest` SHA。这样可以把“知识库已经更新，但执行项目仍在审计旧版本”变成显式失败，而不是隐性漂移。
 
 ## 边界
 
