@@ -2,6 +2,7 @@
 _tmp_*
 *.tmp
 *.log
+coverage.xml
 mpo-backup.json
 bcd-backup.json
 power-backup.pow
