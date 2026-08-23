@@ -51,7 +51,7 @@ jobs:
           $config.Output.Verbosity = "Detailed"
           $config.CodeCoverage.Enabled = $true
           $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
-          $config.CodeCoverage.CoveragePercentTarget = 0
+          $config.CodeCoverage.CoveragePercentTarget = 15
           Invoke-Pester -Configuration $config
       - name: Upload coverage report
         if: always()
