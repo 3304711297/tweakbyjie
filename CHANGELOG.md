@@ -1,6 +1,6 @@
 # 更新日志
 
-本文件记录用户视角的重要变更；开发细节见 Git 提交历史。版本号与 Git tag（`v*`）及脚本内 `$script:TweakVersion` 一一对应，Release 附件（整仓 ZIP + SHA256SUMS）可在 GitHub Releases 页下载。
+本文件记录用户视角的重要变更；开发细节见 Git 提交历史。版本号与 Git tag（`v*`）及脚本内 `$script:TweakVersion` 一一对应，Release 提供精简运行包 ZIP 与 SHA256 校验文件；完整开发资料仍保留在源码仓库中。
 
 ## 未发布
 
@@ -8,7 +8,7 @@
 
 ### 修复
 
-- 自动发布版本号回退：计算下一版本由"距 HEAD 最近的 tag"改为"版本序最高的 tag"，修复 v0.2.0 发布后自动版本误回 v0.1.7~v0.1.9 的问题；本版即按新逻辑自 v0.2.0 递增而来
+- 自动发布版本号回退：计算下一版本由“距 HEAD 最近的 tag”改为“版本序最高的 tag”，修复 v0.2.0 发布后自动版本误回 v0.1.7~v0.1.9 的问题；本版即按新逻辑自 v0.2.0 递增而来
 
 ## 0.2.0 - 2026-08-21
 
@@ -27,14 +27,14 @@
 ### 修复
 
 - `Invoke-BcdEdit` 失败时捕获并显示 bcdedit 的具体报错文本，不再只有退出码
-- 服务恢复不再把无法识别的启动类型一律当作"禁用"处理：显式支持 Auto/Manual/Disabled/System/Boot，未知类型跳过并警告
+- 服务恢复不再把无法识别的启动类型一律当作“禁用”处理：显式支持 Auto/Manual/Disabled/System/Boot，未知类型跳过并警告
 - 服务快照新增延迟启动（delayed-auto）标记，恢复时还原，不再把延迟启动服务变成开机即启
 - MPO / BCD / 服务的备份文件写入后增加回读校验（与安全缓解、NVMe、Defender 模块标准一致）
 - 菜单 7 导入电源计划后检测同名重复计划（历史导入遗留），经确认后可清理，避免反复应用/恢复累积冗余计划
 
 ## 0.1.7 - 2026-08-21
 
-> 版本号说明：本版实际发布于 0.2.0 之后，但沿用了 v0.1.x 序列——当时的自动发布脚本按"距 HEAD 最近的 tag"计算下一版本，恰好选中 v0.1.6；该缺陷已于 0.2.1 修复。
+> 版本号说明：本版实际发布于 0.2.0 之后，但沿用了 v0.1.x 序列——当时的自动发布脚本按“距 HEAD 最近的 tag”计算下一版本，恰好选中 v0.1.6；该缺陷已于 0.2.1 修复。
 
 ### 变更
 
@@ -49,7 +49,7 @@
 - 模块化架构：`tweakbyjie.ps1` 精简为 Loader，功能拆分至 `Modules/`（Common、各 Backup.* 备份闭环、Defender、Menu）
 - Part 5 关闭安全中心：约 95 个策略值与 4 个自启动项在首次应用前自动快照到 `defender-policy-backup.json`，菜单 `5 → 2` 可按快照恢复注册表值
 - 双运行时支持：Windows PowerShell 5.1 与 PowerShell 7+ 均可运行；`tweakbyjie.cmd` 启动器自动优先使用 pwsh
-- Release 自动打包：推送 `v*` tag 时生成整仓 ZIP 与 SHA256SUMS 并创建 GitHub Release
+- Release 自动打包：推送 `v*` tag 时生成精简运行包 ZIP 与 SHA256SUMS 并创建 GitHub Release
 - CI 覆盖：PSScriptAnalyzer lint、Pester 测试（含备份/恢复真实往返测试与代码覆盖率）、Windows PowerShell 5.1 冒烟、跨仓库知识库 Coverage 审计
 
 ### 修复
