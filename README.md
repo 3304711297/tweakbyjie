@@ -6,13 +6,19 @@ Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，
 
 > 这是面向个人设备和测试环境的高级工具，不是“无脑一键加速”。请先阅读风险说明、记录当前状态，并准备系统还原点或完整备份。
 
+## 下载方式
+
+普通使用优先下载 GitHub Releases 中的 **精简运行包 ZIP**。运行包只包含脚本实际运行所需文件与必要说明，不包含测试、CI、Coverage 审计等开发资料。
+
+开发、审计或需要查看完整源码时，再下载源码仓库或 GitHub 的 Source code ZIP。
+
 ## 下载后先看这里
 
 ### 普通用户推荐流程
 
-1. 将整个仓库下载到本地，不要单独移动脚本或旁车文件。
-2. 确认 `tweakbyjie.ps1`、`ultimate-performance.pow` 位于同一目录。
-3. 右键“开始”→ **Windows 终端（管理员）**，进入仓库目录。
+1. 将运行包完整解压到本地，不要单独移动脚本或旁车文件。
+2. 确认 `tweakbyjie.ps1`、`Modules/`、`ultimate-performance.pow` 位于同一运行包目录结构中。
+3. 右键“开始”→ **Windows 终端（管理员）**，进入运行包目录。
 4. 运行主脚本（任选其一）：
 
    ```powershell
@@ -45,14 +51,14 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 
 | 文件 | 用途 | 说明 |
 |---|---|---|
-| `tweakbyjie.ps1` | 主入口（Loader，点源 `Modules/`；也可用 `tweakbyjie.cmd` 启动器自动选择 pwsh/5.1） | 菜单 0–11 的调度入口，需与 `Modules/` 整仓下载 |
-| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Defender.ps1` 安全中心模块 + `Menu.ps1` 菜单调度；缺失任一模块将提示整仓下载 |
-| `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本同目录，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
+| `tweakbyjie.ps1` | 主入口（Loader，点源 `Modules/`；也可用 `tweakbyjie.cmd` 启动器自动选择 pwsh/5.1） | 菜单 0–11 的调度入口，需与 `Modules/` 整体保留 |
+| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Defender.ps1` 安全中心模块 + `Menu.ps1` 菜单调度；缺失任一模块将导致功能不完整 |
+| `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本按运行包原始目录结构保留，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
 | `defender-removal.ps1` | Defender 物理移除脚本 | 独立的不可逆高级脚本，不属于普通优化流程 |
 
-当前仓库不会预先包含运行时生成的 JSON/备份文件。若你已经在旧目录运行过脚本，迁移仓库时必须把旧目录中的备份和主脚本作为整体保留，否则恢复功能可能找不到原始快照。
+当前仓库不会预先包含运行时生成的 JSON/备份文件。若已经在旧目录运行过脚本，迁移运行环境时必须把旧目录中的备份和主脚本作为整体保留，否则恢复功能可能找不到原始快照。
 
 ## 风险等级
 
@@ -78,43 +84,3 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 | **9** | 清除 Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 |
 | **10** | 虚拟化 / VBS / Hyper-V | 查看、关闭或删除脚本覆盖并尝试启用 Hyper-V；恢复不是原始状态精确回滚 |
 | **11** | MPO 设置管理 | 三种互斥的社区排障方案，首次修改前备份，子选项 4 恢复 |
-
-## 恢复与备份
-
-脚本使用 `$PSScriptRoot` 在主脚本所在目录读取/生成：
-
-- `mpo-backup.json`
-- `bcd-backup.json`
-- `service-backup.json`
-- `security-mitigation-backup.json`
-- `nvme-backup.json`
-- `power-backup.pow`
-- `defender-policy-backup.json`（Part 5 的约 95 个策略值与 4 个自启动项）
-
-不同模块的恢复能力不同：MPO、BCD、服务、电源、NVMe 和 Part 5 Defender 策略值有相应快照（Part 5 经 `5 → 2` 恢复）；核心注册表、VBS/EFI 操作以及 Part 5 的服务停用/任务删除/SecHealthUI 移除不能保证精确回滚。恢复前先确认备份文件属于当前这台机器和当前脚本版本。
-
-## Defender 物理移除脚本
-
-如无明确需求，请不要运行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\defender-removal.ps1
-```
-
-该脚本不是“禁用 Defender”，而是删除服务注册、系统注册表对象和实体文件，没有可逆的脚本内恢复流程。详情见 [Defender 删除脚本风险与恢复边界](https://github.com/3304711297/youshouldknow/blob/main/%E7%B3%BB%E7%BB%9F%E7%9F%A5%E8%AF%86/Defender%E5%88%A0%E9%99%A4%E8%84%9A%E6%9C%AC%E9%A3%8E%E9%99%A9%E4%B8%8E%E6%81%A2%E5%A4%8D%E8%BE%B9%E7%95%8C.md)；离线下载的单仓库副本可直接阅读 `defender-removal.ps1` 内置警告。
-
-## 文档导航
-
-- [优化详情参考](./docs/reference/OPTIMIZATION-DETAILS.md)：每个菜单和目标值的详细说明
-- [电源计划来源与校验](./docs/POWER-PLAN-SOURCE.md)：`ultimate-performance.pow` 的哈希、来源与复现方法
-- [覆盖与映射文档](./docs/coverage/)：CPU 覆盖、项目追踪和 `tweakbyjie → youshouldknow` 对应关系
-- [设计与开发文档](./docs/design/)：模块接口、检测、备份、路线图和内部设计
-- [CPU 覆盖状态](./docs/coverage/CPU-COVERAGE-STATUS.md)：当前跨项目逐项核对结果
-
-## 免责声明
-
-本项目按“原样”提供，仅供学习和个人测试使用。使用者需自行承担因修改系统配置、安全功能、启动配置或文件造成的任何后果。请勿在生产环境、受管理的公司设备或没有恢复方案的机器上运行。
-
-## 许可证
-
-[MIT](./LICENSE)
