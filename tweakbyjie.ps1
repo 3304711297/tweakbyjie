@@ -28,6 +28,18 @@ $ok = 0
 $fail = 0
 $skip = 0
 
+function Get-TweakExitCode {
+    param(
+        [int]$SuccessCount = 0,
+        [int]$FailureCount = 0,
+        [switch]$InvalidInput
+    )
+    if ($InvalidInput) { return 2 }
+    if ($FailureCount -eq 0) { return 0 }
+    if ($SuccessCount -gt 0) { return 5 }
+    return 4
+}
+
 # --- Administrator check ---
 # 本地开发/CI 可设 TWEAK_SKIP_ADMIN_CHECK=1 跳过（仅跳过检查，不会获得管理员权限）
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -120,8 +132,9 @@ if ($__isScript) {
     if ($__bad.Count -gt 0) {
         Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-11）" -ForegroundColor Red
         try { Stop-Transcript } catch {}
-        exit 1
+        exit (Get-TweakExitCode -InvalidInput)
     }
     Show-TweakMenu -RunModules ($__requested -join ',')
     try { Stop-Transcript } catch {}
+    exit (Get-TweakExitCode -SuccessCount $script:ok -FailureCount $script:fail)
 }

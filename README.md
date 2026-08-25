@@ -43,6 +43,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 
 作为脚本运行时，全部输出会自动记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`，便于回溯本次改动。
 
+退出码约定：`0` 表示没有失败项（包括未修改或用户取消），`2` 表示模块参数无效，`4` 表示全部执行项失败，`5` 表示部分成功且存在失败项。退出码不能证明运行时性能收益；仍需查看日志和各模块的验证输出。当前 `-RunModule` 只负责将模块编号加入执行队列，子模块仍可能要求输入，不能当作完全无人值守接口。
+
 `-ExecutionPolicy Bypass` 只对本次 PowerShell 进程生效，通常不需要为了运行本项目而修改系统级执行策略。脚本会自行检查管理员权限；普通权限运行会被拒绝（本地开发/CI 可设 `TWEAK_SKIP_ADMIN_CHECK=1` 跳过检查）。主脚本在 Windows PowerShell 5.1 与 PowerShell 7+ 下均已验证可运行；CI 同时覆盖两个运行时。
 
 ### 运行文件与旁车资源
