@@ -17,21 +17,47 @@
 # ⚠️ 不可逆警告 / IRREVERSIBLE WARNING:
 #   - 此操作无法通过"关闭注册表值"恢复，需重装 Windows 或 SFC/DISM 修复才能还原
 #   - 删除后 Windows 安全中心页面将报错/无法打开，Windows 更新可能受影响
-#   - 建议先运行 tweakbyjie.ps1 选项 4（禁用），再视需要运行本脚本
+#   - 建议先运行 tweakbyjie.ps1 选项 5（关闭安全中心），再视需要运行本脚本
 #   - 强烈建议运行前创建系统还原点 / 备份
 #
 # 权限说明 / Permissions:
 #   受 TrustedInstaller 保护的键，脚本会先以管理员尝试，再以 SYSTEM 批量重试；
 #   仍被拒绝的键会如实报告 [FAIL]，如需彻底删除可借助 NSudo / PowerRun 等提权工具。
-#   Keys protected by TrustedInstaller are retried as SYSTEM; any still denied are
-#   reported [FAIL] and may require a TrustedInstaller-elevation tool for full removal.
+#   Keys protected by TrustedInstaller are not retried automatically; any denied
+#   key is reported [FAIL] and requires separate, explicitly approved handling.
 
-$ErrorActionPreference = "Continue"
+[CmdletBinding()]
+param(
+    [switch]$Execute,
+    [switch]$DryRun,
+    [switch]$Restart,
+    [switch]$NoRestart
+)
+
+if ($Execute -and $DryRun) {
+    Write-Host "[ERROR] -Execute 与 -DryRun 不能同时使用。" -ForegroundColor Red
+    exit 2
+}
+if (-not $Restart) { $NoRestart = $true }
+
+$ErrorActionPreference = "Stop"
 $ok = 0
 $fail = 0
 $skip = 0
-$script:failedKeys = @()
-$script:failedValues = @()
+
+$dryRunTargets = @(
+    "Part 1: Defender 服务注册表键、WinRT 和 svchost 注册",
+    "Part 2: Defender CLSID、Autologger、AppX、Shell、策略和防火墙注册",
+    "Part 3: Defender 文件目录（ProgramData、Program Files 和 ATP）"
+)
+
+if (-not $Execute) {
+    Write-Host "Windows Defender 物理移除脚本默认仅执行 DryRun，不会修改系统。" -ForegroundColor Yellow
+    Write-Host "如需真正执行，必须显式使用 -Execute；该操作不可逆且没有脚本内完整恢复。" -ForegroundColor Red
+    foreach ($target in $dryRunTargets) { Write-Host ("[DRY-RUN] " + $target) -ForegroundColor Gray }
+    Write-Host "[DRY-RUN] 未调用注册表删除、文件删除、SYSTEM 任务或重启。" -ForegroundColor Green
+    exit 0
+}
 
 # --- Administrator check ---
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -57,7 +83,8 @@ function Remove-RegKey {
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
     } else {
-        $script:failedKeys += ,@{ Path = $RegPath; Label = $Label }
+        Write-Host ("[FAIL] {0} : reg.exe delete failed" -f $Label) -ForegroundColor Red
+        $script:fail++
     }
 }
 
@@ -75,60 +102,8 @@ function Remove-RegValue {
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
     } else {
-        $script:failedValues += ,@{ Path = $RegPath; Value = $Value; Label = $Label }
-    }
-}
-
-# Batch-retry all failed items as SYSTEM via a single scheduled task
-function Invoke-SystemRetry {
-    $keys = @($script:failedKeys)
-    $vals = @($script:failedValues)
-    $total = $keys.Count + $vals.Count
-    if ($total -eq 0) { return }
-    Write-Host ""
-    Write-Host ("[SYSTEM 重试] {0} 个受保护项以 SYSTEM 身份批量重试..." -f $total) -ForegroundColor Cyan
-    Write-Host ("[SYSTEM Retry] {0} protected item(s) retrying as SYSTEM..." -f $total) -ForegroundColor Gray
-
-    $lines = @()
-    foreach ($k in $keys) { $lines += 'reg.exe delete "' + $k.Path + '" /f' }
-    foreach ($v in $vals) { $lines += 'reg.exe delete "' + $v.Path + '" /v "' + $v.Value + '" /f' }
-    $cmdText = $lines -join "`r`n"
-    $tmpBat = Join-Path $env:TEMP ("dr_" + [guid]::NewGuid().ToString("N") + ".cmd")
-    Set-Content -Path $tmpBat -Value $cmdText -Encoding ASCII
-
-    $taskName = "DefRemoval_SYS_" + [guid]::NewGuid().ToString("N")
-    try {
-        $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$tmpBat`""
-        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-        Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
-        Start-ScheduledTask -TaskName $taskName
-        Start-Sleep -Seconds 5
-
-        foreach ($k in $keys) {
-            $null = & reg.exe query $k.Path 2>$null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host ("[OK] {0} (SYSTEM)" -f $k.Label); $script:ok++
-            } else {
-                Write-Host ("[FAIL] {0} : TrustedInstaller 保护，需提权工具" -f $k.Label) -ForegroundColor Red
-                Write-Host ("        {0}" -f $k.Path) -ForegroundColor DarkGray
-                $script:fail++
-            }
-        }
-        foreach ($v in $vals) {
-            $null = & reg.exe query $v.Path /v $v.Value 2>$null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host ("[OK] {0} (SYSTEM)" -f $v.Label); $script:ok++
-            } else {
-                Write-Host ("[FAIL] {0} : TrustedInstaller 保护，需提权工具" -f $v.Label) -ForegroundColor Red
-                $script:fail++
-            }
-        }
-    } catch {
-        Write-Host ("[FAIL] SYSTEM 重试任务失败 : {0}" -f $_.Exception.Message) -ForegroundColor Red
-        $script:fail += $total
-    } finally {
-        if ($taskName) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue }
-        Remove-Item $tmpBat -Force -ErrorAction SilentlyContinue
+        Write-Host ("[FAIL] {0} : reg.exe delete failed" -f $Label) -ForegroundColor Red
+        $script:fail++
     }
 }
 
@@ -200,12 +175,16 @@ Write-Host "   Part 3: 删除 Defender 实体文件目录" -ForegroundColor Gray
 Write-Host ""
 Write-Host " [警告] 此操作不可逆！恢复需重装 Windows 或 SFC/DISM 修复。" -ForegroundColor Yellow
 Write-Host " [WARNING] IRREVERSIBLE! Recovery requires Windows reinstall or SFC/DISM." -ForegroundColor Yellow
-Write-Host " 建议先运行 tweakbyjie.ps1 选项 4（禁用），再视需要运行本脚本。" -ForegroundColor Yellow
+Write-Host " 建议先运行 tweakbyjie.ps1 选项 5（关闭安全中心），再视需要运行本脚本。" -ForegroundColor Yellow
 Write-Host ""
 $confirm = Read-Host "确认执行请输入 REMOVE 并回车 / Type REMOVE to proceed"
 if ($confirm -ne "REMOVE") {
     Write-Host "[已取消] 未输入 REMOVE，脚本退出 / Cancelled. Exiting." -ForegroundColor Green
-    Read-Host "Press Enter to exit"
+    exit 0
+}
+$confirmAgain = Read-Host "这是不可逆操作，请再次输入 REMOVE 确认 / Type REMOVE again to confirm"
+if ($confirmAgain -ne "REMOVE") {
+    Write-Host "[已取消] 二次确认失败，未执行删除 / Confirmation failed. Nothing was removed." -ForegroundColor Green
     exit 0
 }
 
@@ -337,9 +316,6 @@ Remove-DefenderPath "C:\Program Files\Windows Defender" "Program Files\Windows D
 Remove-DefenderPath "C:\Program Files (x86)\Windows Defender" "Program Files (x86)\Windows Defender"
 Remove-DefenderPath "C:\Program Files\Windows Defender Advanced Threat Protection" "Program Files\Windows Defender ATP"
 
-# ============================ SYSTEM Retry ============================
-Invoke-SystemRetry
-
 # ============================ Summary ============================
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -353,5 +329,14 @@ Write-Host "提示：Defender 组件已移除，重启后生效。" -ForegroundC
 Write-Host "如出现 [FAIL]，多为 TrustedInstaller 保护，可借助 NSudo/PowerRun 提权后重试对应键。" -ForegroundColor Yellow
 Write-Host "恢复需重装 Windows 或运行：DISM /Online /Cleanup-Image /RestoreHealth" -ForegroundColor Yellow
 
-# Auto restart in 5 seconds (press Q to cancel)
-Start-RestartCountdown -Seconds 5
+if ($fail -gt 0) {
+    Write-Host "[STOP] 检测到 $fail 个失败项，禁止自动重启；请先处理失败并人工确认系统状态。" -ForegroundColor Red
+    exit 4
+}
+
+if ($Execute -and $Restart -and -not $NoRestart -and $fail -eq 0) {
+    Start-RestartCountdown -Seconds 5
+} else {
+    Write-Host "[完成] 未自动重启；如需使设置生效，请在确认系统状态后手动重启。" -ForegroundColor Yellow
+}
+exit 0

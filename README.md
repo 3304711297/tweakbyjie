@@ -56,9 +56,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 | `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本按运行包原始目录结构保留，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
-| `defender-removal.ps1` | Defender 物理移除脚本 | 独立的不可逆高级脚本，不属于普通优化流程 |
+| `defender-removal.ps1` | Defender 物理移除脚本 | 默认仅 DryRun；只有显式 `-Execute` 才进入不可逆删除流程，不属于普通优化流程 |
 
 当前仓库不会预先包含运行时生成的 JSON/备份文件。若已经在旧目录运行过脚本，迁移运行环境时必须把旧目录中的备份和主脚本作为整体保留，否则恢复功能可能找不到原始快照。
+
+`defender-removal.ps1` 默认只输出 DryRun 清单，不会修改系统；真正执行必须使用 `-Execute` 并完成两次 `REMOVE` 确认。执行后默认不自动重启，只有在确认系统状态且显式使用 `-Restart` 时才会进入重启倒计时；出现失败项时始终禁止重启。该脚本没有完整自动恢复能力，不应在日常系统或普通 CI runner 上执行。
 
 ## 风险等级
 
@@ -67,7 +69,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 | 低到中 | 菜单 1 的部分游戏/系统配置、菜单 6 服务调整 | 先记录原值，确认功能影响后逐项测试 |
 | 需要备份 | 菜单 1→3、菜单 2、菜单 6、菜单 7、菜单 8、菜单 11 | 确认对应快照已生成，并准备重启/恢复方案 |
 | 高风险 | 菜单 2 的启动安全子项、菜单 5、菜单 9、菜单 10 | 可能影响安全、启动、BitLocker、WSL2、Docker、虚拟机或更新；不熟悉时不要执行 |
-| 不可逆 | `defender-removal.ps1` | 删除系统组件、注册表和文件；没有脚本内撤销功能，需系统修复或重装恢复 |
+| 不可逆 | `defender-removal.ps1 -Execute` | 默认 DryRun；显式执行后会删除系统组件、注册表和文件，没有脚本内撤销功能，需系统修复或重装恢复；执行后默认不重启 |
 
 ## `tweakbyjie.ps1` 菜单
 
