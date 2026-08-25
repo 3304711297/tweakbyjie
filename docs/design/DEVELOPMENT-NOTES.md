@@ -1,16 +1,19 @@
 # 开发维护说明
 
-## 当前结构（2026-08-20）
+## 当前结构（2026-08-25）
 
-`tweakbyjie.ps1`（81 行 Loader）+ `Modules/`（7 个文件）：
+`tweakbyjie.ps1`（约 127 行 Loader）+ `Modules/`（16 个文件，全部被 Loader 点源）：
 
 | 模块 | 文件 | 职责 |
 |---|---|---|
 | 通用 | `Common.ps1` | `Convert-RegExePath`/`Set-Reg*`/`Invoke-BcdEdit`/`Verify-*`/`Request-Restart` |
-| 备份 | `Backup.Mpo/Bcd/Service/SecurityMitigation/Nvme.ps1` | 5 套 `Test/Ensure/Restore` 闭环 |
-| 菜单 | `Menu.ps1` | `Show-TweakMenu`（11 个 Part 调度） |
+| 备份 | `Backup.Mpo/Bcd/Service/SecurityMitigation/Nvme/Defender.ps1` | 6 套 `Test/Ensure/Restore` 闭环 |
+| 执行 | `Bcd/Defender/Mpo/Nvme/Power/Registry/Service/Virtualization.ps1` | Part 1–11 的实际执行逻辑 |
+| 菜单 | `Menu.ps1` | `Show-TweakMenu`（约 105 行纯调度，11 个 Part） |
 
-`defender-removal.ps1`（357 行）保持独立，不参与模块化。
+Loader 点源清单与菜单调度函数由 `tools/Test-CrossRepoCoverage.ps1` 的 Loader/菜单契约自动校验。
+
+`defender-removal.ps1` 保持独立，默认 DryRun、显式 `-Execute` 才执行，不参与模块化。
 
 ```powershell
 # 入口（保持兼容）
