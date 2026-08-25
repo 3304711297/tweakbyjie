@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   lint:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -37,7 +37,7 @@ jobs:
           }
 
   test:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -63,7 +63,7 @@ jobs:
           retention-days: 14
 
   smoke-windows-powershell:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -83,7 +83,7 @@ jobs:
           Write-Host 'Windows PowerShell 5.1 smoke OK'
 
   coverage-audit:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -134,6 +134,10 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    # 发布串行化：连续 main push 时旧 Release 运行不得与新运行并发竞争版本号与 tag
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
         with:
@@ -186,6 +190,7 @@ jobs:
           REPO="https://github.com/${{ github.repository }}"
           NOTES=$(printf '变更内容：[%s → %s](%s/compare/%s...%s) · [CHANGELOG](%s/blob/main/CHANGELOG.md)\n\n包内脚本版本已同步为 %s，完整性校验见附件 SHA256SUMS.txt。运行包仅包含实际运行所需文件；开发测试与审计资料继续保留在源码仓库中。' "$LAST" "$V" "$REPO" "$LAST" "$V" "$REPO" "$V")
           gh release create "$V" \
+            --target "$GITHUB_SHA" \
             --title "tweakbyjie $V" \
             --notes "$NOTES" \
             "tweakbyjie-${V}.zip" "SHA256SUMS.txt"
