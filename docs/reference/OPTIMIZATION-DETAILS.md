@@ -613,9 +613,9 @@
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
-| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 735209102 | DWORD | 1 | Velocity 功能覆盖 |
-| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 1853569164 | DWORD | 1 | Velocity 功能覆盖 |
-| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 156965516 | DWORD | 1 | Velocity 功能覆盖 |
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 735209102 | DWORD | 仅查看/按快照恢复 | 旧版 Velocity 兼容性值；当前启用流程不写入 |
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 1853569164 | DWORD | 仅查看/按快照恢复 | 旧版 Velocity 兼容性值；当前启用流程不写入 |
+| `HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides` | 156965516 | DWORD | 仅查看/按快照恢复 | 旧版 Velocity 兼容性值；当前启用流程不写入 |
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：nvmedisk 设备类加入最小安全模式加载列表 |
 | `HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}` | (默认) | SZ | Storage Disks | 安全模式加固：带网络的安全模式加载列表 |
 
@@ -692,7 +692,7 @@
 | `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | EnableVirtualizationBasedSecurity | 0 | 删除值 |
 | `HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard` | RequirePlatformSecurityFeatures | 0 | 删除值 |
 
-**子选项 2：完整还原 + 启用 Hyper-V 功能**：先做子选项 1 的全部内容，再执行：
+**子选项 2：删除脚本覆盖并尝试恢复/启用 Hyper-V 功能**：不会先执行子选项 1 的关闭操作，而是删除脚本写入的注册表/BCD 覆盖，再尝试执行：
 
 | 命令 | 作用 |
 |---|---|
@@ -702,12 +702,12 @@
 
 **注意事项**：
 
-- 本选项只启用/禁用 Hyper-V 本体（`Microsoft-Hyper-V-All`），从不改动 `VirtualMachinePlatform` / `HypervisorPlatform` / Windows 沙盒等功能：WSL2、Docker Desktop 依赖的是后两者，单独还原虚拟化（子选项 1）后它们即可恢复。
-- 选项 10 的关闭子项设置 `hypervisorlaunchtype off`，会连带使 WSL2 / Docker / Windows 沙盒 / 部分安卓模拟器不可用；需要这些功能时使用本选项的恢复子项。
+- 本选项只启用/禁用 Hyper-V 本体（`Microsoft-Hyper-V-All`），从不改动 `VirtualMachinePlatform` / `HypervisorPlatform` / Windows 沙盒等功能：WSL2、Docker Desktop 依赖的是后两者；子选项 2 也不保证恢复用户原来的完整虚拟化配置。
+- 选项 10 的关闭子项设置 `hypervisorlaunchtype off`，会连带使 WSL2 / Docker / Windows 沙盒 / 部分安卓模拟器不可用；需要这些功能时可尝试本选项的子选项 2，但必须在重启后逐项验证，不能把它视为原始状态精确恢复。
 - Meltdown/Spectre 缓解关闭（`FeatureSettingsOverride`）、NX / 驱动完整性检查等其余 BCDEdit 项**不在**本选项还原范围（与虚拟化无关，恢复方法见 README）。
 - 若之前执行过选项 9 清除了 EFI 变量，Device Guard 相关开关会回到"未配置"；如需重新开启 VBS/内存完整性，还原后在 Windows 安全中心 → 内核隔离 中手动开启。
 
-**验证方式**：子选项 2 重启后，开始菜单搜索"Hyper-V 管理器"可打开即启用成功；`msinfo32` → 系统摘要 → 基于虚拟化的安全性 可查看 Hyper-V 服务状态；WSL2 可用 `wsl --status` 确认。
+**验证方式**：子选项 2 完成后按脚本提示重启，再分别检查：开始菜单搜索“Hyper-V 管理器”是否可打开、`msinfo32` → 系统摘要 → 基于虚拟化的安全性、`Get-WindowsOptionalFeature` 的功能状态，以及 `wsl --status` 和 Docker/虚拟机是否仍可用。上述检查只证明当前运行状态，不证明已恢复到修改前快照。
 
 ---
 
