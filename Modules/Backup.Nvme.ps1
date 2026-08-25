@@ -1,10 +1,17 @@
-﻿function Test-NvmeBackupSchema {
-    param([object]$Backup)
+﻿function Test-NvmeSafeBootPath {
+    param([object]$Record, [string]$Guid)
+    $expected = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$($Record.Mode)\$Guid"
+    return ([string]$Record.Path -eq $expected)
+}
+
+function Test-NvmeBackupSchema {
+    param([object]$Backup, [string]$Guid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}')
     if ($null -eq $Backup -or $Backup.Version -ne 3) { return $false }
     $safe = @($Backup.SafeBoot)
     if ($safe.Count -ne 2 -or @($safe.Mode | Sort-Object -Unique).Count -ne 2) { return $false }
     foreach ($r in $safe) {
         if ([string]$r.Mode -notin @('Minimal','Network') -or $null -eq $r.Present) { return $false }
+        if (-not (Test-NvmeSafeBootPath $r $Guid)) { return $false }
         if ([bool]$r.Present -and ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data)) { return $false }
         if (-not [bool]$r.Present -and ($null -ne $r.Kind -or $null -ne $r.Data)) { return $false }
     }
@@ -105,7 +112,7 @@ function Ensure-NvmeBackup {
     try {
         if (Test-Path $script:nvmeBackupFile) {
             $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确、版本过旧或记录不完整' }
+            if (-not (Test-NvmeBackupSchema $backup $Guid)) { throw 'nvme-backup.json 结构不正确、版本过旧或记录不完整' }
             return $true
         }
         $features = @('60786016','48433719') | ForEach-Object { [pscustomobject]@{ Id = $_; BeforeState = Get-ViVeFeatureState $ViVeTool $_ } }
@@ -130,7 +137,7 @@ function Restore-NvmeSafeBootBackup {
     if (-not (Test-Path $script:nvmeBackupFile)) { Write-Host '[FAIL] 未找到 nvme-backup.json，无法精确恢复 Native NVMe' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-NvmeBackupSchema $backup)) { throw 'nvme-backup.json 结构不正确' }
+        if (-not (Test-NvmeBackupSchema $backup $Guid)) { throw 'nvme-backup.json 结构不正确' }
         $allOk = $true
         if ($ViVeTool) {
             foreach ($f in @($backup.Features)) {
@@ -138,14 +145,19 @@ function Restore-NvmeSafeBootBackup {
                     'Enabled' { & $ViVeTool /enable /id:$($f.Id) 2>&1 | Out-Null }
                     'Disabled' { & $ViVeTool /disable /id:$($f.Id) 2>&1 | Out-Null }
                     'Default' { & $ViVeTool /reset /id:$($f.Id) 2>&1 | Out-Null }
-                    default { continue }
+                    default { $allOk = $false; $script:fail++; continue }
                 }
                 if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ }
             }
         } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
         foreach ($r in @($backup.SafeBoot)) {
-            $regPath = Convert-RegExePath $r.Path
-            if ([bool]$r.Present) { & reg.exe ADD $regPath /ve /t REG_SZ /d ([string]$r.Data) /f *> $null; if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true } }
+            if (-not (Test-NvmeSafeBootPath $r $Guid)) { throw "SafeBoot 路径与受管理 GUID 不一致：$($r.Path)" }
+            $regPath = Convert-RegExePath ("HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$($r.Mode)\$Guid")
+            if ([bool]$r.Present) {
+                $regType = if ([string]$r.Kind -eq 'String') { 'REG_SZ' } else { throw "不支持的 SafeBoot 类型：$($r.Kind)" }
+                & reg.exe ADD $regPath /ve /t $regType /d ([string]$r.Data) /f *> $null
+                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true }
+            }
             else { & reg.exe DELETE $regPath /ve /f *> $null; if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ } }
         }
         foreach ($r in @($backup.LegacyOverrides)) {

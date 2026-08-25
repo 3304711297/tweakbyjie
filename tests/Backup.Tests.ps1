@@ -14,6 +14,47 @@ Describe "Backup schema validators" {
         Test-BcdBackupSchema $bad @('useplatformclock') | Should -Be $false
     }
 
+    It "Test-BcdBackupSchema rejects command-like values" {
+        $values = @($script:bcdManagedValues | ForEach-Object {
+            [pscustomobject]@{ Name = $_; Present = $true; Value = 'Yes' }
+        })
+        ($values | Where-Object Name -eq 'tscsyncpolicy').Value = 'Enhanced'
+        ($values | Where-Object Name -eq 'nointegritychecks').Value = 'Yes /set nx AlwaysOff'
+        $bad = [pscustomobject]@{ Version = 1; Object = '{current}'; Values = $values }
+        Test-BcdBackupSchema $bad $script:bcdManagedValues | Should -Be $false
+    }
+
+    It "Test-NvmeBackupSchema rejects a foreign SafeBoot path" {
+        $guid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}'
+        $safe = @(
+            [pscustomobject]@{ Mode = 'Minimal'; Path = 'HKLM:\SYSTEM\Foreign'; Present = $true; Kind = 'String'; Data = 'Storage Disks' }
+            [pscustomobject]@{ Mode = 'Network'; Path = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\$guid"; Present = $false; Kind = $null; Data = $null }
+        )
+        $features = @(
+            [pscustomobject]@{ Id = '60786016'; BeforeState = 'Disabled' }
+            [pscustomobject]@{ Id = '48433719'; BeforeState = 'Default' }
+        )
+        $legacy = @('735209102','1853569164','156965516' | ForEach-Object {
+            [pscustomobject]@{ Name = $_; Present = $false; Kind = $null; Data = $null }
+        })
+        $bad = [pscustomobject]@{ Version = 3; SafeBoot = $safe; Features = $features; LegacyOverrides = $legacy }
+        Test-NvmeBackupSchema $bad | Should -Be $false
+    }
+
+    It "Test-ServiceBackupSchema rejects a foreign service" {
+        $backup = [pscustomobject]@{
+            Version = 1
+            Services = @([pscustomobject]@{ Name = 'TrustedInstaller'; StartMode = 'Auto'; State = 'Running'; DelayedAutostart = $false })
+        }
+        Test-ServiceBackupSchema $backup @('WinDefend') | Should -Be $false
+    }
+
+    It "Test-ServiceBackupSchema rejects duplicate records" {
+        $record = [pscustomobject]@{ Name = 'WinDefend'; StartMode = 'Auto'; State = 'Running'; DelayedAutostart = $false }
+        $backup = [pscustomobject]@{ Version = 1; Services = @($record, $record) }
+        Test-ServiceBackupSchema $backup @('WinDefend') | Should -Be $false
+    }
+
     It "Test-SecurityMitigationBackupSchema rejects null" {
         Test-SecurityMitigationBackupSchema $null | Should -Be $false
     }

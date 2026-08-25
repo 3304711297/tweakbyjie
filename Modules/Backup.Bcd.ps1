@@ -1,4 +1,19 @@
-﻿function Test-BcdBackupSchema {
+﻿function Test-BcdValueAllowed {
+    param([string]$Name, [string]$Value)
+    if ($Value -notmatch '^[A-Za-z0-9._-]+$') { return $false }
+    $allowed = @{
+        useplatformclock  = @('Yes','No')
+        useplatformtick   = @('Yes','No')
+        disabledynamictick = @('Yes','No')
+        tscsyncpolicy      = @('Default','Legacy','Enhanced')
+        nx                 = @('OptIn','OptOut','AlwaysOn','AlwaysOff')
+        tpmbootentropy     = @('Default','ForceDisable','ForceEnable')
+        nointegritychecks  = @('Yes','No')
+    }
+    return $allowed.ContainsKey($Name) -and $allowed[$Name] -contains $Value
+}
+
+function Test-BcdBackupSchema {
     param([object]$Backup, [string[]]$ValueNames)
     if ($null -eq $Backup -or $Backup.Version -ne 1 -or $Backup.Object -ne '{current}') { return $false }
     $records = @($Backup.Values)
@@ -11,6 +26,7 @@
         if ($record.Count -ne 1 -or $null -eq $record[0].Present) { return $false }
         if ([bool]$record[0].Present) {
             if ([string]::IsNullOrWhiteSpace([string]$record[0].Value)) { return $false }
+            if (-not (Test-BcdValueAllowed $name ([string]$record[0].Value))) { return $false }
         } elseif ($null -ne $record[0].Value) {
             return $false
         }
@@ -21,7 +37,8 @@
 function Ensure-BcdBackup {
     param([string[]]$ValueNames)
     try {
-        $managedNames = @($script:bcdManagedValues)
+        $managedNames = @($ValueNames)
+        if ($managedNames.Count -eq 0) { throw '未提供 BCD 备份范围' }
         if (Test-Path $script:bcdBackupFile) {
             $backup = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
             if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw 'bcd-backup.json 结构、对象或记录不完整' }

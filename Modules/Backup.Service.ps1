@@ -1,6 +1,17 @@
 ﻿# Backup.Service.ps1 - Part 6 服务快照与恢复
 # 被 tweakbyjie.ps1 点源加载，共享 $script:ok/$fail/$skip/$rebootRequired
 
+$script:serviceManagedNames = @(
+    'DialogBlockingService','TrkWks','AppVClient','MsKeyboardFilter',
+    'NetTcpPortSharing','CscService','ssh-agent','RemoteRegistry',
+    'RemoteAccess','SensorDataService','SensrSvc','shpamsvc',
+    'UevAgentService','WalletService','wisvc','WSAIFabricSvc',
+    'dmwappushservice','DusmSvc','tzautoupdate','edgeupdate','edgeupdatem',
+    'DPS','WdiServiceHost','WdiSystemHost','diagsvc','PhoneSvc','PcaSvc',
+    'Spooler','WSearch','SysMain','XboxGipSvc','XblAuthManager',
+    'XboxNetApiSvc','XblGameSave','bthserv','embeddedmode','BITS'
+)
+
 function Convert-ServiceStartMode {
     # 把快照里的 Win32 StartMode 映射为 Set-Service / sc.exe 的目标值；未知类型返回 $null（拒绝猜测）
     param([string]$StartMode)
@@ -14,6 +25,23 @@ function Convert-ServiceStartMode {
     }
 }
 
+function Test-ServiceBackupSchema {
+    param([object]$Backup, [string[]]$ServiceNames)
+    if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    $expected = @($ServiceNames | Sort-Object -Unique)
+    $records = @($Backup.Services)
+    if ($records.Count -ne $expected.Count) { return $false }
+    $actual = @($records | ForEach-Object { [string]$_.Name })
+    if ((@($actual | Sort-Object -Unique).Count -ne $expected.Count) -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
+    foreach ($record in $records) {
+        if ([string]$record.Name -notmatch '^[A-Za-z0-9_.-]+$') { return $false }
+        if ($null -ne $record.StartMode -and $null -eq (Convert-ServiceStartMode ([string]$record.StartMode))) { return $false }
+        if ($null -ne $record.State -and [string]$record.State -notin @('Running','Stopped','Paused','Start Pending','Stop Pending','Continue Pending','Pause Pending')) { return $false }
+        if ($null -ne $record.DelayedAutostart -and $record.DelayedAutostart -isnot [bool]) { return $false }
+    }
+    return $true
+}
+
 function Ensure-ServiceBackup {
     param([string[]]$ServiceNames)
     try {
@@ -22,10 +50,7 @@ function Ensure-ServiceBackup {
             $records = @($backup.Services)
             $expected = @($ServiceNames | Sort-Object -Unique)
             $actual = @($records | ForEach-Object { [string]$_.Name })
-            if ($backup.Version -ne 1 -or $records.Count -ne $expected.Count -or (@($actual | Sort-Object -Unique).Count -ne $expected.Count) -or ($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { throw 'service-backup.json 结构或服务集合不正确' }
-            foreach ($r in $records) {
-                if ($null -eq $r.StartMode -and $null -ne $r.State) { throw 'service-backup.json 缺少启动类型' }
-            }
+            if (-not (Test-ServiceBackupSchema $backup $ServiceNames)) { throw 'service-backup.json 结构或服务集合不正确' }
             return $true
         }
         $records = foreach ($name in $ServiceNames) {
@@ -55,7 +80,7 @@ function Restore-ServiceBackup {
     try {
         $backup = Get-Content $script:serviceBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         $records = @($backup.Services)
-        if ($backup.Version -ne 1 -or $records.Count -eq 0) { throw 'service-backup.json 结构不正确' }
+        if (-not (Test-ServiceBackupSchema $backup $script:serviceManagedNames)) { throw 'service-backup.json 结构或服务集合不正确' }
         $allOk = $true
         foreach ($r in $records) {
             if ([string]::IsNullOrWhiteSpace([string]$r.StartMode)) {
@@ -84,7 +109,7 @@ function Restore-ServiceBackup {
             } catch {
                 $scStart = if ($isDelayed) { 'delayed-auto' } else { $mapped.Sc }
                 & sc.exe config $r.Name start= $scStart *> $null
-                if ($LASTEXITCODE -eq 0) { $script:ok++ } else { $script:fail++; $allOk = $false }
+                if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:fail++; $allOk = $false }
             }
         }
         if ($allOk) { Write-Host "[OK] 服务启动类型已按快照恢复；运行状态不强制恢复" -ForegroundColor Green }
