@@ -29,16 +29,7 @@ function Get-BackupMachineId {
 function Set-RegDword {
     param([string]$Path,[string]$Name,[object]$Value,[string]$Label)
     try {
-        $regPath = Convert-RegExePath $Path
-        $valueText = [string]$Value
-        if ($valueText -match '^\d+$') {
-            [uint64]$n = [uint64]$Value
-            if ($n -le 0xFFFFFFFF) {
-                $valueText = "0x{0:X8}" -f $n
-            }
-        }
-        & reg.exe ADD $regPath /v $Name /t REG_DWORD /d $valueText /f *> $null
-        if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+        $valueText = & $script:TweakAdapters.SetRegistryDword $Path $Name $Value
         Write-Host ("[OK] {0} = {1}" -f $Label, $valueText)
         $script:ok++
         $script:rebootRequired = $true
@@ -51,8 +42,7 @@ function Set-RegDword {
 function Set-RegString {
     param([string]$Path,[string]$Name,[string]$Value,[string]$Label)
     try {
-        if (-not (Test-Path $Path)) { New-Item -Path $Path -Force | Out-Null }
-        New-ItemProperty -Path $Path -Name $Name -PropertyType String -Value $Value -Force -ErrorAction Stop | Out-Null
+        & $script:TweakAdapters.SetRegistryString $Path $Name $Value
         Write-Host ("[OK] {0} = {1}" -f $Label, $Value)
         $script:ok++
         $script:rebootRequired = $true
@@ -65,9 +55,7 @@ function Set-RegString {
 function Set-RegBinary {
     param([string]$Path,[string]$Name,[string]$Hex,[string]$Label)
     try {
-        $regPath = Convert-RegExePath $Path
-        & reg.exe ADD $regPath /v $Name /t REG_BINARY /d $Hex /f *> $null
-        if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+        & $script:TweakAdapters.SetRegistryBinary $Path $Name $Hex
         Write-Host ("[OK] {0} = {1}" -f $Label, $Hex)
         $script:ok++
         $script:rebootRequired = $true
@@ -82,9 +70,7 @@ function Remove-RegDwordValue {
     try {
         $item = Get-Item $Path -ErrorAction SilentlyContinue
         if ($item -and ($item.GetValueNames() -contains $Name)) {
-            $regPath = Convert-RegExePath $Path
-            & reg.exe DELETE $regPath /v $Name /f *> $null
-            if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+            & $script:TweakAdapters.RemoveRegistryValue $Path $Name
             Write-Host ("[OK] {0}（已删除 {1} -> {2}）" -f $Label, $Path, $Name)
             $script:ok++
             $script:rebootRequired = $true
@@ -101,19 +87,8 @@ function Remove-RegDwordValue {
 function Invoke-BcdEdit {
     param([string]$Arguments, [string]$Label)
     try {
-        # 捕获 bcdedit 输出：失败时把具体报错文本带进日志，便于排障
-        $outFile = [IO.Path]::GetTempFileName()
-        $errFile = [IO.Path]::GetTempFileName()
-        try {
-            $process = Start-Process -FilePath "bcdedit.exe" -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
-            if ($process.ExitCode -ne 0) {
-                $errText = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue)
-                if ([string]::IsNullOrWhiteSpace($errText)) { $errText = (Get-Content $outFile -Raw -ErrorAction SilentlyContinue) }
-                throw "Exit code $($process.ExitCode)$(if ($errText) { " ：" + $errText.Trim() })"
-            }
-        } finally {
-            Remove-Item $outFile, $errFile -Force -ErrorAction SilentlyContinue
-        }
+        $result = & $script:TweakAdapters.InvokeBcd $Arguments
+        if ($result -is [bool] -and -not $result) { throw '适配器报告 BCD 操作失败' }
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
         $script:rebootRequired = $true
@@ -225,7 +200,7 @@ function Verify-HypervisorRuntime {
 function Test-ConfirmChoice {
     # 统一的 Y/N 确认入口：返回 $true 仅当用户输入 Y/y
     param([string]$Prompt)
-    return ((Read-Host $Prompt) -match '^[Yy]$')
+    return (& $script:TweakAdapters.Confirm $Prompt)
 }
 
 function Get-PowerPlanDuplicateGroups {
@@ -291,6 +266,6 @@ function Invoke-FinalRestartPrompt {
     if (Test-ConfirmChoice '退出前现在重启吗？输入 Y 立即重启；输入 N 返回系统（默认 N）') {
         if ($script:fail -gt 0) { if (-not (Test-ConfirmChoice '检测到失败/验证失败，仍要重启吗？输入 Y 确认；其他键取消')) { Write-Host '[取消] 已取消重启。' -ForegroundColor Yellow; return } }
         Write-Host '[重启] 立即重启 / Restarting now...' -ForegroundColor Red
-        Restart-Computer -Force
+        & $script:TweakAdapters.Restart
     } else { Write-Host '[结束] 本次不重启；待重启设置仍会保留。' -ForegroundColor Green }
 }

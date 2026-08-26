@@ -21,11 +21,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -RequiredVersion 1.25.0
+          . ./tools/Install-HashLockedModule.ps1 -Name PSScriptAnalyzer -RequiredVersion 1.25.0 -ExpectedSha256 '14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60'
           $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 -Severity Error,Warning
           if ($results) {
             $results | Format-Table -AutoSize | Out-String | Write-Host
@@ -41,11 +41,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Run Pester tests
         shell: pwsh
         run: |
-          Install-Module Pester -Force -Scope CurrentUser -RequiredVersion 6.1.0
+          . ./tools/Install-HashLockedModule.ps1 -Name Pester -RequiredVersion 6.1.0 -ExpectedSha256 '0207a75ea09f81b27c1ded44898b2bb3c845bafa02045bd64a39e26a53ca41b4'
           $config = New-PesterConfiguration
           $config.Run.Path = "./tests"
           $config.Output.Verbosity = "Detailed"
@@ -55,7 +55,7 @@ jobs:
           Invoke-Pester -Configuration $config
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pester-coverage-${{ github.run_number }}
           path: coverage.xml
@@ -67,7 +67,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Loader smoke under Windows PowerShell 5.1
         shell: powershell
         env:
@@ -87,7 +87,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       # 知识库版本由 tools/knowledge.lock.json 锁定,同一 commit 审计结果可复现;
       # 先确认锁定 commit 仍是 youshouldknow/main 当前最新提交,避免知识库更新后静默使用旧快照。
       - name: Verify knowledge lock is current
@@ -125,10 +125,13 @@ jobs:
           ./tools/Test-CrossRepoCoverage.ps1
 
   release:
-    # main 推送四项全绿 → 自动补丁版本；推送 v* tag → 按该 tag 发布里程碑版本
+    # 发布策略（2026-08-26 起）：仅推送 v* tag 时发布。
+    # main 推送不再自动发版，根治"源码版本常量天然落后 tag 一位"的问题：
+    # 常量在源码中与最近已发布 tag 对齐（tests/VersionConsistency.Tests.ps1 校验），
+    # 发版时由打包步骤把该 tag 版本注入 ZIP 内副本。
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      startsWith(github.ref, 'refs/tags/v')
     needs: [lint, test, smoke-windows-powershell, coverage-audit]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -139,7 +142,7 @@ jobs:
       group: release-${{ github.repository }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
       - name: Compute next version
