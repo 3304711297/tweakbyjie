@@ -30,10 +30,14 @@ function Invoke-TestModeEnableModule {
     Write-Host "============ [Part 3] 开启测试模式 / Enable Test Mode ============" -ForegroundColor Cyan
     Write-Host ""
 
-    Invoke-BcdEdit "/set testsigning on" "bcdedit /set testsigning on"
-    Invoke-BcdEdit "/debug on" "bcdedit /debug on"
-    Invoke-BcdEdit "/dbgsettings local" "bcdedit /dbgsettings local"
-    Invoke-BcdEdit "/set nointegritychecks on" "bcdedit /set nointegritychecks on"
+    if (Ensure-BcdBackup -ValueNames @('testsigning','debug','nointegritychecks') -BackupFile $script:testModeBackupFile) {
+        Invoke-BcdEdit "/set testsigning on" "bcdedit /set testsigning on"
+        Invoke-BcdEdit "/debug on" "bcdedit /debug on"
+        Invoke-BcdEdit "/dbgsettings local" "bcdedit /dbgsettings local"
+        Invoke-BcdEdit "/set nointegritychecks on" "bcdedit /set nointegritychecks on"
+    } else {
+        Write-Host "[FAIL] 已阻止开启测试模式：原始状态未成功备份。" -ForegroundColor Red
+    }
 
     # Summary
     Write-Host ""
@@ -57,11 +61,17 @@ function Invoke-TestModeDisableModule {
     Write-Host ""
     Write-Host "============ [Part 4] 关闭测试模式 / Disable Test Mode ============" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "提示：此操作通过删除 testsigning 和 debug 启动项来关闭测试模式，保留 nointegritychecks。" -ForegroundColor Yellow
+    Write-Host "提示：优先按开启测试模式前的快照恢复 testsigning 和 debug；无快照时退回删除这两项。nointegritychecks 始终保留。" -ForegroundColor Yellow
     Write-Host ""
 
-    Invoke-BcdEdit "/deletevalue testsigning" "bcdedit /deletevalue testsigning"
-    Invoke-BcdEdit "/deletevalue debug" "bcdedit /deletevalue debug"
+    if (Test-Path $script:testModeBackupFile) {
+        # 有快照：按原值恢复（原本未设置的删除，原本开启的恢复为开启），不动 nointegritychecks
+        Restore-BcdBackup -ValueNames @('testsigning','debug') -BackupFile $script:testModeBackupFile -SchemaNames @('testsigning','debug','nointegritychecks') | Out-Null
+    } else {
+        Write-Host "[WARNING] 未找到测试模式备份文件，退回直接删除模式。" -ForegroundColor Yellow
+        Invoke-BcdEdit "/deletevalue testsigning" "bcdedit /deletevalue testsigning"
+        Invoke-BcdEdit "/deletevalue debug" "bcdedit /deletevalue debug"
+    }
 
     # Summary
     Write-Host ""

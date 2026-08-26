@@ -9,6 +9,8 @@
         nx                 = @('OptIn','OptOut','AlwaysOn','AlwaysOff')
         tpmbootentropy     = @('Default','ForceDisable','ForceEnable')
         nointegritychecks  = @('Yes','No')
+        testsigning        = @('Yes','No')
+        debug              = @('Yes','No')
     }
     return $allowed.ContainsKey($Name) -and $allowed[$Name] -contains $Value
 }
@@ -35,13 +37,13 @@ function Test-BcdBackupSchema {
 }
 
 function Ensure-BcdBackup {
-    param([string[]]$ValueNames)
+    param([string[]]$ValueNames, [string]$BackupFile = $script:bcdBackupFile)
     try {
         $managedNames = @($ValueNames)
         if ($managedNames.Count -eq 0) { throw '未提供 BCD 备份范围' }
-        if (Test-Path $script:bcdBackupFile) {
-            $backup = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw 'bcd-backup.json 结构、对象或记录不完整' }
+        if (Test-Path $BackupFile) {
+            $backup = Get-Content $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw 'BCD 备份结构、对象或记录不完整' }
             return $true
         }
         $enumOut = (& bcdedit.exe /enum '{current}' 2>$null) -join "`n"
@@ -56,28 +58,28 @@ function Ensure-BcdBackup {
         }
         $backup = [pscustomobject]@{ Version = 1; Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
         if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw '生成的 BCD 备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:bcdBackupFile -Encoding UTF8 -ErrorAction Stop
-        $check = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $BackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-BcdBackupSchema $check $managedNames)) { throw '写入后的 BCD 备份校验失败' }
-        Write-Host "[OK] BCD 原始状态已备份：$script:bcdBackupFile" -ForegroundColor Green
+        Write-Host "[OK] BCD 原始状态已备份：$BackupFile" -ForegroundColor Green
         return $true
     } catch {
-        Write-Host "[FAIL] BCD 原始状态备份失败：$($_.Exception.Message)；已阻止高级 BCD 修改" -ForegroundColor Red
+        Write-Host "[FAIL] BCD 原始状态备份失败：$($_.Exception.Message)；已阻止本次 BCD 修改" -ForegroundColor Red
         $script:fail++
         return $false
     }
 }
 
 function Restore-BcdBackup {
-    param([string[]]$ValueNames)
-    if (-not (Test-Path $script:bcdBackupFile)) {
+    param([string[]]$ValueNames, [string]$BackupFile = $script:bcdBackupFile, [string[]]$SchemaNames = $script:bcdManagedValues)
+    if (-not (Test-Path $BackupFile)) {
         Write-Host '[FAIL] 未找到有效 BCD 备份，拒绝声称已恢复；请手动检查当前 BCD' -ForegroundColor Red
         $script:fail++
         return $false
     }
     try {
-        $backup = Get-Content $script:bcdBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-BcdBackupSchema $backup $script:bcdManagedValues)) { throw 'bcd-backup.json 结构、对象或记录不完整' }
+        $backup = Get-Content $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-BcdBackupSchema $backup $SchemaNames)) { throw 'BCD 备份结构、对象或记录不完整' }
         $allOk = $true
         foreach ($name in $ValueNames) {
             $record = @($backup.Values | Where-Object { $_.Name -eq $name })[0]
@@ -89,7 +91,7 @@ function Restore-BcdBackup {
                 if ($script:fail -gt $before) { $allOk = $false }
             }
         }
-        if ($allOk) { Write-Host "[OK] 高级 BCD 已按修改前快照恢复；备份文件保留：$script:bcdBackupFile" -ForegroundColor Green }
+        if ($allOk) { Write-Host "[OK] BCD 已按修改前快照恢复；备份文件保留：$BackupFile" -ForegroundColor Green }
         return $allOk
     } catch {
         Write-Host "[FAIL] BCD 状态恢复失败：$($_.Exception.Message)" -ForegroundColor Red

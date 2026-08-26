@@ -88,6 +88,8 @@ $script:mpoBackupReady = $false
 $script:rebootRequired = $false
 $script:bcdBackupFile = Join-Path $PSScriptRoot 'bcd-backup.json'
 $script:bcdManagedValues = @('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy','nx','tpmbootentropy','nointegritychecks')
+# 测试模式独立备份文件：与高级 BCD 的 bcd-backup.json 分开，避免互相覆盖/校验冲突
+$script:testModeBackupFile = Join-Path $PSScriptRoot 'testmode-backup.json'
 $script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'
 $script:securityMitigationBackupFile = Join-Path $PSScriptRoot 'security-mitigation-backup.json'
 $script:securityMitigationValues = @(
