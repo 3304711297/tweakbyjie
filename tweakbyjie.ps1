@@ -21,7 +21,7 @@ param(
     [string]$RunModule = ''
 )
 
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 # 版本号：与最新已发布 v* tag 对应（菜单标题会显示）。
 # 约定：源码常量 = 最近一次 Release 的版本；CI 打包时会把"下一个"版本注入 ZIP 内副本，
 # 因此源码常量在发布后天然落后一位属正常，但不得与最新 tag 脱钩（tests/VersionConsistency.Tests.ps1 校验）。
@@ -123,7 +123,14 @@ foreach ($__m in $__tweakModules) {
         Read-Host "Press Enter to exit"
         exit 1
     }
-    . $__p
+    try {
+        . $__p
+    } catch {
+        Write-Host "[ERROR] 模块加载失败 $__m ：$($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ERROR] 已阻止进入菜单，避免以不完整模块执行系统修改。" -ForegroundColor Red
+        if ($__isScript) { try { Stop-Transcript } catch {} }
+        exit 3
+    }
 }
 Remove-Variable __tweakModules,__m,__p -ErrorAction SilentlyContinue
 
@@ -136,7 +143,13 @@ if ($__isScript) {
         try { Stop-Transcript } catch {}
         exit (Get-TweakExitCode -InvalidInput)
     }
-    Show-TweakMenu -RunModules ($__requested -join ',')
+    try {
+        Show-TweakMenu -RunModules ($__requested -join ',')
+    } catch {
+        Write-Host "[ERROR] 未预期的终止错误：$($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[ERROR] 会话已中断；请核对日志确认已完成的修改与失败项。" -ForegroundColor Red
+        $script:fail++
+    }
     try { Stop-Transcript } catch {}
     exit (Get-TweakExitCode -SuccessCount $script:ok -FailureCount $script:fail)
 }

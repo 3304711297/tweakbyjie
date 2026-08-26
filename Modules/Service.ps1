@@ -49,13 +49,20 @@ function Invoke-ServiceModule {
             try {
                 Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
                 Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
-                Write-Host "[OK] Service $svc stopped and disabled"
+                $statusAfter = (Get-Service -Name $svc -ErrorAction SilentlyContinue).Status
+                if ($statusAfter -eq 'Running') {
+                    Write-Host "[OK] Service $svc disabled (still running; will stop after restart)"
+                } else {
+                    Write-Host "[OK] Service $svc stopped and disabled"
+                }
                 $script:ok++
+                $script:rebootRequired = $true
             } catch {
                 & sc.exe config $svc start= disabled *> $null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "[OK] Service $svc disabled (stop rejected: protected service)"
                     $script:ok++
+                    $script:rebootRequired = $true
                 } else {
                     Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
                     $script:fail++
@@ -77,11 +84,13 @@ function Invoke-ServiceModule {
                 Set-Service -Name $svc -StartupType Manual -ErrorAction Stop
                 Write-Host "[OK] Service $svc StartupType = Manual"
                 $script:ok++
+                $script:rebootRequired = $true
             } catch {
                 & sc.exe config $svc start= demand *> $null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "[OK] Service $svc StartupType = Manual (sc.exe)"
                     $script:ok++
+                    $script:rebootRequired = $true
                 } else {
                     Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
                     $script:fail++
