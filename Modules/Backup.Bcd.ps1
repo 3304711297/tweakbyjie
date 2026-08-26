@@ -18,6 +18,7 @@
 function Test-BcdBackupSchema {
     param([object]$Backup, [string[]]$ValueNames)
     if ($null -eq $Backup -or $Backup.Version -ne 1 -or $Backup.Object -ne '{current}') { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
     $records = @($Backup.Values)
     if ($records.Count -ne $ValueNames.Count) { return $false }
     $expected = @($ValueNames | Sort-Object -Unique)
@@ -56,7 +57,7 @@ function Ensure-BcdBackup {
                 [pscustomobject]@{ Name = $name; Present = $false; Value = $null }
             }
         }
-        $backup = [pscustomobject]@{ Version = 1; Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
+        $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
         if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw '生成的 BCD 备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $BackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop

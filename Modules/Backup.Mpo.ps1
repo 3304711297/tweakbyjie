@@ -37,7 +37,7 @@ function Ensure-MpoBackup {
         $parent = Split-Path $script:mpoBackupFile -Parent
         if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null }
         $snapshots = @($script:mpoManagedValues | ForEach-Object { Get-MpoValueSnapshot $_ })
-        $backup = [pscustomobject]@{ Version = 1; Values = $snapshots }
+        $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Values = $snapshots }
         if (-not (Test-MpoBackupSchema $backup)) { throw '生成的 MPO 备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:mpoBackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
@@ -55,6 +55,7 @@ function Ensure-MpoBackup {
 function Test-MpoBackupSchema {
     param([object]$Backup)
     if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
     $records = @($Backup.Values)
     if ($records.Count -ne $script:mpoManagedValues.Count) { return $false }
     $expected = @($script:mpoManagedValues | ForEach-Object { "$($_.Path)|$($_.Name)" })

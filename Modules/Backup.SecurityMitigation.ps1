@@ -10,6 +10,7 @@
 function Test-SecurityMitigationBackupSchema {
     param([object]$Backup, [object[]]$Definitions = $script:securityMitigationValues)
     if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
     $records = @($Backup.Values)
     $expected = @($Definitions | ForEach-Object { "$($_.Path)|$($_.Name)" })
     $actual = @($records | ForEach-Object { "$($_.Path)|$($_.Name)" })
@@ -32,7 +33,7 @@ function Ensure-SecurityMitigationBackup {
             if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw 'security-mitigation-backup.json 结构不正确' }
             return $true
         }
-        $backup = [pscustomobject]@{ Version = 1; CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
+        $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
         if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw '生成的安全缓解备份未通过结构校验' }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:securityMitigationBackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop

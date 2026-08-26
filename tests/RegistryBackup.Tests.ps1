@@ -14,6 +14,7 @@ Describe "Registry backup schema" {
         )
         $valid = [pscustomobject]@{
             Version = 1
+            Binding = (Get-BackupMachineId)
             CreatedAt = '2026-08-26T00:00:00.0000000Z'
             Core = @(
                 [pscustomobject]@{ Path = $coreDefs[0].Path; Name = 'DwordValue'; Exists = $true; Kind = 'DWord'; Data = 38 }

@@ -7,6 +7,7 @@
 function Test-NvmeBackupSchema {
     param([object]$Backup, [string]$Guid = '{75416E63-5912-4DFA-AE8F-3EFACCAFFB14}')
     if ($null -eq $Backup -or $Backup.Version -ne 3) { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
     $safe = @($Backup.SafeBoot)
     if ($safe.Count -ne 2 -or @($safe.Mode | Sort-Object -Unique).Count -ne 2) { return $false }
     foreach ($r in $safe) {
@@ -118,6 +119,7 @@ function Ensure-NvmeBackup {
         $features = @('60786016','48433719') | ForEach-Object { [pscustomobject]@{ Id = $_; BeforeState = Get-ViVeFeatureState $ViVeTool $_ } }
         $backup = [pscustomobject]@{
             Version = 3
+            Binding = (Get-BackupMachineId)
             CreatedAt = (Get-Date).ToString('o')
             Features = @($features)
             SafeBoot = @(Get-NvmeSafeBootSnapshot $Guid)

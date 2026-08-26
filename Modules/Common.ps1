@@ -10,6 +10,22 @@ function Convert-RegExePath {
     return $Path
 }
 
+function Get-BackupMachineId {
+    # 备份文件机器绑定：对系统 MachineGuid 做带域前缀的 SHA256，只存散列不存原始值。
+    # 跨机复制或伪造的旧快照在 schema 校验阶段即被拒绝。
+    try {
+        $guid = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Cryptography' -Name MachineGuid -ErrorAction Stop).MachineGuid
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("tweakbyjie:backup-binding:v1:$guid"))
+            return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
+        } finally { $sha.Dispose() }
+    } catch {
+        throw "无法读取机器标识（HKLM:\SOFTWARE\Microsoft\Cryptography\MachineGuid）"
+    }
+}
+
+
 function Set-RegDword {
     param([string]$Path,[string]$Name,[object]$Value,[string]$Label)
     try {

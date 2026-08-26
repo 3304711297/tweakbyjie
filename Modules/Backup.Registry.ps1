@@ -52,6 +52,7 @@ function Test-RegistryBackupSchema {
         [object[]]$SystemDefinitions = $script:registrySystemValues)
     try {
         if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
+        if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
         foreach ($pair in @(
                 @{ Actual = @($Backup.Core); Expected = $CoreDefinitions },
                 @{ Actual = @($Backup.System); Expected = $SystemDefinitions }
@@ -88,6 +89,7 @@ function Ensure-RegistryBackup {
         }
         $backup = [pscustomobject]@{
             Version   = 1
+            Binding   = (Get-BackupMachineId)
             CreatedAt = (Get-Date).ToString('o')
             Core      = @($CoreDefinitions | ForEach-Object { Get-MpoValueSnapshot $_ })
             System    = @($SystemDefinitions | ForEach-Object { Get-MpoValueSnapshot $_ })

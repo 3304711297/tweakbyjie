@@ -28,6 +28,7 @@ function Convert-ServiceStartMode {
 function Test-ServiceBackupSchema {
     param([object]$Backup, [string[]]$ServiceNames)
     if ($null -eq $Backup -or $Backup.Version -ne 1) { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
     $expected = @($ServiceNames | Sort-Object -Unique)
     $records = @($Backup.Services)
     if ($records.Count -ne $expected.Count) { return $false }
@@ -58,7 +59,7 @@ function Ensure-ServiceBackup {
             if ($svc) { [pscustomobject]@{ Name = $name; StartMode = $svc.StartMode; State = $svc.State; DelayedAutostart = $svc.DelayedAutostart } }
             else { [pscustomobject]@{ Name = $name; StartMode = $null; State = $null; DelayedAutostart = $null } }
         }
-        $backup = [pscustomobject]@{ Version = 1; Services = @($records) }
+        $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Services = @($records) }
         ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:serviceBackupFile -Encoding UTF8 -ErrorAction Stop
         $check = Get-Content $script:serviceBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if ($check.Version -ne 1 -or @($check.Services).Count -ne @($records).Count) { throw '写入后的服务备份校验失败' }

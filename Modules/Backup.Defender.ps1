@@ -132,6 +132,7 @@ function Test-DefenderBackupSchema {
     param([object]$Backup, [object[]]$PolicyDefinitions = $script:defenderPolicyValues, [object[]]$StartupDefinitions = $script:defenderStartupValues)
     try {
         if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
+        if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
         $records = @($Backup.Values)
         $startup = @($Backup.StartupValues)
         if ($records.Count -eq 0 -or $startup.Count -eq 0) { return $false }
@@ -174,6 +175,7 @@ function Ensure-DefenderPolicyBackup {
         }
         $backup = [pscustomobject]@{
             Version       = 1
+            Binding       = (Get-BackupMachineId)
             CreatedAt     = (Get-Date).ToString('o')
             Values        = @($Definitions | ForEach-Object { Get-DefenderValueSnapshot $_ })
             StartupValues = @($StartupDefinitions | ForEach-Object { Get-DefenderValueSnapshot $_ })

@@ -49,7 +49,7 @@ Describe "Backup helpers support a separate test mode backup file" {
             [pscustomobject]@{ Name = 'debug'; Present = $false; Value = $null }
             [pscustomobject]@{ Name = 'nointegritychecks'; Present = $false; Value = $null }
         )
-        ConvertTo-Json -InputObject ([pscustomobject]@{ Version = 1; Object = '{current}'; CreatedAt = '2026-08-26T00:00:00.0000000Z'; Values = $values }) -Depth 5 |
+        ConvertTo-Json -InputObject ([pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Object = '{current}'; CreatedAt = '2026-08-26T00:00:00.0000000Z'; Values = $values }) -Depth 5 |
             Set-Content -Path $file -Encoding UTF8
         Mock Invoke-BcdEdit { return $true }
         Mock Remove-BcdValue { }

@@ -61,6 +61,7 @@ function Test-VbsBackupSchema {
         [string[]]$BcdNames = $script:vbsBcdNames, [string[]]$FeatureNames = $script:vbsFeatureNames)
     try {
         if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
+        if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
 
         $registry = @($Backup.Registry)
         $expectedKeys = @($RegistryDefinitions | ForEach-Object { "$($_.Path)|$($_.Name)" })
@@ -113,6 +114,7 @@ function Ensure-VbsBackup {
         }
         $backup = [pscustomobject]@{
             Version   = 1
+            Binding   = (Get-BackupMachineId)
             CreatedAt = (Get-Date).ToString('o')
             Registry  = @($RegistryDefinitions | ForEach-Object { Get-VbsValueSnapshot $_ })
             Bcd       = @($BcdNames | ForEach-Object { Get-VbsBcdSnapshot $_ })

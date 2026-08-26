@@ -12,6 +12,7 @@ Describe "VBS backup schema" {
         $featureNames = @('FakeFeature')
         $valid = [pscustomobject]@{
             Version = 1
+            Binding = (Get-BackupMachineId)
             CreatedAt = '2026-08-26T00:00:00.0000000Z'
             Registry = @(
                 [pscustomobject]@{ Path = $defs[0].Path; Name = 'Enabled'; Present = $true; Value = [uint32]1 }
