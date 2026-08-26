@@ -7,8 +7,17 @@ function Invoke-RegistryModule {
     Write-Host "  1. 核心游戏优化（GameDVR / GameBar / Multimedia / Win32PrioritySeparation / HAGS / Games Task / Game Mode / ActivationType）" -ForegroundColor White
     Write-Host "  2. 系统行为优化（Search / Prefetch / Memory Compression / NTFS 8.3 / TRIM / Visual Effects）" -ForegroundColor White
     Write-Host "  3. CPU 安全缓解调整（FeatureSettingsOverride / Mask；修改前自动备份，可恢复）" -ForegroundColor Yellow
+    Write-Host "  4. 按备份恢复核心游戏 / 系统行为优化（Memory Compression 与 TRIM 不在范围内）" -ForegroundColor White
     Write-Host "  0. 返回主菜单" -ForegroundColor White
-    $coreChoice = Read-Host "请输入 0、1、2 或 3 并回车"
+    $coreChoice = Read-Host "请输入 0、1、2、3 或 4 并回车"
+
+    # 子项 1/2 写入前的统一快照门禁；备份失败时改写选择值以跳过全部修改分支
+    if ($coreChoice -eq '1' -or $coreChoice -eq '2') {
+        if (-not (Ensure-RegistryBackup)) {
+            Write-Host "[FAIL] 已阻止核心/系统优化修改：原始状态未成功备份。" -ForegroundColor Red
+            $coreChoice = 'backup-failed'
+        }
+    }
 
     if ($coreChoice -eq '1') {
         # 01 GameDVR
@@ -142,13 +151,17 @@ function Invoke-RegistryModule {
         } elseif ($mChoice -eq '3') {
             Restore-SecurityMitigationBackup
         } else { Write-Host "[ERROR] 无效输入：$mChoice 。" -ForegroundColor Red }
+    } elseif ($coreChoice -eq '4') {
+        Restore-RegistryBackup | Out-Null
+    } elseif ($coreChoice -eq 'backup-failed') {
+        # 备份失败已在上文报错；不执行任何修改
     } elseif ($coreChoice -eq '0') {
         Write-Host "[返回] 已返回主菜单。" -ForegroundColor Green
     } else {
-        Write-Host "[ERROR] 无效输入：$coreChoice 。请输入 0、1、2 或 3" -ForegroundColor Red
+        Write-Host "[ERROR] 无效输入：$coreChoice 。请输入 0、1、2、3 或 4" -ForegroundColor Red
     }
 
-    if ($coreChoice -ne '0') {
+    if ($coreChoice -ne '0' -and $coreChoice -ne 'backup-failed') {
         Write-Host ""; Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host " Finished (Part 1 - Core / System Optimization)" -ForegroundColor Cyan
         Write-Host " OK : $script:ok" -ForegroundColor Green
