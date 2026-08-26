@@ -98,6 +98,7 @@ $script:securityMitigationValues = @(
 )
 $script:nvmeBackupFile = Join-Path $PSScriptRoot 'nvme-backup.json'
 $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-backup.json'
+$script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
 
 # 缺模块自检
 $__tweakModules = @(
@@ -108,6 +109,7 @@ $__tweakModules = @(
     'Modules/Backup.SecurityMitigation.ps1',
     'Modules/Backup.Nvme.ps1',
     'Modules/Backup.Defender.ps1',
+    'Modules/Backup.Vbs.ps1',
     'Modules/Bcd.ps1',
     'Modules/Defender.ps1',
     'Modules/Mpo.ps1',

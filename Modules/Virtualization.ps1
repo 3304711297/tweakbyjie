@@ -218,19 +218,25 @@ function Invoke-DeviceGuardModule {
 
 function Invoke-VbsModule {
     Write-Host ""; Write-Host "============ [Part 10] 虚拟化 / VBS / Hyper-V 管理 ============" -ForegroundColor Cyan; Write-Host ""
-    $dgRegValues=@(@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity';Name='Enabled'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SYSTEM\CurrentControlSet\Control\LSA';Name='LsaCfgFlags'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='EnableVirtualizationBasedSecurity'},@{Path='HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard';Name='RequirePlatformSecurityFeatures'})
-    Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）"
-    $vChoice=Read-Host "请输入 0、1 或 2 并回车"
+    $dgRegValues=$script:vbsRegistryValues
+    Write-Host "  0. 查看当前状态";Write-Host "  1. 关闭 VBS/HVCI/Credential Guard + Hyper-V" -ForegroundColor Yellow;Write-Host "  2. 删除脚本覆盖并尝试启用 Hyper-V（不是原始状态精确回滚）" -ForegroundColor White;Write-Host "  3. 恢复选项 1 修改前的快照（vbs-backup.json）" -ForegroundColor White
+    $vChoice=Read-Host "请输入 0、1、2 或 3 并回车"
     if($vChoice -eq '0'){
         $bcEnum=(& bcdedit.exe /enum '{current}' 2>$null)-join "`n";foreach($n in @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')){if($bcEnum -match ('(?m)^\s*'+[regex]::Escape($n)+'\s+(\S+)')){Write-Host ("bcdedit {0,-24} = {1}"-f $n,$Matches[1])}else{Write-Host ("bcdedit {0,-24} = <未设置（系统默认）>"-f $n)}};foreach($v in $dgRegValues){$item=Get-Item $v.Path -ErrorAction SilentlyContinue;if($item -and ($item.GetValueNames()-contains $v.Name)){Write-Host ("注册表 {0} -> {1} = {2}"-f $v.Path,$v.Name,$item.GetValue($v.Name))}};foreach($fn in @('Microsoft-Hyper-V-All','VirtualMachinePlatform','HypervisorPlatform')){$f=Get-WindowsOptionalFeature -Online -FeatureName $fn -ErrorAction SilentlyContinue;if($f){Write-Host ("功能 {0,-26} = {1}"-f $fn,$f.State)}};$cs=Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue;if($cs){Write-Host ("运行时 HypervisorPresent = {0}"-f $cs.HypervisorPresent)}
     } elseif($vChoice -eq '1'){
-        foreach($v in $dgRegValues){Set-RegDword $v.Path $v.Name 0 ("关闭虚拟化安全 "+$v.Name)}
-        try{$hv=Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction Stop;if($hv.State -in @('Enabled','EnablePending')){$null=Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart -ErrorAction Stop;Write-Host '[OK] Hyper-V 功能组件已禁用';$script:ok++;$script:rebootRequired=$true}else{Write-Host '[SKIP] Hyper-V 功能组件未启用' -ForegroundColor Yellow;$script:skip++}}catch{Write-Host "[FAIL] Hyper-V 功能组件禁用 : $($_.Exception.Message)" -ForegroundColor Red;$script:fail++}
-        Invoke-BcdEdit "/set hypervisorlaunchtype off" "Hypervisor Launch Type Off";Invoke-BcdEdit "/set isolatedcontext no" "Isolated Context Off";Invoke-BcdEdit "/set vsmlaunchtype off" "VSM Launch Type Off";Verify-BcdValue 'hypervisorlaunchtype' 'Off' 'hypervisorlaunchtype'|Out-Null;Verify-BcdValue 'isolatedcontext' 'No' 'isolatedcontext'|Out-Null;Verify-BcdValue 'vsmlaunchtype' 'Off' 'vsmlaunchtype'|Out-Null;Write-Host '[提示] 重启后再验证 HypervisorPresent / msinfo32 实际运行状态。' -ForegroundColor Yellow
+        if (-not (Ensure-VbsBackup)) {
+            Write-Host "[FAIL] 已阻止关闭 VBS/Hyper-V：原始状态未成功备份。" -ForegroundColor Red
+        } else {
+            foreach($v in $dgRegValues){Set-RegDword $v.Path $v.Name 0 ("关闭虚拟化安全 "+$v.Name)}
+            try{$hv=Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction Stop;if($hv.State -in @('Enabled','EnablePending')){$null=Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -NoRestart -ErrorAction Stop;Write-Host '[OK] Hyper-V 功能组件已禁用';$script:ok++;$script:rebootRequired=$true}else{Write-Host '[SKIP] Hyper-V 功能组件未启用' -ForegroundColor Yellow;$script:skip++}}catch{Write-Host "[FAIL] Hyper-V 功能组件禁用 : $($_.Exception.Message)" -ForegroundColor Red;$script:fail++}
+            Invoke-BcdEdit "/set hypervisorlaunchtype off" "Hypervisor Launch Type Off";Invoke-BcdEdit "/set isolatedcontext no" "Isolated Context Off";Invoke-BcdEdit "/set vsmlaunchtype off" "VSM Launch Type Off";Verify-BcdValue 'hypervisorlaunchtype' 'Off' 'hypervisorlaunchtype'|Out-Null;Verify-BcdValue 'isolatedcontext' 'No' 'isolatedcontext'|Out-Null;Verify-BcdValue 'vsmlaunchtype' 'Off' 'vsmlaunchtype'|Out-Null;Write-Host '[提示] 重启后再验证 HypervisorPresent / msinfo32 实际运行状态。' -ForegroundColor Yellow
+        }
     } elseif($vChoice -eq '2'){
         foreach($v in $dgRegValues){$item=Get-Item $v.Path -ErrorAction SilentlyContinue;if($item -and ($item.GetValueNames()-contains $v.Name)){$regPath=Convert-RegExePath $v.Path;& reg.exe DELETE $regPath /v $v.Name /f *> $null;if($LASTEXITCODE -eq 0){Write-Host ("[OK] 已删除注册表值 {0} -> {1}"-f $v.Path,$v.Name);$script:ok++;$script:rebootRequired=$true}else{Write-Host ("[FAIL] 删除注册表值 {0} -> {1}"-f $v.Path,$v.Name) -ForegroundColor Red;$script:fail++}}else{Write-Host ("[SKIP] 注册表值不存在: {0} -> {1}"-f $v.Path,$v.Name) -ForegroundColor Yellow;$script:skip++}}
         Remove-BcdValue 'hypervisorlaunchtype' '还原 hypervisorlaunchtype';Remove-BcdValue 'vsmlaunchtype' '还原 vsmlaunchtype';Remove-BcdValue 'isolatedcontext' '还原 isolatedcontext';try{$null=Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart -ErrorAction Stop;Write-Host '[OK] 已尝试启用 Hyper-V 功能组件（重启后生效）';$script:ok++;$script:rebootRequired=$true}catch{Write-Host "[FAIL] Hyper-V 功能组件启用 : $($_.Exception.Message)" -ForegroundColor Red;$script:fail++}
-    } else {Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1 或 2" -ForegroundColor Red}
+    } elseif($vChoice -eq '3'){
+        Restore-VbsBackup | Out-Null
+    } else {Write-Host "[ERROR] 无效输入：$vChoice 。请输入 0、1、2 或 3" -ForegroundColor Red}
     Write-Host "Finished (Part 10 - Virtualization Management)" -ForegroundColor Cyan;Write-Host " OK : $script:ok  FAIL : $script:fail  SKIP : $script:skip";Request-Restart
 
 }
