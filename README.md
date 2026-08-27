@@ -2,7 +2,7 @@
 
 Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，以及一个高风险的 Defender 物理移除脚本。
 
-> 当前版本与变更历史见 [CHANGELOG.md](CHANGELOG.md)；脚本菜单标题会显示运行版本（与 Git tag 及 Release 对应）。
+> 当前版本与各版本变更见 GitHub Releases（说明由发布时自动生成）；脚本菜单标题会显示运行版本（与 Git tag 及 Release 对应）。
 
 > 这是面向个人设备和测试环境的高级工具，不是“无脑一键加速”。请先阅读风险说明、记录当前状态，并准备系统还原点或完整备份。
 
