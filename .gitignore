@@ -5,10 +5,18 @@ _tmp_*
 coverage.xml
 mpo-backup.json
 bcd-backup.json
+testmode-backup.json
 power-backup.pow
 service-backup.json
 security-mitigation-backup.json
 nvme-backup.json
+defender-policy-backup.json
+vbs-backup.json
+registry-backup.json
+
+# Python tooling side effects (coverage audit scripts)
+__pycache__/
+*.pyc
 
 # OS
 .DS_Store

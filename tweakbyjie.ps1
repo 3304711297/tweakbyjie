@@ -3,16 +3,16 @@
 # ActivationType is handled separately because the key may be protected.
 #
 # 菜单 / Menu:
-#   输入 1 回车 = 核心性能分层菜单：核心游戏 / 系统行为 / CPU 安全缓解
+#   输入 1 回车 = 核心性能分层菜单：核心游戏 / 系统行为（修改前快照，可按快照恢复）/ CPU 安全缓解
 #   输入 2 回车 = 高级 BCD / 计时器与启动安全（独立配置，修改前备份）
-#   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks）
-#   输入 4 回车 = 关闭测试模式（删除 testsigning / debug 启动项，保留 nointegritychecks）
+#   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks；先快照再修改）
+#   输入 4 回车 = 关闭测试模式（优先按开启前快照恢复，无快照时删除；保留 nointegritychecks）
 #   输入 5 回车 = 关闭安全中心（禁用 Defender/SmartScreen 策略并可选删除类优化；策略值自动快照，可按快照恢复）
 #   输入 6 回车 = 服务优化（A/B 功能依赖分组，支持快照恢复）
-#   输入 7 回车 = 超性能电源计划（备份并应用 / 恢复备份）
+#   输入 7 回车 = 超性能电源计划（备份并应用 / 恢复备份；应用后统一命名 ultimate-performance）
 #   输入 8 回车 = 原生 NVMe 驱动配置（含 SafeBoot 快照）
 #   输入 9 回车 = 清除 Device Guard EFI 锁定（SecConfig.efi 流程）
-#   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（删除脚本覆盖并尝试启用）
+#   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（关闭前自动快照 vbs-backup.json；可按快照恢复）
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
