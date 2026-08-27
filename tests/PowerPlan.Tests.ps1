@@ -50,3 +50,44 @@ Describe "Power plan duplicate detection" {
         Get-PowerPlanDuplicateGroups $out | Should -Be $null
     }
 }
+
+Describe "Power module renames the applied plan" {
+    BeforeAll {
+        $powCalls = [System.Collections.Generic.List[string]]::new()
+        Mock powercfg.exe {
+            $line = ($args -join ' ')
+            $powCalls.Add($line)
+            $global:LASTEXITCODE = 0
+            switch -Regex ($line) {
+                'getactivescheme' { return '电源方案 GUID: eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee  (平衡)' }
+                'import .*ultimate-performance\.pow' { return '导入电源方案: cccccccc-cccc-cccc-cccc-cccccccccccc' }
+                'import .*power-backup\.pow' { return '导入电源方案: dddddddd-dddd-dddd-dddd-dddddddddddd' }
+                default { }
+            }
+        }
+        Mock Read-Host { return '1' }
+        Set-TweakAdapters -Confirm { param($Prompt) return $false }
+        $backupPath = Join-Path $script:RepoRoot 'power-backup.pow'
+        if (-not (Test-Path $backupPath)) { Set-Content -Path $backupPath -Value 'mock backup for test' }
+    }
+
+    AfterAll {
+        Initialize-TweakAdapters
+        Remove-Item (Join-Path $script:RepoRoot 'power-backup.pow') -Force -ErrorAction SilentlyContinue
+    }
+
+    It "applies changename to ultimate-performance with the imported GUID" {
+        Invoke-PowerModule | Out-Null
+        $change = @($powCalls | Where-Object { $_ -match 'changename' })
+        $change.Count | Should -Be 1
+        $change[0] | Should -Match 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+        $change[0] | Should -Match 'ultimate-performance'
+    }
+
+    It "does not rename when restoring a backed-up plan" {
+        $powCalls.Clear()
+        Mock Read-Host { return '2' }
+        Invoke-PowerModule | Out-Null
+        (@($powCalls | Where-Object { $_ -match 'changename' })).Count | Should -Be 0
+    }
+}

@@ -55,7 +55,11 @@ function Invoke-PowerModule {
                     }
                     & powercfg.exe /setactive $newGuid *> $null
                     if ($LASTEXITCODE -ne 0) { throw "powercfg /setactive exit code $LASTEXITCODE" }
-                    Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)"
+                    # 统一命名：导入的计划沿用 .pow 内嵌名，容易出现 kirby/中文名等漂移，
+                    # 导致去重按名称分组认不出重复项、审计比对也会误判；这里强制规范为 ultimate-performance
+                    & powercfg.exe /changename $newGuid "ultimate-performance" *> $null
+                    if ($LASTEXITCODE -ne 0) { throw "powercfg /changename exit code $LASTEXITCODE" }
+                    Write-Host "[OK] 超性能电源计划已导入并应用 ($newGuid)，名称统一为 ultimate-performance"
                     $script:ok++
                     $script:rebootRequired = $true
                     Invoke-PowerPlanDedupe
