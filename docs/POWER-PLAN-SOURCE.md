@@ -58,4 +58,4 @@ powercfg /query <当前方案GUID> > current-query.txt
 
 - 该方案为 CPU 全程满频、升频激进（1% 负载即触发）、禁用节流与多链路节电的取向，适合台式游戏机追求最低延迟。
 - 笔记本、电池供电或对功耗/发热敏感的设备不建议长期使用，详见 Part 7 的“整体特征”与代价说明。
-- 菜单 7 会先将当前方案导出为 `power-backup.pow`（已存在则不覆盖，保护最初备份），再导入并激活 `kirby`；恢复时通过 `7 -> 2` 导入 `power-backup.pow` 并激活。
+- 菜单 7 会先将当前方案导出为 `power-backup.pow`（已存在则不覆盖，保护最初备份），再导入 `.pow` 并激活；导入后方案会被统一改名为 **ultimate-performance**（`kirby` 只是 `.pow` 文件的内嵌名，`powercfg /getactivescheme` 显示的是改名后的名字）；恢复时通过 `7 -> 2` 导入 `power-backup.pow` 并激活。

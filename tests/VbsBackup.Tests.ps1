@@ -79,6 +79,12 @@ Describe "VBS backup/restore round-trip (HKCU sandbox)" {
         $bcdNames = @('hypervisorlaunchtype','vsmlaunchtype','isolatedcontext')
         $featureNames = @('FakeHyperVFeature')
 
+        # Feature 快照改为封闭式 mock：真实 Get-WindowsOptionalFeature 依赖 DISM COM，
+        # 在 DISM 组件注册异常的机器上会以"没有注册类"失败并超时约 2 分钟,
+        # 使本用例变成环境依赖测试;restore 用例本就 mock 了 Enable/Disable 同款命令。
+        # 返回 $null 模拟"功能未安装"（Get-VbsFeatureSnapshot 把返回对象视为 Present=$true）
+        Mock Get-WindowsOptionalFeature -ParameterFilter { $FeatureName -eq 'FakeHyperVFeature' } { $null }
+
         Mock bcdedit.exe {
             $global:LASTEXITCODE = 0
             @('Windows Boot Loader', '---------------------', 'hypervisorlaunchtype    Auto')

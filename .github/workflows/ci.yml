@@ -42,6 +42,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # 完整历史：VersionConsistency 测试要读 git tag 与 $script:TweakVersion 比对,
+          # 浅克隆拿不到 tag 会导致该测试在 CI 中永远 Skipped、版本防漂移守卫失效
+          fetch-depth: 0
       - name: Run Pester tests
         shell: pwsh
         run: |

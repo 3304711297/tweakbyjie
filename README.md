@@ -54,8 +54,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
 | 文件 | 用途 | 说明 |
 |---|---|---|
 | `tweakbyjie.ps1` | 主入口（Loader，点源 `Modules/`；也可用 `tweakbyjie.cmd` 启动器自动选择 pwsh/5.1） | 菜单 0–11 的调度入口，需与 `Modules/` 整体保留 |
-| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Backup.*.ps1` 备份闭环 + `Defender.ps1` 安全中心模块 + `Menu.ps1` 菜单调度；缺失任一模块将导致功能不完整 |
-| `ultimate-performance.pow` | 超性能电源计划（`kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本按运行包原始目录结构保留，菜单 7 使用；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
+| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Adapters.ps1` 可注入副作用边界 + `Backup.*.ps1` 备份闭环 + 各功能模块 + `Menu.ps1` 菜单调度；缺失任一模块将导致功能不完整 |
+| `ultimate-performance.pow` | 超性能电源计划（内嵌名 `kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本按运行包原始目录结构保留，菜单 7 使用（导入激活后会被统一改名为 ultimate-performance）；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
 | `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
 | `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
 | `defender-removal.ps1` | Defender 物理移除脚本 | 默认仅 DryRun；只有显式 `-Execute` 才进入不可逆删除流程，不属于普通优化流程 |
