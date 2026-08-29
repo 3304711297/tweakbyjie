@@ -21,7 +21,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run PSScriptAnalyzer
         shell: pwsh
         run: |
@@ -41,7 +41,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # 完整历史：VersionConsistency 测试要读 git tag 与 $script:TweakVersion 比对,
           # 浅克隆拿不到 tag 会导致该测试在 CI 中永远 Skipped、版本防漂移守卫失效
@@ -73,7 +73,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Loader smoke under Windows PowerShell 5.1
         shell: powershell
         env:
@@ -93,7 +93,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # 知识库版本由 tools/knowledge.lock.json 锁定,同一 commit 审计结果可复现;
       # 先确认锁定 commit 仍是 youshouldknow/main 当前最新提交,避免知识库更新后静默使用旧快照。
       - name: Verify knowledge lock is current
@@ -148,7 +148,7 @@ jobs:
       group: release-${{ github.repository }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Resolve released version
         id: ver
         run: |
