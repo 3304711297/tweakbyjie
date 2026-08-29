@@ -39,6 +39,7 @@ function Invoke-DefenderModule {
             Set-Service -Name "WinDefend" -StartupType Disabled -ErrorAction Stop
             Write-Host "[OK] Windows Defender Service stopped and disabled"
             $script:ok++
+            $script:rebootRequired = $true
         } catch {
             Write-Host "[FAIL] Windows Defender Service : $($_.Exception.Message)" -ForegroundColor Red
             $script:fail++
@@ -71,11 +72,13 @@ function Invoke-DefenderModule {
                     Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
                     Write-Host "[OK] Service $svc stopped and disabled"
                     $script:ok++
+                    $script:rebootRequired = $true
                 } catch {
                     & sc.exe config $svc start= disabled *> $null
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "[OK] Service $svc disabled (stop rejected: protected service)"
                         $script:ok++
+                        $script:rebootRequired = $true
                     } else {
                         Write-Host "[FAIL] Service $svc : $($_.Exception.Message)" -ForegroundColor Red
                         $script:fail++
@@ -97,6 +100,7 @@ function Invoke-DefenderModule {
                     Unregister-ScheduledTask -TaskName $task.TaskName -TaskPath $task.TaskPath -Confirm:$false -ErrorAction Stop
                     Write-Host ("[OK] Task deleted: {0}{1}" -f $task.TaskPath, $task.TaskName)
                     $script:ok++
+                    $script:rebootRequired = $true
                 } catch {
                     Write-Host ("[FAIL] Task {0}{1} : {2}" -f $task.TaskPath, $task.TaskName, $_.Exception.Message) -ForegroundColor Red
                     $script:fail++
@@ -117,6 +121,7 @@ function Invoke-DefenderModule {
                     Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -ErrorAction Stop
                     Write-Host ("[OK] Startup entry removed: {0} -> {1}" -f $item.Path, $item.Name)
                     $script:ok++
+                    $script:rebootRequired = $true
                 } catch {
                     Write-Host ("[FAIL] Startup entry {0} -> {1} : {2}" -f $item.Path, $item.Name, $_.Exception.Message) -ForegroundColor Red
                     $script:fail++
@@ -137,6 +142,7 @@ function Invoke-DefenderModule {
                     $secApp | Remove-AppxPackage -ErrorAction Stop
                     Write-Host "[OK] SecHealthUI (Windows Security app) removed"
                     $script:ok++
+                    $script:rebootRequired = $true
                 } else {
                     Write-Host "[SKIP] SecHealthUI not found" -ForegroundColor Yellow
                     $script:skip++

@@ -1,15 +1,25 @@
 ﻿# Backup.Service.ps1 - Part 6 服务快照与恢复
 # 被 tweakbyjie.ps1 点源加载，共享 $script:ok/$fail/$skip/$rebootRequired
 
-$script:serviceManagedNames = @(
+# 服务清单单一事实源：三个分组在此唯一定义，$script:serviceManagedNames 由分组并集派生。
+# Service.ps1 的执行分组与 Restore-ServiceBackup 的恢复校验都引用本清单——
+# 两份手抄清单一旦漂移，用户手里的 service-backup.json 会在 schema 校验阶段直接失败。
+$script:serviceGroupA = @(
     'DialogBlockingService','TrkWks','AppVClient','MsKeyboardFilter',
     'NetTcpPortSharing','CscService','ssh-agent','RemoteRegistry',
     'RemoteAccess','SensorDataService','SensrSvc','shpamsvc',
     'UevAgentService','WalletService','wisvc','WSAIFabricSvc',
-    'dmwappushservice','DusmSvc','tzautoupdate','edgeupdate','edgeupdatem',
-    'DPS','WdiServiceHost','WdiSystemHost','diagsvc','PhoneSvc','PcaSvc',
-    'Spooler','WSearch','SysMain','XboxGipSvc','XblAuthManager',
-    'XboxNetApiSvc','XblGameSave','bthserv','embeddedmode','BITS'
+    'dmwappushservice','DusmSvc','tzautoupdate','edgeupdate','edgeupdatem'
+)
+$script:serviceGroupB = @(
+    'DPS','WdiServiceHost','WdiSystemHost','diagsvc',
+    'PhoneSvc','PcaSvc','Spooler','WSearch','SysMain'
+)
+$script:serviceManualGroup = @(
+    'XboxGipSvc','XblAuthManager','XboxNetApiSvc','XblGameSave','bthserv','embeddedmode','BITS'
+)
+$script:serviceManagedNames = @(
+    $script:serviceGroupA + $script:serviceGroupB + $script:serviceManualGroup | Select-Object -Unique
 )
 
 function Convert-ServiceStartMode {

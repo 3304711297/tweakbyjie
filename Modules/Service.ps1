@@ -17,28 +17,17 @@ function Invoke-ServiceModule {
         Request-Restart
     } elseif ($serviceChoice -eq '1') {
 
-    # 1) Disable service groups
+    # 1) Disable service groups（分组清单单一事实源在 Modules/Backup.Service.ps1）
     # A：通常可在不需要对应功能时禁用
     Write-Host "[Service Group A: 通常可禁用 / stop + disable]" -ForegroundColor Cyan
-    $groupAServices = @(
-        "DialogBlockingService","TrkWks","AppVClient","MsKeyboardFilter",
-        "NetTcpPortSharing","CscService","ssh-agent","RemoteRegistry",
-        "RemoteAccess","SensorDataService","SensrSvc","shpamsvc",
-        "UevAgentService","WalletService","wisvc","WSAIFabricSvc",
-        "dmwappushservice","DusmSvc","tzautoupdate","edgeupdate","edgeupdatem"
-    )
+    $groupAServices = $script:serviceGroupA
 
     # B：按需禁用，可能影响诊断、兼容性、打印、搜索或预读功能
     Write-Host "[Service Group B: 按需禁用 / stop + disable]" -ForegroundColor Cyan
-    $groupBServices = @(
-        "DPS","WdiServiceHost","WdiSystemHost","diagsvc",
-        "PhoneSvc","PcaSvc","Spooler","WSearch","SysMain"
-    )
+    $groupBServices = $script:serviceGroupB
 
     $disableServices = @($groupAServices + $groupBServices)
-    $manualServices = @(
-        "XboxGipSvc","XblAuthManager","XboxNetApiSvc","XblGameSave","bthserv","embeddedmode","BITS"
-    )
+    $manualServices = $script:serviceManualGroup
     $allServiceNames = @($disableServices + $manualServices)
     if (-not (Ensure-ServiceBackup $allServiceNames)) {
         Write-Host "[ABORTED] 服务备份不可用，未修改服务" -ForegroundColor Red

@@ -2,6 +2,23 @@ BeforeAll {
     . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
 }
 
+# 服务清单单一事实源契约：执行分组（Service.ps1 引用）与恢复校验（Restore-ServiceBackup）
+# 必须出自同一份定义（Modules/Backup.Service.ps1），防止两份手抄清单漂移
+Describe "Service list single-source contract" {
+    It "managed names equal the unique union of the three groups" {
+        $union = @($script:serviceGroupA + $script:serviceGroupB + $script:serviceManualGroup)
+        $union.Count | Should -Be 37
+        @($union | Sort-Object -Unique).Count | Should -Be $union.Count
+        @($script:serviceManagedNames | Sort-Object) | Should -Be (@($union | Sort-Object))
+    }
+
+    It "every group member is covered by restore validation" {
+        foreach ($name in @($script:serviceGroupA + $script:serviceGroupB + $script:serviceManualGroup)) {
+            $script:serviceManagedNames | Should -Contain $name
+        }
+    }
+}
+
 # MPO：备份/恢复完全走 HKCU 沙盒真实往返（快照走注册表提供程序，恢复走 reg.exe）
 Describe "MPO backup/restore round-trip (HKCU sandbox)" {
     BeforeAll {

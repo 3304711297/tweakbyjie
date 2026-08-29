@@ -45,6 +45,7 @@ function Invoke-TestModeEnableModule {
     Write-Host " Finished (Part 3 - Enable Test Mode)" -ForegroundColor Cyan
     Write-Host " OK : $script:ok" -ForegroundColor Green
     Write-Host " FAIL : $script:fail" -ForegroundColor Red
+    Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "提示：开启测试模式后桌面右下角会显示「测试模式」水印，属正常现象。" -ForegroundColor Yellow
@@ -79,6 +80,7 @@ function Invoke-TestModeDisableModule {
     Write-Host " Finished (Part 4 - Disable Test Mode)" -ForegroundColor Cyan
     Write-Host " OK : $script:ok" -ForegroundColor Green
     Write-Host " FAIL : $script:fail" -ForegroundColor Red
+    Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
     Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Host '提示：测试模式已关闭，桌面右下角的"测试模式"水印将在重启后消失。' -ForegroundColor Yellow

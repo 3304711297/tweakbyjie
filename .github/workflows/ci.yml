@@ -55,11 +55,13 @@ jobs:
           $config.Output.Verbosity = "Detailed"
           $config.CodeCoverage.Enabled = $true
           $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
-          $config.CodeCoverage.CoveragePercentTarget = 15
+          # 覆盖率门禁:2026-08-28 实测 54.3%,阈值取 50% ——低于此值说明新增代码无测试即失败
+          $config.CodeCoverage.CoveragePercentTarget = 50
           Invoke-Pester -Configuration $config
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        # v6.0.0:运行时 Node 24,消除 v4 的 Node.js 20 弃用告警;输入输出与 v4 兼容
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pester-coverage-${{ github.run_number }}
           path: coverage.xml
