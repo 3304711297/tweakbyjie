@@ -61,7 +61,7 @@ jobs:
       - name: Upload coverage report
         if: always()
         # v6.0.0:运行时 Node 24,消除 v4 的 Node.js 20 弃用告警;输入输出与 v4 兼容
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pester-coverage-${{ github.run_number }}
           path: coverage.xml
