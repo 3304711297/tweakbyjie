@@ -199,8 +199,38 @@ function Verify-HypervisorRuntime {
 
 function Test-ConfirmChoice {
     # 统一的 Y/N 确认入口：返回 $true 仅当用户输入 Y/y
+    # -AcceptDefaults（无人值守）模式下自动接受模块内确认；退出重启提示单独处理（见 Invoke-FinalRestartPrompt）
     param([string]$Prompt)
+    if ($script:TweakAcceptDefaults) {
+        Write-Host "[AUTO] -AcceptDefaults 无人值守模式：自动接受确认（$Prompt）" -ForegroundColor Yellow
+        return $true
+    }
     return (& $script:TweakAdapters.Confirm $Prompt)
+}
+
+function Test-HighRiskConfirmation {
+    <#
+        高风险确认入口（菜单 5 关闭安全中心 / 菜单 9 清除 Device Guard EFI 锁专用）：
+        将普通 Y/N 升级为完整短语确认（默认 I-UNDERSTAND-RISK，区分大小写），
+        错误短语、空输入一律取消且不触发执行。
+        -AcceptDefaults 无人值守模式下自动接受（该参数的定义即"显式请求无人值守执行，
+        并接受该模块定义的默认风险行为"）。
+    #>
+    param([string]$Prompt, [string]$Phrase = 'I-UNDERSTAND-RISK')
+    if ($script:TweakAcceptDefaults) {
+        Write-Host "[AUTO] -AcceptDefaults 无人值守模式：自动接受高风险确认（$Prompt）" -ForegroundColor Yellow
+        return $true
+    }
+    Write-Host ""
+    Write-Host "[高风险操作] $Prompt" -ForegroundColor Yellow
+    Write-Host ("请完整输入确认短语 {0} 后回车；输入其他任何内容或直接回车都会取消执行。" -f $Phrase) -ForegroundColor Yellow
+    $phraseInput = Read-Host '确认短语'
+    if ($phraseInput -cne $Phrase) {
+        Write-Host "[SKIP] 确认短语不匹配，已取消执行，未做任何修改。" -ForegroundColor Yellow
+        $script:skip++
+        return $false
+    }
+    return $true
 }
 
 function Get-PowerPlanDuplicateGroups {
@@ -260,6 +290,11 @@ function Request-Restart {
 
 function Invoke-FinalRestartPrompt {
     if (-not $script:rebootRequired) { Write-Host '[完成] 当前会话没有待重启修改。' -ForegroundColor Green; return }
+    if ($script:TweakAcceptDefaults) {
+        # 无人值守模式：重启属于会话级收尾，维持默认"不重启"，绝不自动重启机器
+        Write-Host '[AUTO] -AcceptDefaults 无人值守模式：默认不重启；待重启修改已保留，请稍后自行重启。' -ForegroundColor Yellow
+        return
+    }
     Write-Host ''; Write-Host '============================================================' -ForegroundColor Cyan
     Write-Host ' 本次会话存在待重启修改 / Restart Pending' -ForegroundColor Yellow
     if ($script:fail -gt 0) { Write-Host " [警告] 本次会话存在 $($script:fail) 个失败或验证失败项；重启不会自动解决失败项。" -ForegroundColor Red }

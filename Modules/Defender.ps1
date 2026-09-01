@@ -54,7 +54,7 @@ function Invoke-DefenderModule {
     Write-Host "[删除类优化 / Deletion-type Optimizations]" -ForegroundColor Cyan
     Write-Host " 包括：停止并禁用 Defender 相关服务、删除 Defender 计划任务、" -ForegroundColor Gray
     Write-Host " 删除安全中心自启动项、移除安全中心界面 (SecHealthUI)。" -ForegroundColor Gray
-    if (Test-ConfirmChoice "是否执行删除类优化？Y = 确定 / N = 取消跳过") {
+    if (Test-HighRiskConfirmation "是否执行删除类优化？（停止并禁用 Defender 服务、删除计划任务、移除安全中心界面；恢复请用子选项 2 快照恢复）") {
 
         # 1) Stop + disable Defender related services
         Write-Host ""

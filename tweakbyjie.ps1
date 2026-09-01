@@ -18,7 +18,10 @@
 
 param(
     # 非交互执行指定模块：编号 0-11，支持逗号分隔（如 -RunModule '7,11'）；省略则进入交互菜单
-    [string]$RunModule = ''
+    [string]$RunModule = '',
+    # 仅能与 -RunModule 组合使用：显式请求无人值守执行，并接受该模块定义的默认风险行为
+    # （模块内确认自动接受；退出时的重启维持默认"不重启"）。不等于"自动执行一切危险操作"。
+    [switch]$AcceptDefaults
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,6 +104,9 @@ $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-back
 $script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
 
+# 无人值守标志默认值（点源加载场景下也保持 $false，确认层读取不报未定义）
+$script:TweakAcceptDefaults = $false
+
 # 缺模块自检
 $__tweakModules = @(
     'Modules/Common.ps1',
@@ -121,6 +127,7 @@ $__tweakModules = @(
     'Modules/Registry.ps1',
     'Modules/Service.ps1',
     'Modules/Virtualization.ps1',
+    'scripts/preflight.ps1',
     'Modules/Menu.ps1'
 )
 foreach ($__m in $__tweakModules) {
@@ -142,6 +149,14 @@ foreach ($__m in $__tweakModules) {
 Remove-Variable __tweakModules,__m,__p -ErrorAction SilentlyContinue
 
 if ($__isScript) {
+    # -AcceptDefaults 语义守卫：仅在与 -RunModule 组合时生效，不单独存在
+    if ($AcceptDefaults -and -not ($RunModule -and $RunModule.Trim())) {
+        Write-Host "[ERROR] -AcceptDefaults 仅能与 -RunModule 组合使用（显式请求无人值守执行）；单独使用视为参数误用。" -ForegroundColor Red
+        try { Stop-Transcript } catch {}
+        exit (Get-TweakExitCode -InvalidInput)
+    }
+    # 无人值守标志：确认层（Test-ConfirmChoice / Test-HighRiskConfirmation）读取
+    $script:TweakAcceptDefaults = [bool]$AcceptDefaults
     $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
