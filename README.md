@@ -107,16 +107,20 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -AcceptDefaults  
 
 ## `tweakbyjie.ps1` 菜单
 
-| 选项 | 功能 | 主要内容 |
-|---|---|---|
-| **1** | 核心游戏 / 系统性能优化 | GameDVR、GameBar、MMCSS、CPU 调度、HAGS、Prefetch、Memory Compression、NTFS 8.3、TRIM、视觉效果和 CPU 安全缓解 |
-| **2** | 高级 BCD / 计时器与启动安全 | 计时器、`nx`、TPM Boot Entropy、完整性检查；高风险，使用 BCD 快照 |
-| **3** | 开启测试模式 | `testsigning`、调试和 `nointegritychecks`；仅用于测试/调试环境 |
-| **4** | 关闭测试模式 | 删除 `testsigning`、`debug`，但按当前脚本行为保留 `nointegritychecks` |
-| **5** | 关闭安全中心 | Defender、SmartScreen 和安全中心策略；部分分支还会删除服务、任务、启动项或 `SecHealthUI` |
-| **6** | 服务优化 | 30 个服务设为 Disabled、7 个服务设为 Manual；修改前保存 `service-backup.json`，子选项 2 恢复启动类型 |
-| **7** | 超性能电源计划 | 备份当前计划后导入 `ultimate-performance.pow`，支持恢复备份 |
-| **8** | 原生 NVMe 驱动 | 需要 ViVeTool 和符合条件的系统/设备；使用 `nvme-backup.json`，重启后检查驱动状态 |
-| **9** | 清除 Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 |
-| **10** | 虚拟化 / VBS / Hyper-V | 查看、关闭或删除脚本覆盖并尝试启用 Hyper-V；恢复不是原始状态精确回滚 |
-| **11** | MPO 设置管理 | 三种互斥的社区排障方案，首次修改前备份，子选项 4 恢复 |
+知识库同步维护了一份按模块聚合的 [tweakbyjie 覆盖矩阵](https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/)（模块 ↔ 文章，由知识库 front matter 自动生成）；下表「详见」列指向每个模块对应的知识文章。
+
+| 选项 | 功能 | 主要内容 | 详见 youshouldknow |
+|---|---|---|---|
+| **1** | 核心游戏 / 系统性能优化 | GameDVR、GameBar、MMCSS、CPU 调度、HAGS、Prefetch、Memory Compression、NTFS 8.3、TRIM、视觉效果和 CPU 安全缓解 | [CPU 优化与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/)、[GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+| **2** | 高级 BCD / 计时器与启动安全 | 计时器、`nx`、TPM Boot Entropy、完整性检查；高风险，使用 BCD 快照 | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **3** | 开启测试模式 | `testsigning`、调试和 `nointegritychecks`；仅用于测试/调试环境 | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **4** | 关闭测试模式 | 删除 `testsigning`、`debug`，但按当前脚本行为保留 `nointegritychecks` | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **5** | 关闭安全中心 | Defender、SmartScreen 和安全中心策略；部分分支还会删除服务、任务、启动项或 `SecHealthUI` | [Defender 删除脚本风险与恢复边界](https://3304711297.github.io/youshouldknow/系统知识/Defender删除脚本风险与恢复边界/) |
+| **6** | 服务优化 | 30 个服务设为 Disabled、7 个服务设为 Manual；修改前保存 `service-backup.json`，子选项 2 恢复启动类型 | [Windows 服务优化原则](https://3304711297.github.io/youshouldknow/系统调优与安全/Windows服务优化原则/) |
+| **7** | 超性能电源计划 | 备份当前计划后导入 `ultimate-performance.pow`，支持恢复备份 | [电源计划创建与优化指南](https://3304711297.github.io/youshouldknow/系统知识/电源计划创建与优化指南/) |
+| **8** | 原生 NVMe 驱动 | 需要 ViVeTool 和符合条件的系统/设备；使用 `nvme-backup.json`，重启后检查驱动状态 | [存储与 NVMe 原理](https://3304711297.github.io/youshouldknow/内存与存储/存储与NVMe原理/) |
+| **9** | 清除 Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
+| **10** | 虚拟化 / VBS / Hyper-V | 查看、关闭或删除脚本覆盖并尝试启用 Hyper-V；恢复不是原始状态精确回滚 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
+| **11** | MPO 设置管理 | 三种互斥的社区排障方案，首次修改前备份，子选项 4 恢复 | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+
+链接均指向 [youshouldknow 知识库](https://3304711297.github.io/youshouldknow/) 线上站点（URL 为路径百分号编码）。
