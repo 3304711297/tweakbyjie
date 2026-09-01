@@ -28,7 +28,7 @@ $ErrorActionPreference = "Stop"
 # 版本号：与最新已发布 v* tag 对应（菜单标题会显示）。
 # 约定：源码常量 = 最近一次 Release 的版本；CI 打包时会把"下一个"版本注入 ZIP 内副本，
 # 因此源码常量在发布后天然落后一位属正常，但不得与最新 tag 脱钩（tests/VersionConsistency.Tests.ps1 校验）。
-$script:TweakVersion = '0.2.20'
+$script:TweakVersion = '0.2.21'
 $ok = 0
 $fail = 0
 $skip = 0
