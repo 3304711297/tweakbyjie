@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $scriptPath = Join-Path $PSScriptRoot '../defender-removal.ps1'
     $scriptText = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
 }

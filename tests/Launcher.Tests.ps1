@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $launcherPath = Join-Path $PSScriptRoot '../tweakbyjie.cmd'
     $launcherText = Get-Content -LiteralPath $launcherPath -Raw -Encoding ASCII
 }

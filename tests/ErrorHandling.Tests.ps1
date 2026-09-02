@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $loaderText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../tweakbyjie.ps1') -Raw -Encoding UTF8
     $serviceText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Modules/Service.ps1') -Raw -Encoding UTF8
 }

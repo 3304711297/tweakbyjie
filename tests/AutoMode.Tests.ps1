@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
 }
 
