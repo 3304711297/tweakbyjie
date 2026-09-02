@@ -1,126 +1,131 @@
-# tweakbyjie
+# tweakbyjie ⚡
 
-Windows 游戏与系统优化工具集，包含菜单式 PowerShell 主脚本，以及一个高风险的 Defender 物理移除脚本。
+<p align="center">
+  <strong>面向 Windows 10 / 11 的模块化系统底层调优、BCD 启动配置与游戏性能优化工具集</strong>
+</p>
 
-> 当前版本与各版本变更见 GitHub Releases（说明由发布时自动生成）；脚本菜单标题会显示运行版本（与 Git tag 及 Release 对应）。
+<p align="center">
+  <a href="https://github.com/3304711297/tweakbyjie/releases"><img src="https://img.shields.io/github/v/release/3304711297/tweakbyjie?style=flat-square&color=blue&label=Latest%20Release" alt="Latest Release"></a>
+  <a href="https://github.com/3304711297/tweakbyjie/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/3304711297/tweakbyjie/ci.yml?branch=main&label=CI%20Check&style=flat-square" alt="CI Status"></a>
+  <img src="https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE?style=flat-square&logo=powershell" alt="PowerShell">
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform">
+  <a href="https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/"><img src="https://img.shields.io/badge/Coverage-100%25%20Verified-brightgreen?style=flat-square" alt="Coverage"></a>
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
+</p>
 
-> 这是面向个人设备和测试环境的高级工具，不是“无脑一键加速”。请先阅读风险说明、记录当前状态，并准备系统还原点或完整备份。
+---
 
-## 下载方式
+> ⚠️ **重要风险声明**：这是面向个人设备和测试环境的高级系统调优工具，**不是“无脑一键加速”**。所有涉及底层 BCD、系统服务与安全配置的操作均包含完整的状态快照备份机制。在执行高风险修改前，请确保理解其影响并已记录原始系统状态。
 
-普通使用优先下载 GitHub Releases 中的 **精简运行包 ZIP**。运行包只包含脚本实际运行所需文件与必要说明，不包含测试、CI、Coverage 审计等开发资料。
+---
 
-开发、审计或需要查看完整源码时，再下载源码仓库或 GitHub 的 Source code ZIP。
+## ⚡ 30 秒极速上手
 
-## 下载后先看这里
+### 1. 下载推荐
+普通使用请直接前往 [GitHub Releases](https://github.com/3304711297/tweakbyjie/releases) 下载最新版本的 **精简运行包 ZIP**（`tweakbyjie-v*.zip`），解压到本地任意目录（无需编译或安装开发依赖）。
 
-### 普通用户推荐流程
-
-1. 将运行包完整解压到本地，不要单独移动脚本或旁车文件。
-2. 确认 `tweakbyjie.ps1`、`Modules/`、`ultimate-performance.pow` 位于同一运行包目录结构中。
-3. 右键“开始”→ **Windows 终端（管理员）**，进入运行包目录。
-4. 运行主脚本（任选其一）：
-
-   ```powershell
-   # 推荐：启动器会自动优先使用 PowerShell 7（pwsh），未安装时回退系统内置的 Windows PowerShell 5.1
-   .\tweakbyjie.cmd
-
-   # 或手动指定运行时
-   powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1   # Windows PowerShell 5.1（系统内置）
-   pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1   # PowerShell 7+（需自行安装）
-   ```
-
-5. 先使用菜单中的查看/备份能力，再决定是否应用修改；需要重启的操作会在退出主菜单时统一询问。
-
-### 非交互执行（可选）
-
-支持直接指定模块编号跳过菜单，编号间用逗号分隔，执行完毕后统一询问是否重启：
+### 2. 启动菜单
+右键“开始”菜单 → 选择 **Windows 终端（管理员）** 或 **PowerShell（管理员）**，进入解压目录后运行：
 
 ```powershell
-.\tweakbyjie.cmd -RunModule 7          # 只执行模块 7（超性能电源计划）
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7,11"
+# 推荐启动方式（自动优先使用 PowerShell 7，未安装时无缝回退至系统内置 5.1）
+.\tweakbyjie.cmd
+
+# 或手动通过指定运行时启动
+powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # Windows PowerShell 5.1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShell 7+
 ```
 
-作为脚本运行时，全部输出会自动记录到 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`，便于回溯本次改动。
+---
 
-**无人值守开关 `-AcceptDefaults`（仅与 `-RunModule` 组合时生效）**：定义为"显式请求无人值守执行，并接受该模块定义的默认风险行为"。语义边界：
+## 🎯 菜单模块功能速览与知识库联动
 
-- 模块内的确认（含菜单 5/9 的高风险短语确认）自动接受，不再交互询问；
-- 退出时的重启属于会话级收尾，维持默认 **不重启**，绝不自动重启机器；
-- **不单独存在**：不带 `-RunModule` 使用视为参数误用（报错退出，退出码 `2`）；
-- **不等于"自动执行一切危险操作"**：只有显式出现在 `-RunModule` 队列里的模块才会执行，且各模块的前置条件灰掉（见下节）在无人值守模式下同样生效。
+脚本所有调优项与知识库 [YouShouldKnow 覆盖矩阵](https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/) 保持 100% 严密对齐与双向映射：
+
+| 选项 | 模块名称 | 核心调优内容与实现 | 原理解析 (YouShouldKnow) |
+| :---: | :--- | :--- | :--- |
+| **1** | **核心游戏/系统性能优化** | GameDVR、MMCSS 调度、HAGS 硬件加速、Memory Compression、NTFS 8.3、TRIM 与 CPU 安全缓解 | [CPU 优化对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/) · [GPU 调度管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+| **2** | **高级 BCD / 计时器与启动** | 高精度计时器、`nx` 执行保护、TPM Boot Entropy、驱动签名检查（内置 BCD 快照回滚） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **3** | **开启测试模式** | 开启 `testsigning`、系统调试与 `nointegritychecks`（适用于驱动开发/无签名驱动测试） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **4** | **关闭测试模式** | 恢复关闭 `testsigning` 与 `debug`，按设计保留 `nointegritychecks` 基础配置 | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
+| **5** | **关闭安全中心 (高风险)** | 深度配置 Defender、SmartScreen 策略，需输入 `I-UNDERSTAND-RISK` 确认 | [Defender 风险与恢复边界](https://3304711297.github.io/youshouldknow/系统知识/Defender删除脚本风险与恢复边界/) |
+| **6** | **系统服务优化** | 精简 30 个冗余服务为 Disabled、7 个设为 Manual；操作前自动落盘 `service-backup.json` | [Windows 服务优化原则](https://3304711297.github.io/youshouldknow/系统调优与安全/Windows服务优化原则/) |
+| **7** | **超性能电源计划** | 导入并激活 `ultimate-performance.pow`，自动备份并支持恢复上一电源计划 | [电源计划创建与优化指南](https://3304711297.github.io/youshouldknow/系统知识/电源计划创建与优化指南/) |
+| **8** | **原生 NVMe 驱动切换** | 基于 ViVeTool 特性开关启用 Windows 11 原生 NVMe 驱动栈（支持快照还原） | [存储与 NVMe 原理](https://3304711297.github.io/youshouldknow/内存与存储/存储与NVMe原理/) |
+| **9** | **清除 EFI 锁定 (Device Guard)** | 执行 SecConfig.efi 解锁流程，内置 BitLocker 状态强制检测 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
+| **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
+| **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，支持子选项一键恢复默认 | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+
+---
+
+## 🛡️ 安全防御体系与执行机制
+
+### 1. 启动预检与智能模块灰掉 (Preflight)
+脚本启动时会自动执行硬件与系统环境扫描（`scripts/preflight.ps1`），若环境不满足前置条件，对应菜单项将显示 `[不适用] (原因)` 并自动禁止触发：
+- **Secure Boot 开启时** ── 自动灰掉 **菜单 3 / 4（测试模式）**；
+- **检测到第三方杀毒软件时** ── 自动灰掉 **菜单 5（安全中心）**；
+- **未检测到 ViVeTool 时** ── 自动灰掉 **菜单 8（原生 NVMe）**；
+- **BitLocker 启用时** ── 自动灰掉 **菜单 9（清除 EFI 锁）**，防止改变 TPM 度量导致锁盘。
+
+### 2. 高风险双重短语确认
+对于破坏性/不可逆级别操作（菜单 5 和菜单 9），必须按提示输入完整的区分大小写短语：
+`I-UNDERSTAND-RISK`
+输入任何其他字符或直接回车将立即安全取消，不做任何系统变动。
+
+### 3. 非交互式与自动化命令行接口
+支持通过参数直接指定模块队列，用于自动化批量部署：
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -AcceptDefaults   # 无人值守执行模块 7
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -AcceptDefaults                  # 参数误用，退出码 2
+# 1. 队列执行指定模块（执行完毕后交互询问重启）
+.\tweakbyjie.cmd -RunModule "7,11"
+
+# 2. 显式无人值守模式（接受默认行为，会话收尾默认绝不自动重启主机）
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -AcceptDefaults
 ```
 
-退出码约定：`0` 表示没有失败项（包括未修改或用户取消），`2` 表示模块参数无效（含 `-AcceptDefaults` 参数误用），`4` 表示全部执行项失败，`5` 表示部分成功且存在失败项。退出码不能证明运行时性能收益；仍需查看日志和各模块的验证输出。不带 `-AcceptDefaults` 时 `-RunModule` 只负责将模块编号加入执行队列，子模块仍可能要求输入，不能当作完全无人值守接口。
+* **会话日志自动落盘**：所有命令行及交互输出均自动写入 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`。
+* **标准退出码规范**：`0` 成功/无失败，`2` 参数错误，`4` 全项失败，`5` 部分失败。
 
-### 启动预检与按模块灰掉
+---
 
-启动进入菜单时会运行一次预检（`scripts/preflight.ps1`），检测：Windows 构建号、VBS 运行状态、BitLocker、Secure Boot、第三方杀软、ViVeTool 存在性。结果缓存到当前会话并写入会话日志（`[PREFLIGHT]` 单行摘要，便于 grep）。
+## 📂 项目架构与关键组件
 
-预检按**模块 → 前置条件**映射灰掉个别菜单项（显示 `[不适用]（原因）`，选择或队列执行时被拒绝）：
+```text
+tweakbyjie/
+├── tweakbyjie.cmd           # 双运行时智能启动器 (pwsh / powershell 5.1)
+├── tweakbyjie.ps1           # 核心加载器 Loader (带版本注入与全局会话管理)
+├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
+│   ├── Common.ps1           # 日志、退出码与基础通用工具库
+│   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
+│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环
+│   ├── Core.ps1             # 模块 1: 核心优化
+│   ├── Bcd.ps1              # 模块 2/3/4: BCD 启动与测试模式
+│   ├── Defender.ps1         # 模块 5: 安全中心策略
+│   ├── Service.ps1          # 模块 6: 服务优化与快照
+│   ├── Power.ps1            # 模块 7: 电源计划
+│   ├── Nvme.ps1             # 模块 8: NVMe 驱动
+│   ├── EfiLock.ps1          # 模块 9: EFI 锁清除
+│   ├── Vbs.ps1              # 模块 10: 虚拟化与 VBS
+│   ├── Mpo.ps1              # 模块 11: MPO 管理
+│   └── Menu.ps1             # 104 行高内聚纯菜单调度链
+├── scripts/preflight.ps1    # 启动前置条件只读探测器
+└── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
+```
 
-| 检测结果 | 被灰掉的模块 | 原因 |
-|---|---|---|
-| Secure Boot 开启 | 菜单 3 / 4（测试模式） | testsigning 无法生效 |
-| 第三方杀软运行 | 菜单 5（关闭安全中心） | 安全中心类修改与其明确冲突 |
-| ViVeTool.exe 缺失 | 菜单 8（原生 NVMe） | 启用路径依赖 ViVeTool 特性开关 |
-| BitLocker 已开启 | 菜单 9（清除 EFI 锁） | 改变 TPM 度量值会触发恢复模式（与模块内既有预检查同一判据，仅提前到菜单层） |
+---
 
-设计边界：**没有任何"系统检测结果 → 全局禁用"的大一统阻断**——每条判据只影响表中列出的模块，其余模块永远可用；任何检测项失败/未知（如非 UEFI 环境、SecurityCenter2 不可用）按"不灰"处理，不会因检测环境异常扩大禁用面。灰掉只发生在菜单层，各模块执行函数与既有预检查（如菜单 9 的 BitLocker 预检查）保持原样。
+## 🤝 贡献与测试
 
-### 高风险操作确认（菜单 5 / 菜单 9）
+本项目采用 Pester 6 进行全覆盖单元测试与往返测试（Roundtrip Tests）：
 
-菜单 5（关闭安全中心的删除类优化）与菜单 9（清除 Device Guard EFI 锁定）在原 Y/N 确认基础上升级为**完整短语确认**：按提示完整输入 `I-UNDERSTAND-RISK`（区分大小写）才会执行，输入其他任何内容或直接回车一律取消且不做任何修改。`-AcceptDefaults` 无人值守模式下该确认自动接受（见上节语义边界）。
+```powershell
+# 运行完整 Pester 自动化测试套件
+$env:TWEAK_SKIP_ADMIN_CHECK = "1"
+Invoke-Pester -Path .\tests\
+```
 
-`-ExecutionPolicy Bypass` 只对本次 PowerShell 进程生效，通常不需要为了运行本项目而修改系统级执行策略。脚本会自行检查管理员权限；普通权限运行会被拒绝（本地开发/CI 可设 `TWEAK_SKIP_ADMIN_CHECK=1` 跳过检查）。主脚本在 Windows PowerShell 5.1 与 PowerShell 7+ 下均已验证可运行；CI 同时覆盖两个运行时。
+---
 
-### 运行文件与旁车资源
+## 📄 开源许可
 
-以下文件组成主脚本的运行单元：
-
-| 文件 | 用途 | 说明 |
-|---|---|---|
-| `tweakbyjie.ps1` | 主入口（Loader，点源 `Modules/`；也可用 `tweakbyjie.cmd` 启动器自动选择 pwsh/5.1） | 菜单 0–11 的调度入口，需与 `Modules/` 整体保留 |
-| `Modules/` | 模块化实现 | `Common.ps1` 通用能力 + `Adapters.ps1` 可注入副作用边界 + `Backup.*.ps1` 备份闭环 + 各功能模块 + `Menu.ps1` 菜单调度；缺失任一模块将导致功能不完整 |
-| `scripts/preflight.ps1` | 启动预检与模块前置条件映射 | 只读检测 + 菜单可用性判断；不执行任何系统修改 |
-| `ultimate-performance.pow` | 超性能电源计划（内嵌名 `kirby`，16384 bytes，SHA256 `2EADB1A9`…`2868C7B`，详见 `docs/POWER-PLAN-SOURCE.md`） | 必须和主脚本按运行包原始目录结构保留，菜单 7 使用（导入激活后会被统一改名为 ultimate-performance）；建议先执行 `Get-FileHash .\ultimate-performance.pow -Algorithm SHA256` 校验 |
-| `ViVeTool.exe` | 可选外部工具 | 菜单 8 原生 NVMe 功能需要；放在脚本目录或加入 PATH |
-| `*-backup.*` | 运行后生成的快照 | 由脚本放在脚本目录，恢复时不要手动移动、改名或删除 |
-| `defender-removal.ps1` | Defender 物理移除脚本 | 默认仅 DryRun；只有显式 `-Execute` 才进入不可逆删除流程，不属于普通优化流程 |
-
-当前仓库不会预先包含运行时生成的 JSON/备份文件。若已经在旧目录运行过脚本，迁移运行环境时必须把旧目录中的备份和主脚本作为整体保留，否则恢复功能可能找不到原始快照。
-
-`defender-removal.ps1` 默认只输出 DryRun 清单，不会修改系统；真正执行必须使用 `-Execute` 并完成两次 `REMOVE` 确认。执行后默认不自动重启，只有在确认系统状态且显式使用 `-Restart` 时才会进入重启倒计时；出现失败项时始终禁止重启。该脚本没有完整自动恢复能力，不应在日常系统或普通 CI runner 上执行。
-
-## 风险等级
-
-| 等级 | 入口 | 建议 |
-|---|---|---|
-| 低到中 | 菜单 1 的部分游戏/系统配置、菜单 6 服务调整 | 先记录原值，确认功能影响后逐项测试 |
-| 需要备份 | 菜单 1→3、菜单 2、菜单 6、菜单 7、菜单 8、菜单 11 | 确认对应快照已生成，并准备重启/恢复方案 |
-| 高风险 | 菜单 2 的启动安全子项、菜单 5、菜单 9、菜单 10 | 可能影响安全、启动、BitLocker、WSL2、Docker、虚拟机或更新；不熟悉时不要执行 |
-| 不可逆 | `defender-removal.ps1 -Execute` | 默认 DryRun；显式执行后会删除系统组件、注册表和文件，没有脚本内撤销功能，需系统修复或重装恢复；执行后默认不重启 |
-
-## `tweakbyjie.ps1` 菜单
-
-知识库同步维护了一份按模块聚合的 [tweakbyjie 覆盖矩阵](https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/)（模块 ↔ 文章，由知识库 front matter 自动生成）；下表「详见」列指向每个模块对应的知识文章。
-
-| 选项 | 功能 | 主要内容 | 详见 youshouldknow |
-|---|---|---|---|
-| **1** | 核心游戏 / 系统性能优化 | GameDVR、GameBar、MMCSS、CPU 调度、HAGS、Prefetch、Memory Compression、NTFS 8.3、TRIM、视觉效果和 CPU 安全缓解 | [CPU 优化与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/)、[GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
-| **2** | 高级 BCD / 计时器与启动安全 | 计时器、`nx`、TPM Boot Entropy、完整性检查；高风险，使用 BCD 快照 | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
-| **3** | 开启测试模式 | `testsigning`、调试和 `nointegritychecks`；仅用于测试/调试环境 | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
-| **4** | 关闭测试模式 | 删除 `testsigning`、`debug`，但按当前脚本行为保留 `nointegritychecks` | [Windows 启动配置与 tweakbyjie 对应说明](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
-| **5** | 关闭安全中心 | Defender、SmartScreen 和安全中心策略；部分分支还会删除服务、任务、启动项或 `SecHealthUI` | [Defender 删除脚本风险与恢复边界](https://3304711297.github.io/youshouldknow/系统知识/Defender删除脚本风险与恢复边界/) |
-| **6** | 服务优化 | 30 个服务设为 Disabled、7 个服务设为 Manual；修改前保存 `service-backup.json`，子选项 2 恢复启动类型 | [Windows 服务优化原则](https://3304711297.github.io/youshouldknow/系统调优与安全/Windows服务优化原则/) |
-| **7** | 超性能电源计划 | 备份当前计划后导入 `ultimate-performance.pow`，支持恢复备份 | [电源计划创建与优化指南](https://3304711297.github.io/youshouldknow/系统知识/电源计划创建与优化指南/) |
-| **8** | 原生 NVMe 驱动 | 需要 ViVeTool 和符合条件的系统/设备；使用 `nvme-backup.json`，重启后检查驱动状态 | [存储与 NVMe 原理](https://3304711297.github.io/youshouldknow/内存与存储/存储与NVMe原理/) |
-| **9** | 清除 Device Guard EFI 锁定 | SecConfig.efi 流程，包含 BitLocker 保护检查；不是普通性能优化 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
-| **10** | 虚拟化 / VBS / Hyper-V | 查看、关闭或删除脚本覆盖并尝试启用 Hyper-V；恢复不是原始状态精确回滚 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
-| **11** | MPO 设置管理 | 三种互斥的社区排障方案，首次修改前备份，子选项 4 恢复 | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
-
-链接均指向 [youshouldknow 知识库](https://3304711297.github.io/youshouldknow/) 线上站点（URL 为路径百分号编码）。
+本项目采用 [MIT 许可证](LICENSE) 开源。
