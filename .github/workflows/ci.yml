@@ -171,7 +171,8 @@ jobs:
             ultimate-performance.pow \
             README.md \
             LICENSE \
-            Modules
+            Modules \
+            scripts
           sha256sum "tweakbyjie-${V}.zip" > SHA256SUMS.txt
       - name: Create GitHub Release with generated notes
         env:
