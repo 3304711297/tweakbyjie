@@ -65,9 +65,19 @@ def check_source(name, cfg):
     release_data = api_get(f"https://api.github.com/repos/{repo}/releases/latest")
     latest_release = release_data.get("tag_name", "") if release_data else ""
 
-    has_update = (latest_sha_short and last_commit and latest_sha_short != last_commit) or (
-        latest_release and last_release and latest_release != last_release
+    sha_matches = (
+        latest_sha.startswith(last_commit) or last_commit.startswith(latest_sha_short)
+        if (latest_sha and last_commit)
+        else True
     )
+    release_matches = (
+        latest_release == last_release
+        if (latest_release and last_release)
+        else True
+    )
+    rel_1 = latest_release.lstrip("v") if latest_release else ""
+    rel_2 = last_release.lstrip("v") if last_release else ""
+    has_update = (not sha_matches) or (bool(rel_1) and bool(rel_2) and rel_1 != rel_2)
 
     return {
         "name": name,

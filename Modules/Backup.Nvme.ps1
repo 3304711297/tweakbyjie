@@ -154,18 +154,40 @@ function Restore-NvmeSafeBootBackup {
         } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
         foreach ($r in @($backup.SafeBoot)) {
             if (-not (Test-NvmeSafeBootPath $r $Guid)) { throw "SafeBoot 路径与受管理 GUID 不一致：$($r.Path)" }
-            $regPath = Convert-RegExePath ("HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$($r.Mode)\$Guid")
+            $psPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$($r.Mode)\$Guid"
+            $regPath = Convert-RegExePath $psPath
             if ([bool]$r.Present) {
                 $regType = if ([string]$r.Kind -eq 'String') { 'REG_SZ' } else { throw "不支持的 SafeBoot 类型：$($r.Kind)" }
                 & reg.exe ADD $regPath /ve /t $regType /d ([string]$r.Data) /f *> $null
                 if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true }
             }
-            else { & reg.exe DELETE $regPath /ve /f *> $null; if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ } }
+            else {
+                if (Test-Path $psPath) {
+                    try {
+                        & reg.exe DELETE $regPath /ve /f 2>$null *> $null
+                        if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ }
+                    } catch { $script:skip++ }
+                } else {
+                    $script:skip++
+                }
+            }
         }
         foreach ($r in @($backup.LegacyOverrides)) {
             $regPath = Convert-RegExePath $LegacyPath
-            if ([bool]$r.Present) { & reg.exe ADD $regPath /v $r.Name /t REG_DWORD /d ([uint32]$r.Data) /f *> $null; if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true } }
-            else { & reg.exe DELETE $regPath /v $r.Name /f *> $null; if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ } }
+            if ([bool]$r.Present) {
+                & reg.exe ADD $regPath /v $r.Name /t REG_DWORD /d ([uint32]$r.Data) /f *> $null
+                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ } else { $script:ok++; $script:rebootRequired = $true }
+            }
+            else {
+                if (Test-Path $LegacyPath) {
+                    try {
+                        & reg.exe DELETE $regPath /v $r.Name /f 2>$null *> $null
+                        if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:skip++ }
+                    } catch { $script:skip++ }
+                } else {
+                    $script:skip++
+                }
+            }
         }
         if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else { Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow }
         return $allOk

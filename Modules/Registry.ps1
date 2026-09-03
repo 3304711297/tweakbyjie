@@ -121,6 +121,10 @@ function Invoke-RegistryModule {
         Set-RegDword "HKCU:\Control Panel\Accessibility" "DynamicScrollbars" 1 "始终显示滚动条 OFF"
         Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" "AnimationEffects" 0 "动画效果(辅助功能) OFF"
         Set-RegDword "HKCU:\Control Panel\Accessibility" "MessageDuration" 5 "通知自动关闭时长 = 5 秒"
+        # 吸收 Atom-Tool-Box 高价值安全/系统行为项
+        Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "DisableWpbtExecution" 1 "DisableWpbtExecution (阻止 WPBT 固件自动注入)"
+        Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings" "TaskbarEndTask" 1 "TaskbarEndTask (任务栏右键直接结束任务)"
+        Set-RegDword "HKLM:\Software\Policies\Microsoft\PowerShellCore" "EnableTelemetry" 0 "PowerShellCore EnableTelemetry (关闭遥测)"
         $script:rebootRequired = $true
         Write-Host "视觉效果为 HKCU 设置，注销 / 重启（或重启资源管理器）后完全生效" -ForegroundColor Yellow
 

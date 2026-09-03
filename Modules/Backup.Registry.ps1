@@ -43,7 +43,10 @@ $script:registrySystemValues = @(
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'; Name = 'EnableTransparency'; Desc = 'EnableTransparency' },
     @{ Path = 'HKCU:\Control Panel\Accessibility'; Name = 'DynamicScrollbars'; Desc = 'DynamicScrollbars' },
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'; Name = 'AnimationEffects'; Desc = 'AnimationEffects' },
-    @{ Path = 'HKCU:\Control Panel\Accessibility'; Name = 'MessageDuration'; Desc = 'MessageDuration' }
+    @{ Path = 'HKCU:\Control Panel\Accessibility'; Name = 'MessageDuration'; Desc = 'MessageDuration' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'; Name = 'DisableWpbtExecution'; Desc = 'DisableWpbtExecution (阻止 WPBT 固件自动注入)' },
+    @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'; Name = 'TaskbarEndTask'; Desc = 'TaskbarEndTask (任务栏右键直接结束任务)' },
+    @{ Path = 'HKLM:\Software\Policies\Microsoft\PowerShellCore'; Name = 'EnableTelemetry'; Desc = 'PowerShellCore EnableTelemetry (关闭遥测)' }
 )
 
 function Test-RegistryBackupSchema {

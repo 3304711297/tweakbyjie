@@ -1,13 +1,20 @@
 {
   "version": 1,
-  "last_check": "2026-09-03T22:30:00Z",
+  "last_check": "2026-09-03T23:55:00Z",
   "sources": {
     "Kiwi-Tweaks": {
       "repo": "contactkiwitweaks-stack/Kiwi-Tweaks",
       "branch": "main",
-      "last_synced_commit": "4c042cf",
+      "last_synced_commit": "de2c145",
       "last_synced_release": "v2.0",
       "description": "Kiwi's Tweaking Utility 2.0 (Windows Gaming & DPC Latency Optimizer)"
+    },
+    "Atom-Tool-Box": {
+      "repo": "ProjectAtomOS/Atom-Tool-Box",
+      "branch": "main",
+      "last_synced_commit": "ecf8368",
+      "last_synced_release": "0.1.5",
+      "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)"
     }
   }
 }
