@@ -25,6 +25,7 @@ Write-Host ("   8. 原生 NVMe 驱动{0}" -f (Format-MenuAvailabilitySuffix '8' 
 Write-Host ("   9. 清除 Device Guard EFI 锁定{0}" -f (Format-MenuAvailabilitySuffix '9' $__avail)) -ForegroundColor White
 Write-Host ("  10. 虚拟化 / VBS / Hyper-V 管理{0}" -f (Format-MenuAvailabilitySuffix '10' $__avail)) -ForegroundColor White
 Write-Host ("  11. MPO 设置管理（独立排障）{0}" -f (Format-MenuAvailabilitySuffix '11' $__avail)) -ForegroundColor White
+Write-Host ("  12. 竞技游戏网络 QoS 策略管理（DSCP 46 数据包优先）{0}" -f (Format-MenuAvailabilitySuffix '12' $__avail)) -ForegroundColor White
 Write-Host ""
 Write-Host "提示：一次运行可以连续执行多个模块；修改完成后统一选择是否重启。" -ForegroundColor Yellow
 Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow
@@ -39,14 +40,14 @@ if ($__autoMode -and $__queue.Count -eq 0) {
     Write-Host ""
     Write-Host ("[AUTO] 自动执行模块 " + $choice) -ForegroundColor Cyan
 } else {
-    $choice = Read-Host "请输入 0-11 并回车 (Enter 0-11)"
+    $choice = Read-Host "请输入 0-12 并回车 (Enter 0-12)"
 }
 
 if ($choice -eq "0") {
     Invoke-FinalRestartPrompt
     break
 
-    } elseif ($choice -match '^[1-9]$|^10$|^11$') {
+    } elseif ($choice -match '^[1-9]$|^10$|^11$|^12$') {
         # 按模块前置条件灰掉：不可用模块在选择/队列执行时统一拒绝，不进入执行函数
         $entry = $__avail[$choice]
         if ($entry -and -not $entry.Available) {
@@ -72,9 +73,10 @@ if ($choice -eq "0") {
             '9'  { Invoke-DeviceGuardModule }
             '10' { Invoke-VbsModule }
             '11' { Invoke-MpoModule }
+            '12' { Invoke-GameQosModule }
         }
     } else {
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-11 / Invalid input. Enter 0-11." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-12 / Invalid input. Enter 0-12." -ForegroundColor Red
 }
 }
 }

@@ -1,0 +1,48 @@
+name: upstream-watch
+
+on:
+  schedule:
+    # 每周一、三、五 UTC 02:00 (北京时间 10:00) 运行
+    - cron: '0 2 * * 1,3,5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run upstream check
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/check-upstream.py --report
+
+      - name: Create or update Issue
+        if: steps.check.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="🔔 [Upstream] 检测到上游优化项目有新更新 (${{ steps.check.outputs.update_count }} 项)"
+          EXISTING_ISSUE=$(gh issue list --state open --label "upstream-watch" --json number --jq '.[0].number')
+          if [ -n "$EXISTING_ISSUE" ]; then
+            echo "发现未关闭 Issue #$EXISTING_ISSUE，追加状态..."
+            gh issue comment "$EXISTING_ISSUE" --body-file upstream-report.md
+          else
+            echo "创建新 Issue..."
+            gh issue create \
+              --title "$TITLE" \
+              --body-file upstream-report.md \
+              --label "upstream-watch"
+          fi

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "last_check": "2026-09-03T22:30:00Z",
+  "sources": {
+    "Kiwi-Tweaks": {
+      "repo": "contactkiwitweaks-stack/Kiwi-Tweaks",
+      "branch": "main",
+      "last_synced_commit": "4c042cf",
+      "last_synced_release": "v2.0",
+      "description": "Kiwi's Tweaking Utility 2.0 (Windows Gaming & DPC Latency Optimizer)"
+    }
+  }
+}

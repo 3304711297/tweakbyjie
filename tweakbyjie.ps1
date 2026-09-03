@@ -14,10 +14,11 @@
 #   输入 9 回车 = 清除 Device Guard EFI 锁定（SecConfig.efi 流程）
 #   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（关闭前自动快照 vbs-backup.json；可按快照恢复）
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
+#   输入 12 回车 = 竞技游戏网络 QoS 策略管理（DSCP 46 优先标记，修改前备份，可恢复）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
-    # 非交互执行指定模块：编号 0-11，支持逗号分隔（如 -RunModule '7,11'）；省略则进入交互菜单
+    # 非交互执行指定模块：编号 0-12，支持逗号分隔（如 -RunModule '7,11,12'）；省略则进入交互菜单
     [string]$RunModule = '',
     # 仅能与 -RunModule 组合使用：显式请求无人值守执行，并接受该模块定义的默认风险行为
     # （模块内确认自动接受；退出时的重启维持默认"不重启"）。不等于"自动执行一切危险操作"。
@@ -112,6 +113,7 @@ $__tweakModules = @(
     'Modules/Common.ps1',
     'Modules/Adapters.ps1',
     'Modules/Backup.Mpo.ps1',
+    'Modules/Backup.GameQos.ps1',
     'Modules/Backup.Registry.ps1',
     'Modules/Backup.Bcd.ps1',
     'Modules/Backup.Service.ps1',
@@ -121,6 +123,7 @@ $__tweakModules = @(
     'Modules/Backup.Vbs.ps1',
     'Modules/Bcd.ps1',
     'Modules/Defender.ps1',
+    'Modules/GameQos.ps1',
     'Modules/Mpo.ps1',
     'Modules/Nvme.ps1',
     'Modules/Power.ps1',
@@ -157,11 +160,11 @@ if ($__isScript) {
     }
     # 无人值守标志：确认层（Test-ConfirmChoice / Test-HighRiskConfirmation）读取
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
-    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11')
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {
-        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-11）" -ForegroundColor Red
+        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-12）" -ForegroundColor Red
         try { Stop-Transcript } catch {}
         exit (Get-TweakExitCode -InvalidInput)
     }
