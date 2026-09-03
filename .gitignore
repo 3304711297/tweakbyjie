@@ -30,4 +30,6 @@ Thumbs.db
 
 # ZCode session data
 .zcode/
+.serena/
+.hermes/
 .bak*
