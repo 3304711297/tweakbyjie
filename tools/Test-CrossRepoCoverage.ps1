@@ -31,7 +31,7 @@ function Get-LocalFile {
 
 function Get-Ids {
     param([string]$Text)
-    $pattern = '(?<![A-Z0-9])(?:CORE|CPU|GPU|MEMORY|STORAGE|SECURITY|SERVICE|BOOT|POWER|REGISTRY)-\d{3}(?![A-Z0-9])'
+    $pattern = '(?<![A-Z0-9])(?:CORE|CPU|GPU|MEMORY|STORAGE|SECURITY|SERVICE|BOOT|POWER|REGISTRY|GAMEQOS)-\d{3}(?![A-Z0-9])'
     return @([regex]::Matches($Text, $pattern) | ForEach-Object Value | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 }
 
