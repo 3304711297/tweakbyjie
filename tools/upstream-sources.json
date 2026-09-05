@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_check": "2026-09-03T23:55:00Z",
+  "last_check": "2026-09-05T05:30:00Z",
   "sources": {
     "Kiwi-Tweaks": {
       "repo": "contactkiwitweaks-stack/Kiwi-Tweaks",
@@ -15,6 +15,20 @@
       "last_synced_commit": "ecf8368",
       "last_synced_release": "0.1.5",
       "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)"
+    },
+    "MPO-GPU-FIX": {
+      "repo": "RedDot-3ND7355/MPO-GPU-FIX",
+      "branch": "master",
+      "last_synced_commit": "100fe7f",
+      "last_synced_release": "Update7.6",
+      "description": "MPO-GPU-FIX v7.6 (社区 MPO 防掉帧/防闪烁排障注册表方案, 菜单 11 排障模式参考来源)"
+    },
+    "ViVeTool": {
+      "repo": "thebookisclosed/ViVe",
+      "branch": "master",
+      "last_synced_commit": "3f8c6a3",
+      "last_synced_release": "v0.3.4",
+      "description": "ViVeTool v0.3.4 (Windows A/B 特性开关 CLI, 菜单 8 原生 NVMe 驱动运行时依赖)"
     }
   }
 }
