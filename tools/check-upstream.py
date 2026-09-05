@@ -85,7 +85,11 @@ def check_source(name, cfg):
     notes = []
 
     remote = api_get(f"https://api.github.com/repos/{repo}/branches?per_page=100")
-    remote_map = {b.get("name", ""): (b.get("commit", {}) or {}).get("sha", "") for b in remote} if remote else {}
+    if remote is None:
+        # API 不可达（限流/网络抖动）时不得把分支误判为"已消失"，跳过本轮分支比对
+        notes.append("GitHub API 不可达，本轮跳过分支比对与 Release 检查")
+        return updates, notes
+    remote_map = {b.get("name", ""): (b.get("commit", {}) or {}).get("sha", "") for b in remote if isinstance(b, dict)}
 
     for branch in branches:
         head = remote_map.get(branch, "")
