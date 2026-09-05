@@ -14,7 +14,7 @@ tweakbyjie 优化项
 
 ## 检查分类
 
-以下条目与 youshouldknow 的 `docs/项目导航/tweakbyjie-coverage-manifest.json` 44 个清单项一一对应，编号即清单 ID。
+以下条目与 youshouldknow 的 `docs/项目导航/tweakbyjie-coverage-manifest.json` 48 个清单项一一对应，编号即清单 ID。
 
 - Core（主注册表执行项）
   - CORE-001：GameDVR AppCaptureEnabled
@@ -33,6 +33,9 @@ tweakbyjie 优化项
   - CORE-014：Memory Compression
   - CORE-015：TRIM
   - CORE-016：Visual Effects
+  - CORE-017：DisableWpbtExecution（WPBT 固件注入防御）
+  - CORE-018：TaskbarEndTask（任务栏右键直接结束任务）
+  - CORE-019：PowerShellCore EnableTelemetry（关闭 PowerShell Core 遥测）
 
 - CPU 调度
   - CPU-001：Win32PrioritySeparation
@@ -86,6 +89,9 @@ tweakbyjie 优化项
   - Part 1 独立注册表执行项（已逐项登记为 CORE 编号）
   - Part 5 Defender/SmartScreen/Security Center 策略
   - defender-removal.ps1 高风险删除项
+
+- GameQos（网络 QoS 策略）
+  - GAMEQOS-001：竞技游戏网络 QoS 策略（DSCP 46 优先标记 + Throttle Rate -1）
 
 ## 完成标准
 
