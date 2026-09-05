@@ -1,7 +1,7 @@
 {
   "repository": "3304711297/youshouldknow",
-  "ref": "608e614486580d705e5fafb63c37738fa8feedd0",
+  "ref": "bc5235a4ce5d3e324ccebdceb05e4019b24bb7f0",
   "lockedAt": "2026-09-03T11:00:00Z",
   "comment": "Coverage 审计锁定的知识库版本。审计结果由 tweakbyjie commit 与此 ref 共同决定,保证可复现;知识库内容更新后按 Coverage-Audit-README.md 流程提升锁定。",
-  "last_updated": "2026-09-05T06:00:00Z"
+  "last_updated": "2026-09-05T07:42:00Z"
 }
