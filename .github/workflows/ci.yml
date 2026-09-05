@@ -94,9 +94,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # 知识库版本由 tools/knowledge.lock.json 锁定,同一 commit 审计结果可复现;
-      # 先确认锁定 commit 仍是 youshouldknow/main 当前最新提交,避免知识库更新后静默使用旧快照。
+      # 知识库版本由 tools/knowledge.lock.json 锁定,同一 commit 审计结果可复现。
+      # 2026-09-05 策略调整(用户拍板): 日常 push/PR 审计直连 youshouldknow/main,不再校验 lock
+      # (避免知识库任意提交导致本 CI 假警报);lock 校验仅保留在 tag 发版时执行,保证发布可复现。
       - name: Verify knowledge lock is current
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -128,7 +130,11 @@ jobs:
       - name: Run cross-repository coverage audit
         shell: pwsh
         run: |
-          ./tools/Test-CrossRepoCoverage.ps1
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            ./tools/Test-CrossRepoCoverage.ps1
+          } else {
+            ./tools/Test-CrossRepoCoverage.ps1 -KnowledgeRef main
+          }
 
   release:
     # 发布策略（2026-08-26 起）：仅推送 v* tag 时发布。

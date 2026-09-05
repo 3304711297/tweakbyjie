@@ -4,7 +4,7 @@
 
 脚本从锁定的 `youshouldknow` commit 读取 manifest、映射文档和全量执行参考，并按 manifest 的源仓库路径从当前 `tweakbyjie` checkout 读取 `docs/coverage/YOUSEHOULDKNOW-COVERAGE-CHECK.md`。三份资料（映射、执行参考、覆盖检查）每一份都必须与 manifest 的 ID 集合完全一致：缺少清单内 ID 和出现清单外 ID 都会判定失败，不允许"另一份资料补上了"的宽松口径。
 
-CI 会在 `push`、Pull Request、版本 tag 和手动触发时执行。Coverage job 在实际审计前还会检查 `tools/knowledge.lock.json` 是否仍指向 `youshouldknow/main` 的当前最新 commit；若知识库已经更新而 lock 没有提升，CI 会直接失败，避免旧知识库快照被静默继续使用。
+CI 会在 `push`、Pull Request、版本 tag 和手动触发时执行。**2026-09-05 策略调整（用户拍板）**：日常 push/PR 的审计直连 `youshouldknow/main`（`-KnowledgeRef main`），不再校验 lock——知识库任意提交不再导致本仓库 CI 假警报；lock 校验仅保留在 **tag 发版**时执行，保证发布对应的审计可复现。四份资料与 manifest 的一致性校验在所有触发方式下均强制执行，知识库与脚本仓库的真实不同步仍会被捕获。
 
 ## 知识库版本锁定
 
