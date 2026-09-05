@@ -55,6 +55,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **9** | **清除 EFI 锁定 (Device Guard)** | 执行 SecConfig.efi 解锁流程，内置 BitLocker 状态强制检测 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，支持子选项一键恢复默认 | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+| **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks），操作前自动落盘策略快照 | — |
 
 ---
 
@@ -107,6 +108,7 @@ tweakbyjie/
 │   ├── EfiLock.ps1          # 模块 9: EFI 锁清除
 │   ├── Vbs.ps1              # 模块 10: 虚拟化与 VBS
 │   ├── Mpo.ps1              # 模块 11: MPO 管理
+│   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
 │   └── Menu.ps1             # 104 行高内聚纯菜单调度链
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
 └── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
@@ -123,6 +125,26 @@ tweakbyjie/
 $env:TWEAK_SKIP_ADMIN_CHECK = "1"
 Invoke-Pester -Path .\tests\
 ```
+
+---
+
+## 🧬 上游采纳与外部依赖
+
+本项目的部分调优项吸收自以下优秀开源项目，在叠加自身的快照备份、前置校验与回滚体系后落地为独立模块或注册表策略。仓库同时维护**上游看门 CI**（`upstream-watch`，每周一/三/五北京时间 10:00 自动巡检），基于 `tools/upstream-sources.json` 清单持续跟踪上游动态，避免吸收内容随上游迭代而失联：
+
+| 来源项目 | 仓库 | 吸收内容与落地位置 |
+| :--- | :--- | :--- |
+| **Kiwi-Tweaks** (v2.0) | [contactkiwitweaks-stack/Kiwi-Tweaks](https://github.com/contactkiwitweaks-stack/Kiwi-Tweaks) | 竞技游戏网络 QoS 优化思路 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，DSCP 46 数据包优先） |
+| **Atom-Tool-Box** (0.1.5) | [ProjectAtomOS/Atom-Tool-Box](https://github.com/ProjectAtomOS/Atom-Tool-Box) | WPBT 固件注入防御（`DisableWpbtExecution`）、任务栏右键直接结束任务（`TaskbarEndTask`）、PowerShell Core 遥测关闭 → 菜单 1 核心优化注册表策略（`Modules/Registry.ps1`） |
+| **MPO-GPU-FIX**（社区排障经验） | [RedDot-3ND7355/MPO-GPU-FIX](https://github.com/RedDot-3ND7355/MPO-GPU-FIX) | MPO 防掉帧/防闪烁排障注册表方案参考 → 菜单 11「MPO 管理」（详见 [优化详情文档](docs/reference/OPTIMIZATION-DETAILS.md)） |
+
+外部工具依赖：
+
+| 工具 | 仓库 | 用途 |
+| :--- | :--- | :--- |
+| **ViVeTool** | [thebookisclosed/ViVe](https://github.com/thebookisclosed/ViVe) | 菜单 8「原生 NVMe 驱动」依赖其 A/B 特性开关能力（特性 ID 60786016 + 48433719）；未检测到时该菜单项自动灰掉 |
+
+> 上游清单（含同步的 commit 与版本号）以机器可读格式维护在 `tools/upstream-sources.json`。新增采纳来源时需同步更新该文件并接入看门 CI，保持文档、清单与 CI 三方一致。
 
 ---
 
