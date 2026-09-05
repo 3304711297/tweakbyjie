@@ -1,34 +1,50 @@
 {
-  "version": 1,
-  "last_check": "2026-09-05T05:30:00Z",
+  "version": 2,
+  "last_check": "2026-09-05T06:30:00Z",
   "sources": {
     "Kiwi-Tweaks": {
       "repo": "contactkiwitweaks-stack/Kiwi-Tweaks",
-      "branch": "main",
-      "last_synced_commit": "de2c145",
       "last_synced_release": "v2.0",
-      "description": "Kiwi's Tweaking Utility 2.0 (Windows Gaming & DPC Latency Optimizer)"
+      "description": "Kiwi's Tweaking Utility 2.0 (Windows Gaming & DPC Latency Optimizer)",
+      "branches": [
+        "main"
+      ],
+      "last_synced_commits": {
+        "main": "de2c145"
+      }
     },
     "Atom-Tool-Box": {
       "repo": "ProjectAtomOS/Atom-Tool-Box",
-      "branch": "main",
-      "last_synced_commit": "ecf8368",
       "last_synced_release": "0.1.5",
-      "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)"
+      "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)",
+      "branches": [
+        "main"
+      ],
+      "last_synced_commits": {
+        "main": "ecf8368"
+      }
     },
     "MPO-GPU-FIX": {
       "repo": "RedDot-3ND7355/MPO-GPU-FIX",
-      "branch": "master",
-      "last_synced_commit": "100fe7f",
       "last_synced_release": "Update7.6",
-      "description": "MPO-GPU-FIX v7.6 (社区 MPO 防掉帧/防闪烁排障注册表方案, 菜单 11 排障模式参考来源)"
+      "description": "MPO-GPU-FIX v7.6 (社区 MPO 防掉帧/防闪烁排障注册表方案, 菜单 11 排障模式参考来源)",
+      "branches": [
+        "master"
+      ],
+      "last_synced_commits": {
+        "master": "100fe7f"
+      }
     },
     "ViVeTool": {
       "repo": "thebookisclosed/ViVe",
-      "branch": "master",
-      "last_synced_commit": "3f8c6a3",
       "last_synced_release": "v0.3.4",
-      "description": "ViVeTool v0.3.4 (Windows A/B 特性开关 CLI, 菜单 8 原生 NVMe 驱动运行时依赖)"
+      "description": "ViVeTool v0.3.4 (Windows A/B 特性开关 CLI, 菜单 8 原生 NVMe 驱动运行时依赖)",
+      "branches": [
+        "master"
+      ],
+      "last_synced_commits": {
+        "master": "3f8c6a3"
+      }
     }
   }
 }
