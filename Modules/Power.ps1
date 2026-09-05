@@ -41,6 +41,13 @@ function Invoke-PowerModule {
                 } catch {
                     Write-Host "[FAIL] 备份当前电源计划 : $($_.Exception.Message)" -ForegroundColor Red
                     $script:fail++
+                    # 防止部分写入的损坏备份通过 Test-Path 门禁被当作有效备份继续使用
+                    if (Test-Path $backupFile) {
+                        Remove-Item -LiteralPath $backupFile -Force -ErrorAction SilentlyContinue
+                        if (Test-Path $backupFile) {
+                            Write-Host "[FAIL] 损坏的备份文件无法删除，恢复前请手动检查: $backupFile" -ForegroundColor Red
+                        }
+                    }
                 }
             }
 
