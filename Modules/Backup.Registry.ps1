@@ -46,7 +46,8 @@ $script:registrySystemValues = @(
     @{ Path = 'HKCU:\Control Panel\Accessibility'; Name = 'MessageDuration'; Desc = 'MessageDuration' },
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'; Name = 'DisableWpbtExecution'; Desc = 'DisableWpbtExecution (阻止 WPBT 固件自动注入)' },
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'; Name = 'TaskbarEndTask'; Desc = 'TaskbarEndTask (任务栏右键直接结束任务)' },
-    @{ Path = 'HKLM:\Software\Policies\Microsoft\PowerShellCore'; Name = 'EnableTelemetry'; Desc = 'PowerShellCore EnableTelemetry (关闭遥测)' }
+    @{ Path = 'HKLM:\Software\Policies\Microsoft\PowerShellCore'; Name = 'EnableTelemetry'; Desc = 'PowerShellCore EnableTelemetry (关闭遥测)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet'; Name = 'EnableActiveProbing'; Desc = 'EnableActiveProbing (关闭 NCSI 主动探测)' }
 )
 
 function Test-RegistryBackupSchema {
