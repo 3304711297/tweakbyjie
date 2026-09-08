@@ -21,8 +21,25 @@
 
 ## ⚡ 30 秒极速上手
 
-### 1. 下载推荐
-普通使用请直接前往 [GitHub Releases](https://github.com/3304711297/tweakbyjie/releases) 下载最新版本的 **精简运行包 ZIP**（`tweakbyjie-v*.zip`），解压到本地任意目录（无需编译或安装开发依赖）。
+### 1. 下载推荐与完整性校验
+普通使用请直接前往 [GitHub Releases](https://github.com/3304711297/tweakbyjie/releases) 下载最新版本的 **精简运行包 ZIP**（`tweakbyjie-v*.zip`）以及附带的 `SHA256SUMS.txt` 校验和文件，解压到本地任意目录（无需编译或安装开发依赖）。
+
+**安全完整性校验（推荐）**：
+为了防御供应链投毒、网络传输劫持或本地下载损坏，在解压运行前强烈建议在终端中校验包的 SHA256 指纹：
+
+```powershell
+# 方式 1：使用 Get-FileHash 直接计算本地发行包的 SHA256 哈希
+Get-FileHash .\tweakbyjie-v*.zip -Algorithm SHA256
+
+# 方式 2：单行自动化比对 Release 附带的 SHA256SUMS.txt
+$expected = (Get-Content .\SHA256SUMS.txt).Split(' ')[0].Trim()
+$actual   = (Get-FileHash .\tweakbyjie-v*.zip -Algorithm SHA256).Hash
+if ($actual -ieq $expected) {
+    Write-Host "[PASS] SHA256 完整性校验通过 ($actual)" -ForegroundColor Green
+} else {
+    throw "SHA256 校验失败！预期: $expected，实际: $actual"
+}
+```
 
 ### 2. 启动菜单
 右键“开始”菜单 → 选择 **Windows 终端（管理员）** 或 **PowerShell（管理员）**，进入解压目录后运行：
@@ -86,6 +103,46 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
 
 * **会话日志自动落盘**：所有命令行及交互输出均自动写入 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`。
 * **标准退出码规范**：`0` 成功/无失败，`2` 参数错误，`4` 全项失败，`5` 部分失败。
+
+### 4. 状态快照与全模块回滚机制 (Rollback & Backup)
+
+针对底层系统调整的不确定性，本项目构建了严密的**状态快照（Snapshot）与回滚（Rollback）防御闭环**，遵循三大安全设计原则：
+1. **首次快照保护（First Snapshot Protection）**：所有涉及系统配置变更的模块在首次执行优化前，均会自动抓取当前原始状态快照（`Ensure-*Backup`）。若快照已存在，系统绝不覆写，确保保留纯净“出厂”基线，避免二次优化污染初始状态。
+2. **硬件与系统标识绑定（Machine Binding）**：各模块快照元数据中通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证，坚决拦截跨机器复制或伪造快照导致的配置错乱。
+3. **Fail-Closed 闭环恢复**：找不到快照、文件损坏或结构校验未通过时，立即拒绝并阻断操作，绝不伪造成功假象。
+
+仓库已内置 9 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
+
+| 备份恢复模块 | 快照存储文件 | 备份与回滚覆盖范围 | 核心导出函数 |
+| :--- | :--- | :--- | :--- |
+| **Backup.Registry.ps1** | `registry-backup.json` | 核心优化与系统行为注册表键值（GameDVR、MMCSS、Prefetch、TRIM、Memory Compression 等） | `Ensure-RegistryBackup`<br>`Restore-RegistryBackup` |
+| **Backup.Bcd.ps1** | `bcd-backup.json`<br>`testmode-backup.json` | BCD 底层启动参数与测试模式状态（`useplatformclock`、`nx`、`tpmbootentropy`、`testsigning`、`debug` 等） | `Ensure-BcdBackup`<br>`Restore-BcdBackup` |
+| **Backup.SecurityMitigation.ps1** | `security-mitigation-backup.json` | CPU 硬件安全缓解状态（`FeatureSettingsOverride` 与 `FeatureSettingsOverrideMask` 掩码） | `Ensure-SecurityMitigationBackup`<br>`Restore-SecurityMitigationBackup` |
+| **Backup.Service.ps1** | `service-backup.json` | Windows 系统服务状态（37 个受管服务的原始 `StartMode` 启动类型、延迟启动与运行状态） | `Ensure-ServiceBackup`<br>`Restore-ServiceBackup` |
+| **Backup.Defender.ps1** | `defender-policy-backup.json` | Windows Defender 与安全中心策略（95 项组策略/注册表状态及 Run 启动项，含结构验证） | `Ensure-DefenderPolicyBackup`<br>`Restore-DefenderPolicyBackup`<br>`Test-DefenderBackupSchema` |
+| **Backup.Nvme.ps1** | `nvme-backup.json` | 原生 NVMe 驱动切换状态（SafeBoot 最小安全引导状态与 ViVeTool 特性开关，防止引导故障） | `Ensure-NvmeBackup`<br>`Restore-NvmeSafeBootBackup` |
+| **Backup.Vbs.ps1** | `vbs-backup.json` | 虚拟化 / VBS / Hyper-V 配置（Device Guard 注册表、BCD `hypervisorlaunchtype` 与可选功能） | `Ensure-VbsBackup`<br>`Restore-VbsBackup` |
+| **Backup.Mpo.ps1** | `mpo-backup.json` | 多平面叠加 (MPO) 显示管线排障状态（DWM `OverlayTestMode`、`OverlayMinFPS` 等配置） | `Ensure-MpoBackup`<br>`Restore-MpoBackup` |
+| **Backup.GameQos.ps1** | `$env:TEMP\gameqos-backup.json` | 竞技游戏网络 QoS 策略（DSCP 46 优先级、`TCPNoDelay`、`TcpAckFrequency` 网络注册表配置） | `Ensure-GameQosBackup`<br>`Restore-GameQosBackup` |
+
+*(注：电源计划模块 `Modules/Power.ps1` 亦内置原生 `power-backup.pow` 方案导出与精准回滚机制)*
+
+#### 回滚与恢复使用方式
+- **交互式菜单回滚**：运行主菜单后进入对应子模块，选择回滚/还原子选项即可（例如：模块 1 子项 4 恢复注册表优化、模块 7 子项 2 恢复上一电源计划、模块 10 子项 3 恢复虚拟化快照、模块 11 子项 4 恢复 MPO 默认等）。
+- **程序化 / 命令行直接恢复**：以管理员身份运行终端，点源加载主脚本后直接调用恢复函数：
+  ```powershell
+  # 1. 点源加载核心函数库（跳过管理员权限自提直接导入）
+  $env:TWEAK_SKIP_ADMIN_CHECK = "1"
+  . .\tweakbyjie.ps1
+
+  # 2. 按需执行单项模块状态精准回滚
+  Restore-RegistryBackup -Section All    # 回滚核心及系统行为注册表优化
+  Restore-ServiceBackup                 # 恢复 37 项受管服务原始状态
+  Restore-DefenderPolicyBackup          # 恢复安全中心与 Defender 组策略
+  Restore-VbsBackup                     # 恢复虚拟化与 VBS 配置
+  Restore-MpoBackup                     # 恢复 MPO 显示管线默认状态
+  Restore-GameQosBackup                 # 恢复网络 QoS 策略
+  ```
 
 ---
 
