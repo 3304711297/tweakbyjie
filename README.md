@@ -155,18 +155,17 @@ tweakbyjie/
 ├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
 │   ├── Common.ps1           # 日志、退出码与基础通用工具库
 │   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
-│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环
-│   ├── Core.ps1             # 模块 1: 核心优化
+│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 9 个
+│   ├── Registry.ps1         # 模块 1: 核心优化
 │   ├── Bcd.ps1              # 模块 2/3/4: BCD 启动与测试模式
 │   ├── Defender.ps1         # 模块 5: 安全中心策略
 │   ├── Service.ps1          # 模块 6: 服务优化与快照
 │   ├── Power.ps1            # 模块 7: 电源计划
 │   ├── Nvme.ps1             # 模块 8: NVMe 驱动
-│   ├── EfiLock.ps1          # 模块 9: EFI 锁清除
-│   ├── Vbs.ps1              # 模块 10: 虚拟化与 VBS
+│   ├── Virtualization.ps1   # 模块 9/10: EFI 锁清除与虚拟化 / VBS
 │   ├── Mpo.ps1              # 模块 11: MPO 管理
 │   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
-│   └── Menu.ps1             # 104 行高内聚纯菜单调度链
+│   └── Menu.ps1             # 82 行高内聚纯菜单调度链
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
 └── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
 ```
@@ -202,6 +201,38 @@ Invoke-Pester -Path .\tests\
 | **ViVeTool** | [thebookisclosed/ViVe](https://github.com/thebookisclosed/ViVe) | 菜单 8「原生 NVMe 驱动」依赖其 A/B 特性开关能力（特性 ID 60786016 + 48433719）；未检测到时该菜单项自动灰掉 |
 
 > 上游清单（含同步的 commit 与版本号）以机器可读格式维护在 `tools/upstream-sources.json`。新增采纳来源时需同步更新该文件并接入看门 CI，保持文档、清单与 CI 三方一致。
+
+---
+
+## ❓ 常见问题 (FAQ)
+
+<details>
+<summary>为什么某些菜单项显示 [不适用]？</summary>
+
+这是启动预检（`scripts/preflight.ps1`）的正常行为：**Secure Boot 开启**时菜单 3 / 4（测试模式）灰掉；**检测到第三方杀软**时菜单 5（安全中心）灰掉；**未检测到 ViVeTool** 时菜单 8（原生 NVMe）灰掉；**BitLocker 启用**时菜单 9（清除 EFI 锁）灰掉。修复对应前置条件后重新运行脚本，即可恢复可选中状态。
+
+</details>
+
+<details>
+<summary>脚本会自动重启电脑吗？</summary>
+
+不会。重启询问属于会话级收尾，即使 `-AcceptDefaults` 无人值守模式也维持默认「不重启」，待重启修改会保留，由你自行决定何时重启。
+
+</details>
+
+<details>
+<summary>快照文件能拷到另一台电脑回滚吗？</summary>
+
+不能。快照内置基于本机 `MachineGuid` 的加盐 SHA256 签名，回滚时严格校验机器标识，跨机器拷贝的快照会被拒绝。
+
+</details>
+
+<details>
+<summary>日志与退出码在哪里看？</summary>
+
+日志自动写入 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`；退出码 `0` 成功/无失败，`2` 参数错误，`4` 全项失败，`5` 部分失败。
+
+</details>
 
 ---
 
