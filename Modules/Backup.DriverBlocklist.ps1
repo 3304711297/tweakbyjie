@@ -1,0 +1,74 @@
+﻿# Backup.DriverBlocklist.ps1 - 菜单 1 子项 5 易受攻击驱动黑名单的原始状态快照与恢复
+# 被 tweakbyjie.ps1 点源加载，共享 $script:ok/$fail/$skip/$rebootRequired
+# 快照、修改与恢复共用 $script:driverBlocklistValues 同一份定义，避免清单漂移。
+#
+# 机制背景：Windows 11 22H2 起对易受攻击驱动黑名单默认启用（Windows 10 1809 起为可选），
+# 该值关闭后系统不再拒绝加载已知存在提权漏洞的已签名内核驱动（BYOVD 攻击面）。
+# 操作完全可逆（写回 1 或删除值即可），故不设 I-UNDERSTAND-RISK 短语确认，
+# 与同为安全弱化但可逆的 CPU 安全缓解子项（菜单 1 -> 3）保持同一门禁级别。
+
+$script:driverBlocklistValues = @(
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config'; Name = 'VulnerableDriverBlocklistEnable'; Desc = '易受攻击驱动黑名单' }
+)
+
+function Get-DriverBlocklistSnapshot {
+    param([hashtable]$Definition)
+    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
+    if (-not $present) { return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null } }
+    if ($item.GetValueKind($Definition.Name).ToString() -ne 'DWord') { throw "$($Definition.Name) 不是 DWORD" }
+    [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $true; Value = [uint32]$item.GetValue($Definition.Name) }
+}
+
+function Test-DriverBlocklistBackupSchema {
+    param([object]$Backup, [object[]]$Definitions = $script:driverBlocklistValues)
+    if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
+    if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
+    $records = @($Backup.Values)
+    $expected = @($Definitions | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    $actual = @($records | ForEach-Object { "$($_.Path)|$($_.Name)" })
+    if ($records.Count -ne $expected.Count -or @($actual | Sort-Object -Unique).Count -ne $expected.Count) { return $false }
+    if (@($actual | Where-Object { $expected -notcontains $_ }).Count -gt 0) { return $false }
+    foreach ($r in $records) {
+        if ($null -eq $r.Present -or $r.Present -isnot [bool]) { return $false }
+        if ([bool]$r.Present) { try { if ([uint64]$r.Value -gt [uint32]::MaxValue) { return $false } } catch { return $false } }
+        elseif ($null -ne $r.Value) { return $false }
+    }
+    return $true
+}
+
+function Ensure-DriverBlocklistBackup {
+    # Definitions 可注入自定义清单（测试用 HKCU 临时键做往返验证）；默认用内置清单
+    param([object[]]$Definitions = $script:driverBlocklistValues)
+    try {
+        if (Test-Path $script:driverBlocklistBackupFile) {
+            $backup = Get-Content $script:driverBlocklistBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-DriverBlocklistBackupSchema $backup $Definitions)) { throw 'driver-blocklist-backup.json 结构不正确' }
+            return $true
+        }
+        $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-DriverBlocklistSnapshot $_ }) }
+        if (-not (Test-DriverBlocklistBackupSchema $backup $Definitions)) { throw '生成的驱动黑名单备份未通过结构校验' }
+        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:driverBlocklistBackupFile -Encoding UTF8 -ErrorAction Stop
+        $check = Get-Content $script:driverBlocklistBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-DriverBlocklistBackupSchema $check $Definitions)) { throw '写入后的驱动黑名单备份校验失败' }
+        Write-Host "[OK] 驱动黑名单原始状态已备份：$script:driverBlocklistBackupFile" -ForegroundColor Green
+        return $true
+    } catch { Write-Host "[FAIL] 驱动黑名单备份失败：$($_.Exception.Message)；已阻止修改" -ForegroundColor Red; $script:fail++; return $false }
+}
+
+function Restore-DriverBlocklistBackup {
+    param([object[]]$Definitions = $script:driverBlocklistValues)
+    if (-not (Test-Path $script:driverBlocklistBackupFile)) { Write-Host '[FAIL] 未找到 driver-blocklist-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
+    try {
+        $backup = Get-Content $script:driverBlocklistBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-DriverBlocklistBackupSchema $backup $Definitions)) { throw 'driver-blocklist-backup.json 结构不正确' }
+        $allOk = $true
+        foreach ($r in @($backup.Values)) {
+            $before = $script:fail
+            if ([bool]$r.Present) { Set-RegDword $r.Path $r.Name ([uint32]$r.Value) ("恢复 " + $r.Name) }
+            else { Remove-RegDwordValue $r.Path $r.Name ("删除 " + $r.Name + "（恢复原始未设置状态）") }
+            if ($script:fail -gt $before) { $allOk = $false }
+        }
+        return $allOk
+    } catch { Write-Host "[FAIL] 驱动黑名单恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
+}

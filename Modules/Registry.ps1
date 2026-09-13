@@ -8,8 +8,9 @@ function Invoke-RegistryModule {
     Write-Host "  2. 系统行为优化（Search / Prefetch / Memory Compression / NTFS 8.3 / TRIM / Visual Effects）" -ForegroundColor White
     Write-Host "  3. CPU 安全缓解调整（FeatureSettingsOverride / Mask；修改前自动备份，可恢复）" -ForegroundColor Yellow
     Write-Host "  4. 按备份恢复核心游戏 / 系统行为优化（Memory Compression 与 TRIM 不在范围内）" -ForegroundColor White
+    Write-Host "  5. 易受攻击驱动黑名单关闭（VulnerableDriverBlocklistEnable = 0；修改前自动备份，可恢复）" -ForegroundColor Yellow
     Write-Host "  0. 返回主菜单" -ForegroundColor White
-    $coreChoice = Read-Host "请输入 0、1、2、3 或 4 并回车"
+    $coreChoice = Read-Host "请输入 0、1、2、3、4 或 5 并回车"
 
     # 子项 1/2 写入前的统一快照门禁；备份失败时改写选择值以跳过全部修改分支
     if ($coreChoice -eq '1' -or $coreChoice -eq '2') {
@@ -159,12 +160,36 @@ function Invoke-RegistryModule {
         } else { Write-Host "[ERROR] 无效输入：$mChoice 。" -ForegroundColor Red }
     } elseif ($coreChoice -eq '4') {
         Restore-RegistryBackup | Out-Null
+    } elseif ($coreChoice -eq '5') {
+        Write-Host ""; Write-Host "[易受攻击驱动黑名单 / Vulnerable Driver Blocklist]" -ForegroundColor Yellow
+        Write-Host "关闭后系统不再拒绝加载已知存在提权漏洞的已签名内核驱动（BYOVD 攻击面扩大）。" -ForegroundColor Yellow
+        Write-Host "常见目的：让需要直读 MSR / 物理内存的工具（如 RW-Everything）能够加载驱动。" -ForegroundColor Yellow
+        Write-Host "该值与内存完整性（HVCI）联动：HVCI 开启时黑名单强制生效，单改此值不解除。" -ForegroundColor Yellow
+        Write-Host "  1. 查看当前值" -ForegroundColor White
+        Write-Host "  2. 关闭（写入 0；修改前自动备份，可恢复）" -ForegroundColor Yellow
+        Write-Host "  3. 按备份恢复" -ForegroundColor White
+        $dChoice = Read-Host "请输入 1、2 或 3 并回车"
+        $ciPath = "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config"
+        if ($dChoice -eq '1') {
+            $item = Get-Item $ciPath -ErrorAction SilentlyContinue
+            foreach ($n in @('VulnerableDriverBlocklistEnable')) {
+                if ($item -and ($item.GetValueNames() -contains $n)) { Write-Host ("{0} = {1}" -f $n, $item.GetValue($n)) } else { Write-Host ("{0} = <未设置（系统默认）>" -f $n) }
+            }
+        } elseif ($dChoice -eq '2') {
+            if (Ensure-DriverBlocklistBackup) {
+                Set-RegDword $ciPath "VulnerableDriverBlocklistEnable" 0 "VulnerableDriverBlocklistEnable = 0"
+                Verify-RegDword $ciPath "VulnerableDriverBlocklistEnable" 0 "VulnerableDriverBlocklistEnable" | Out-Null
+                Write-Host "[提示] 重启后生效；HVCI 开启时此值不解除强制黑名单。" -ForegroundColor Yellow
+            }
+        } elseif ($dChoice -eq '3') {
+            Restore-DriverBlocklistBackup | Out-Null
+        } else { Write-Host "[ERROR] 无效输入：$dChoice 。" -ForegroundColor Red }
     } elseif ($coreChoice -eq 'backup-failed') {
         # 备份失败已在上文报错；不执行任何修改
     } elseif ($coreChoice -eq '0') {
         Write-Host "[返回] 已返回主菜单。" -ForegroundColor Green
     } else {
-        Write-Host "[ERROR] 无效输入：$coreChoice 。请输入 0、1、2、3 或 4" -ForegroundColor Red
+        Write-Host "[ERROR] 无效输入：$coreChoice 。请输入 0、1、2、3、4 或 5" -ForegroundColor Red
     }
 
     if ($coreChoice -ne '0' -and $coreChoice -ne 'backup-failed') {

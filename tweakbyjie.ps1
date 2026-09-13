@@ -3,7 +3,7 @@
 # ActivationType is handled separately because the key may be protected.
 #
 # 菜单 / Menu:
-#   输入 1 回车 = 核心性能分层菜单：核心游戏 / 系统行为（修改前快照，可按快照恢复）/ CPU 安全缓解
+#   输入 1 回车 = 核心性能分层菜单：核心游戏 / 系统行为（修改前快照，可按快照恢复）/ CPU 安全缓解 / 易受攻击驱动黑名单
 #   输入 2 回车 = 高级 BCD / 计时器与启动安全（独立配置，修改前备份）
 #   输入 3 回车 = 开启测试模式（bcdedit testsigning / debug / dbgsettings local / nointegritychecks；先快照再修改）
 #   输入 4 回车 = 关闭测试模式（优先按开启前快照恢复，无快照时删除；保留 nointegritychecks）
@@ -103,6 +103,7 @@ $script:securityMitigationValues = @(
 $script:nvmeBackupFile = Join-Path $PSScriptRoot 'nvme-backup.json'
 $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-backup.json'
 $script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
+$script:driverBlocklistBackupFile = Join-Path $PSScriptRoot 'driver-blocklist-backup.json'
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
 
 # 无人值守标志默认值（点源加载场景下也保持 $false，确认层读取不报未定义）
@@ -118,6 +119,7 @@ $__tweakModules = @(
     'Modules/Backup.Bcd.ps1',
     'Modules/Backup.Service.ps1',
     'Modules/Backup.SecurityMitigation.ps1',
+    'Modules/Backup.DriverBlocklist.ps1',
     'Modules/Backup.Nvme.ps1',
     'Modules/Backup.Defender.ps1',
     'Modules/Backup.Vbs.ps1',

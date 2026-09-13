@@ -65,6 +65,7 @@ tweakbyjie 优化项
   - SECURITY-001：FeatureSettingsOverride / FeatureSettingsOverrideMask
   - SECURITY-002：VBS / HVCI / Credential Guard / Hyper-V
   - SECURITY-003：Device Guard EFI 锁定清除
+  - SECURITY-004：易受攻击驱动黑名单（VulnerableDriverBlocklistEnable）
 
 - 游戏功能
   - GameDVR、Game Bar、Game Mode、Games Task 对应 Core 与 CPU 分类中的同名条目，不单独设编号

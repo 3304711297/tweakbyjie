@@ -61,7 +61,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 
 | 选项 | 模块名称 | 核心调优内容与实现 | 原理解析 (YouShouldKnow) |
 | :---: | :--- | :--- | :--- |
-| **1** | **核心游戏/系统性能优化** | GameDVR、MMCSS 调度、HAGS 硬件加速、Memory Compression、NTFS 8.3、TRIM 与 CPU 安全缓解 | [CPU 优化对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/) · [GPU 调度管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+| **1** | **核心游戏/系统性能优化** | GameDVR、MMCSS 调度、HAGS 硬件加速、Memory Compression、NTFS 8.3、TRIM、CPU 安全缓解与易受攻击驱动黑名单（子项 5） | [CPU 优化对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/) · [GPU 调度管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) · [驱动黑名单机制与代价](https://3304711297.github.io/youshouldknow/系统调优与安全/易受攻击驱动黑名单机制与关闭代价/) |
 | **2** | **高级 BCD / 计时器与启动** | 高精度计时器、`nx` 执行保护、TPM Boot Entropy、驱动签名检查（内置 BCD 快照回滚） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
 | **3** | **开启测试模式** | 开启 `testsigning`、系统调试与 `nointegritychecks`（适用于驱动开发/无签名驱动测试） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
 | **4** | **关闭测试模式** | 恢复关闭 `testsigning` 与 `debug`，按设计保留 `nointegritychecks` 基础配置 | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
@@ -111,13 +111,14 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
 2. **硬件与系统标识绑定（Machine Binding）**：各模块快照元数据中通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证，坚决拦截跨机器复制或伪造快照导致的配置错乱。
 3. **Fail-Closed 闭环恢复**：找不到快照、文件损坏或结构校验未通过时，立即拒绝并阻断操作，绝不伪造成功假象。
 
-仓库已内置 9 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
+仓库已内置 10 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
 
 | 备份恢复模块 | 快照存储文件 | 备份与回滚覆盖范围 | 核心导出函数 |
 | :--- | :--- | :--- | :--- |
 | **Backup.Registry.ps1** | `registry-backup.json` | 核心优化与系统行为注册表键值（GameDVR、MMCSS、Prefetch、TRIM、Memory Compression 等） | `Ensure-RegistryBackup`<br>`Restore-RegistryBackup` |
 | **Backup.Bcd.ps1** | `bcd-backup.json`<br>`testmode-backup.json` | BCD 底层启动参数与测试模式状态（`useplatformclock`、`nx`、`tpmbootentropy`、`testsigning`、`debug` 等） | `Ensure-BcdBackup`<br>`Restore-BcdBackup` |
 | **Backup.SecurityMitigation.ps1** | `security-mitigation-backup.json` | CPU 硬件安全缓解状态（`FeatureSettingsOverride` 与 `FeatureSettingsOverrideMask` 掩码） | `Ensure-SecurityMitigationBackup`<br>`Restore-SecurityMitigationBackup` |
+| **Backup.DriverBlocklist.ps1** | `driver-blocklist-backup.json` | 易受攻击驱动黑名单状态（`VulnerableDriverBlocklistEnable`，菜单 1 子项 5） | `Ensure-DriverBlocklistBackup`<br>`Restore-DriverBlocklistBackup`<br>`Test-DriverBlocklistBackupSchema` |
 | **Backup.Service.ps1** | `service-backup.json` | Windows 系统服务状态（37 个受管服务的原始 `StartMode` 启动类型、延迟启动与运行状态） | `Ensure-ServiceBackup`<br>`Restore-ServiceBackup` |
 | **Backup.Defender.ps1** | `defender-policy-backup.json` | Windows Defender 与安全中心策略（95 项组策略/注册表状态及 Run 启动项，含结构验证） | `Ensure-DefenderPolicyBackup`<br>`Restore-DefenderPolicyBackup`<br>`Test-DefenderBackupSchema` |
 | **Backup.Nvme.ps1** | `nvme-backup.json` | 原生 NVMe 驱动切换状态（SafeBoot 最小安全引导状态与 ViVeTool 特性开关，防止引导故障） | `Ensure-NvmeBackup`<br>`Restore-NvmeSafeBootBackup` |
@@ -155,7 +156,7 @@ tweakbyjie/
 ├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
 │   ├── Common.ps1           # 日志、退出码与基础通用工具库
 │   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
-│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 9 个
+│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 10 个
 │   ├── Registry.ps1         # 模块 1: 核心优化
 │   ├── Bcd.ps1              # 模块 2/3/4: BCD 启动与测试模式
 │   ├── Defender.ps1         # 模块 5: 安全中心策略
