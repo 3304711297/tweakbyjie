@@ -4,6 +4,7 @@ _tmp_*
 *.log
 coverage.xml
 mpo-backup.json
+driver-blocklist-backup.json
 bcd-backup.json
 testmode-backup.json
 power-backup.pow
