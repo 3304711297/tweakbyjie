@@ -94,20 +94,13 @@ jobs:
           $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
           if ($missing.Count -gt 0) {
             Write-Host ("::error title=Loader smoke missing functions::" + ($missing -join ','))
-            foreach ($name in $missing) {
-              $module = switch ($name) {
-                'Show-TweakMenu' { '.\Modules\Menu.ps1'; break }
-                'Invoke-RegistryModule' { '.\Modules\Registry.ps1'; break }
-                'Invoke-DeviceGuardModule' { '.\Modules\Virtualization.ps1'; break }
-                'Invoke-VbsModule' { '.\Modules\Virtualization.ps1'; break }
-              }
-              Write-Host ("loader probe before direct source: {0} -> {1}" -f $name, $module)
-              . $module
-              Write-Host ("loader probe after direct source: {0} -> {1}" -f $name, [bool](Get-Command $name -ErrorAction SilentlyContinue))
-            }
+            Write-Host 'loader probe: directly dot-sourcing Menu, Registry, and Virtualization'
+            . .\Modules\Menu.ps1
+            . .\Modules\Registry.ps1
+            . .\Modules\Virtualization.ps1
             $stillMissing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
-            Write-Host ("::error title=Loader smoke after direct source::" + ($stillMissing -join ','))
-            throw ("missing functions: " + ($stillMissing -join ','))
+            $resolved = @($required | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
+            throw ("missing after direct source: " + ($stillMissing -join ',') + "; resolved: " + ($resolved -join ','))
           }
           if (@($script:defenderPolicyValues).Count -ne 95) {
             Write-Host ("::error title=Defender contract::policy count was " + @($script:defenderPolicyValues).Count)
