@@ -48,9 +48,21 @@ function Get-BcdDebuggerSnapshot {
                 "usb targetname:$target"
             }
             'Net' {
-                $hostIp = if ($out -match '(?im)^\s*hostip\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 hostip' }
-                $port = if ($out -match '(?im)^\s*port\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 port' }
-                "net hostip:$hostIp port:$port"
+                $hostIp = if ($out -match '(?im)^\s*hostip\s+([^
+\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 hostip' }
+                $port = if ($out -match '(?im)^\s*port\s+([^
+\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 port' }
+                $netArgs = "net hostip:$hostIp port:$port"
+                if ($out -match '(?im)^\s*key\s+([A-Za-z0-9.]+)') {
+                    $netArgs += " key:$($Matches[1].Trim())"
+                }
+                if ($out -match '(?im)^\s*(?:nodhcp|dhcp\s+(?:No|False|0))') {
+                    $netArgs += " nodhcp"
+                }
+                if ($out -match '(?im)^\s*busparams\s+([A-Za-z0-9._-]+)') {
+                    $netArgs += " busparams:$($Matches[1].Trim())"
+                }
+                $netArgs
             }
         }
         if ($arguments -notmatch '^[A-Za-z0-9:._ -]+$') { throw 'debugger settings 参数含有未允许字符' }

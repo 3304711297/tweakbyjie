@@ -82,6 +82,13 @@ jobs:
           if ([int]$pesterResult.FailedCount -gt 0 -or [int]$pesterResult.FailedBlocksCount -gt 0 -or [int]$pesterResult.FailedContainersCount -gt 0) {
             exit 1
           }
+          $actualCoverage = [decimal]$pesterResult.CodeCoverage.CoveragePercent
+          $targetCoverage = [decimal]$config.CodeCoverage.CoveragePercentTarget.Value
+          Write-Host ("Code coverage: {0:N2}% (target: {1:N2}%)" -f $actualCoverage, $targetCoverage)
+          if ($actualCoverage -lt $targetCoverage) {
+            Write-Host ("::error file=tests,title=Code coverage gate failed::Coverage {0:N2}% is below required target {1:N2}%" -f $actualCoverage, $targetCoverage)
+            exit 1
+          }
       - name: Upload coverage report
         if: always()
         # v6.0.0:运行时 Node 24,消除 v4 的 Node.js 20 弃用告警;输入输出与 v4 兼容

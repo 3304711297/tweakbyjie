@@ -14,7 +14,7 @@ tweakbyjie 优化项
 
 ## 检查分类
 
-以下条目与 youshouldknow 的 `docs/项目导航/tweakbyjie-coverage-manifest.json` 48 个清单项一一对应，编号即清单 ID。
+以下条目与 youshouldknow 的 `docs/项目导航/tweakbyjie-coverage-manifest.json` 49 个清单项一一对应，编号即清单 ID。
 
 - Core（主注册表执行项）
   - CORE-001：GameDVR AppCaptureEnabled

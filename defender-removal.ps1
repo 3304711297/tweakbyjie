@@ -15,7 +15,7 @@
 #     Part 3: delete Defender file directories (takeown + icacls + remove)
 #
 # ⚠️ 不可逆警告 / IRREVERSIBLE WARNING:
-#   - 此操作无法通过"关闭注册表值"恢复，需重装 Windows 或 SFC/DISM 修复才能还原
+#   - 此操作无法通过"关闭注册表值"恢复；脚本无自动回滚，恢复能力取决于 Windows 组件存储完整性，必要时需重装或修复安装 Windows
 #   - 删除后 Windows 安全中心页面将报错/无法打开，Windows 更新可能受影响
 #   - 建议先运行 tweakbyjie.ps1 选项 5（关闭安全中心），再视需要运行本脚本
 #   - 强烈建议运行前创建系统还原点 / 备份
@@ -128,17 +128,22 @@ function Remove-DefenderPath {
         $script:skip++
         return
     }
+    $permGranted = $false
     try {
         & takeown.exe /f $FsPath /r /d y *> $null
         if ($LASTEXITCODE -ne 0) { throw "takeown exit $LASTEXITCODE" }
         & icacls.exe $FsPath /grant administrators:F /t *> $null
         if ($LASTEXITCODE -ne 0) { throw "icacls exit $LASTEXITCODE" }
+        $permGranted = $true
         Remove-Item -LiteralPath $FsPath -Recurse -Force -ErrorAction Stop
         if (Test-Path -LiteralPath $FsPath) { throw "删除后路径仍存在 / path still exists" }
         Write-Host ("[OK] {0}" -f $Label)
         $script:ok++
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
+        if ($permGranted) {
+            Write-Host ("[WARN] 权限已变更为 Administrators 但文件删除失败；路径保留当前 ACL 状态：{0}" -f $FsPath) -ForegroundColor Yellow
+        }
         $script:fail++
         $script:abortDestructive = $true
     }
@@ -345,7 +350,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 Write-Host "提示：Defender 组件已移除，重启后生效。" -ForegroundColor Yellow
 Write-Host "如出现 [FAIL]，多为 TrustedInstaller 保护，可借助 NSudo/PowerRun 提权后重试对应键。" -ForegroundColor Yellow
-Write-Host "恢复需重装 Windows 或运行：DISM /Online /Cleanup-Image /RestoreHealth" -ForegroundColor Yellow
+Write-Host "恢复需重装 Windows 或尝试 DISM 组件存储修复（DISM /Online /Cleanup-Image /RestoreHealth，取决于组件存储完整性，无法保证 100% 自动还原所有已删除注册表及服务）。" -ForegroundColor Yellow
 
 if ($fail -gt 0) {
     Write-Host "[STOP] 检测到 $fail 个失败项，禁止自动重启；请先处理失败并人工确认系统状态。" -ForegroundColor Red

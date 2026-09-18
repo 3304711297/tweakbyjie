@@ -7,6 +7,21 @@ function Get-DefenderServiceRecord {
     return Get-CimInstance -ClassName Win32_Service -Filter $filter -ErrorAction Stop | Select-Object -First 1
 }
 
+function Get-DefenderTamperProtectionState {
+    try {
+        $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Features'
+        if (-not (Test-Path -LiteralPath $regKey)) { return 'Unknown' }
+        $props = Get-ItemProperty -LiteralPath $regKey -ErrorAction SilentlyContinue
+        if ($null -eq $props -or $null -eq $props.TamperProtection) { return 'Unknown' }
+        $val = [int]$props.TamperProtection
+        if ($val -eq 5 -or $val -eq 1) { return 'Enabled' }
+        if ($val -eq 0 -or $val -eq 4) { return 'Disabled' }
+        return "Custom($val)"
+    } catch {
+        return 'Unknown'
+    }
+}
+
 function Invoke-DefenderModule {
     param([string]$Action = '')
 
@@ -62,6 +77,13 @@ function Invoke-DefenderModule {
 
     # 备份失败则阻止修改；快照一旦存在就保护首次原始状态，不允许覆盖。
     if (-not (Ensure-DefenderPolicyBackup)) { return $false }
+
+    $tamperState = Get-DefenderTamperProtectionState
+    if ($tamperState -eq 'Enabled') {
+        Write-Host '[WARN] 检测到 Windows Defender 篡改防护 (Tamper Protection) 处于启用状态。' -ForegroundColor Yellow
+        Write-Host '       根据 Microsoft 官方规范，篡改防护开启时某些注册表策略变更可能不会生效。' -ForegroundColor Yellow
+        Write-Host '       注册表策略写入成功 ≠ Defender 有效状态已经关闭；如需彻底停用，建议先在安全中心手动关闭篡改防护。' -ForegroundColor Yellow
+    }
 
     # --- 策略写入：任一写入失败就不继续停服务，并按原始快照回滚已写入的策略。 ---
     if (-not (Invoke-DefenderPolicyWrites)) {

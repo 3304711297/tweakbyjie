@@ -32,7 +32,8 @@ youshouldknow machine-readable manifest
   - 固定 Coverage 审计所读取的 `youshouldknow` commit，保证同一个 `tweakbyjie` commit 的审计结果可复现。
 - `.github/workflows/ci.yml`
   - `coverage-audit` job 在 `push`、PR、版本 tag 和手动触发的 CI 流程中执行审计。
-  - 正式审计前先验证 lock 是否仍指向 `youshouldknow/main` 的最新 commit；锁定落后时直接失败，防止旧知识库快照被静默继续使用。
+  - 日常 push/PR 审计直连 `youshouldknow/main`，免去知识库任意微调导致主仓 CI 假警报；
+  - 发布版本 tag（`refs/tags/v*`）时，强制校验 `knowledge.lock.json` 是否锁定到 `youshouldknow/main` 最新 commit，锁定落后时直接阻断发版，保证正式 Release 的审计结果 100% 可复现。
 
 ## 维护规则
 
@@ -47,7 +48,7 @@ youshouldknow machine-readable manifest
 
 现在的审计契约是：**第 1–3 项中的每一份资料都必须单独与 manifest 完全一致**，既不能缺少 manifest 中的 ID，也不能出现 manifest 之外的 ID。CI 会在任一资料发生 `missing` 或 `extra` 时直接失败，而不是依赖三份资料的 ID 并集来兜底。
 
-`youshouldknow` 的 Coverage 资料发生变化后，还必须提升 `tweakbyjie/tools/knowledge.lock.json` 到新的完整 commit SHA。CI 会比较 lock 与 `youshouldknow/main` 当前 HEAD：两者不一致时，Coverage job 会直接失败并报告 `locked` 与 `latest` SHA。这样可以把“知识库已经更新，但执行项目仍在审计旧版本”变成显式失败，而不是隐性漂移。
+在准备发布新版本并打 tag 前，还必须提升 `tweakbyjie/tools/knowledge.lock.json` 到 `youshouldknow` 的最新完整 commit SHA。Tag CI 会严格比较 lock 与 `youshouldknow/main` 当前 HEAD：两者不一致时阻断发版，确保每一个发布包的知识库引用均经核准且可溯源。
 
 ## 边界
 

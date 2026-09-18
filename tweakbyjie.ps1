@@ -157,7 +157,7 @@ foreach ($__m in $__tweakModules) {
     } catch {
         Write-Host "[ERROR] 模块加载失败 $__m ：$($_.Exception.Message)" -ForegroundColor Red
         Write-Host "[ERROR] 已阻止进入菜单，避免以不完整模块执行系统修改。" -ForegroundColor Red
-        if ($__isScript) { try { Stop-Transcript } catch {} }
+        if ($__isScript) { try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch { $null = $_ } }
         exit 3
     }
 }
@@ -191,7 +191,7 @@ if ($__isScript) {
     # -AcceptDefaults / -Action / -NonInteractive 的组合守卫
     if (($AcceptDefaults -or $NonInteractive -or ($Action -and $Action.Trim())) -and -not ($RunModule -and $RunModule.Trim())) {
         Write-Host "[ERROR] -AcceptDefaults、-NonInteractive、-Action 都必须与 -RunModule 组合使用。" -ForegroundColor Red
-        try { Stop-Transcript } catch {}
+        try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
         exit (Get-TweakExitCode -InvalidInput)
     }
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
@@ -200,13 +200,13 @@ if ($__isScript) {
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
         Write-Host "[ERROR] -RunModule 不能为空；交互模式请不要传入 -NonInteractive。" -ForegroundColor Red
-        try { Stop-Transcript } catch {}
+        try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
         exit (Get-TweakExitCode -InvalidInput)
     }
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {
         Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-12）" -ForegroundColor Red
-        try { Stop-Transcript } catch {}
+        try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
         exit (Get-TweakExitCode -InvalidInput)
     }
     try {
@@ -227,6 +227,6 @@ if ($__isScript) {
         Write-Host "[ERROR] 会话已中断；请核对日志确认已完成的修改与失败项。" -ForegroundColor Red
         $script:fail++
     }
-    try { Stop-Transcript } catch {}
+    try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
     exit (Get-TweakExitCode -SuccessCount $script:ok -FailureCount $script:fail)
 }

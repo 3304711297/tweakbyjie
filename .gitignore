@@ -7,6 +7,8 @@ mpo-backup.json
 driver-blocklist-backup.json
 bcd-backup.json
 testmode-backup.json
+testmode-debugger-backup.json
+deviceguard-efi-backup.json
 power-backup.pow
 service-backup.json
 security-mitigation-backup.json

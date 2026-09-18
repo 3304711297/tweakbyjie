@@ -9,7 +9,7 @@
   <a href="https://github.com/3304711297/tweakbyjie/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/3304711297/tweakbyjie/ci.yml?branch=main&label=CI%20Check&style=flat-square" alt="CI Status"></a>
   <img src="https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE?style=flat-square&logo=powershell" alt="PowerShell">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform">
-  <a href="https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/"><img src="https://img.shields.io/badge/Coverage-100%25%20Verified-brightgreen?style=flat-square" alt="Coverage"></a>
+  <a href="https://3304711297.github.io/youshouldknow/项目导航/覆盖矩阵/"><img src="https://img.shields.io/badge/Docs%20Coverage-100%25%20Verified-brightgreen?style=flat-square" alt="Documentation Coverage"></a>
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
 </p>
 
