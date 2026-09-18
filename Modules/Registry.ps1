@@ -98,8 +98,10 @@ function Invoke-RegistryModule {
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {
-            $operationOk = (Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation" -and
-                Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS")
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl" "Win32PrioritySeparation" 38 "Win32PrioritySeparation"
+        }
+        if ($operationOk) {
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
         }
         if (-not $operationOk) { Write-Host '[FAIL] 核心游戏优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }
 
@@ -146,9 +148,16 @@ function Invoke-RegistryModule {
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {
-            $operationOk = (Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet" "EnableActiveProbing" 0 "EnableActiveProbing" -and
-                Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher" -and
-                Verify-MemoryCompressionDisabled -and Verify-TrimEnabled)
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet" "EnableActiveProbing" 0 "EnableActiveProbing"
+        }
+        if ($operationOk) {
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
+        }
+        if ($operationOk) {
+            $operationOk = Verify-MemoryCompressionDisabled
+        }
+        if ($operationOk) {
+            $operationOk = Verify-TrimEnabled
         }
         if (-not $operationOk) { Write-Host '[FAIL] 系统行为优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }
 
