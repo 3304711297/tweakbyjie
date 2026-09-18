@@ -84,6 +84,51 @@ port                    50000
             $snap.Arguments | Should -Be 'net hostip:10.0.0.1 port:50000'
             Test-BcdDebuggerBackupSchema $snap | Should -Be $true
         }
+
+        It "captures hostipv6 when hostip is absent" {
+            $mockOutput = @"
+debugtype               Net
+hostipv6                fe80::1
+port                    50000
+key                     abcd.1234.efgh.5678
+"@
+            Mock bcdedit.exe {
+                $global:LASTEXITCODE = 0
+                return $mockOutput
+            }
+            $snap = Get-BcdDebuggerSnapshot
+            $snap.Arguments | Should -Be 'net hostipv6:fe80::1 port:50000 key:abcd.1234.efgh.5678'
+            Test-BcdDebuggerBackupSchema $snap | Should -Be $true
+        }
+
+        It "captures global start and noumex options" {
+            $mockOutput = @"
+debugtype               Net
+hostip                  192.168.1.10
+port                    50000
+start                   ACTIVE
+noumex                  Yes
+"@
+            Mock bcdedit.exe {
+                $global:LASTEXITCODE = 0
+                return $mockOutput
+            }
+            $snap = Get-BcdDebuggerSnapshot
+            $snap.Arguments | Should -Be 'net hostip:192.168.1.10 port:50000 /start:ACTIVE /noumex'
+            Test-BcdDebuggerBackupSchema $snap | Should -Be $true
+        }
+
+        It "throws when neither hostip nor hostipv6 is present" {
+            $mockOutput = @"
+debugtype               Net
+port                    50000
+"@
+            Mock bcdedit.exe {
+                $global:LASTEXITCODE = 0
+                return $mockOutput
+            }
+            { Get-BcdDebuggerSnapshot } | Should -Throw '*缺少 hostip 或 hostipv6*'
+        }
     }
 
     Context "When debugger is Serial" {

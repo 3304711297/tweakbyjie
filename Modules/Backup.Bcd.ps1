@@ -44,15 +44,20 @@ function Get-BcdDebuggerSnapshot {
                 "1394 channel:$channel"
             }
             'USB' {
-                $target = if ($out -match '(?im)^\s*targetname\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'USB debugger settings 缺少 targetname' }
+                $target = if ($out -match '(?im)^\s*targetname\s+([^\
+\\n]+)') { $Matches[1].Trim() } else { throw 'USB debugger settings 缺少 targetname' }
                 "usb targetname:$target"
             }
             'Net' {
-                $hostIp = if ($out -match '(?im)^\s*hostip\s+([^
-\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 hostip' }
-                $port = if ($out -match '(?im)^\s*port\s+([^
-\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 port' }
-                $netArgs = "net hostip:$hostIp port:$port"
+                $hostIp = if ($out -match '(?im)^\s*hostip\s+([^\
+\\n]+)') { $Matches[1].Trim() } else { $null }
+                $hostIpv6 = if ($out -match '(?im)^\s*hostipv6\s+([^\
+\\n]+)') { $Matches[1].Trim() } else { $null }
+                if (-not $hostIp -and -not $hostIpv6) { throw 'Net debugger settings 缺少 hostip 或 hostipv6' }
+                $port = if ($out -match '(?im)^\s*port\s+([^\
+\\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 port' }
+                $ipArg = if ($hostIp) { "hostip:$hostIp" } else { "hostipv6:$hostIpv6" }
+                $netArgs = "net $ipArg port:$port"
                 if ($out -match '(?im)^\s*key\s+([A-Za-z0-9.]+)') {
                     $netArgs += " key:$($Matches[1].Trim())"
                 }
@@ -65,7 +70,14 @@ function Get-BcdDebuggerSnapshot {
                 $netArgs
             }
         }
-        if ($arguments -notmatch '^[A-Za-z0-9:._ -]+$') { throw 'debugger settings 参数含有未允许字符' }
+        # 全局调试参数：/start 与 /noumex
+        if ($out -match '(?im)^\s*start(?:policy)?\s+([A-Za-z0-9]+)') {
+            $arguments += " /start:$($Matches[1].Trim())"
+        }
+        if ($out -match '(?im)^\s*noumex\s+(?:Yes|True|1)') {
+            $arguments += " /noumex"
+        }
+        if ($arguments -notmatch '^[A-Za-z0-9:._ /-]+$') { throw 'debugger settings 参数含有未允许字符' }
         [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Present = $true; Type = $type; Arguments = $arguments }
     } catch { throw }
 }
@@ -79,7 +91,7 @@ function Test-BcdDebuggerBackupSchema {
         if (-not [bool]$Backup.Present) { return ($null -eq $Backup.Type -and $null -eq $Backup.Arguments) }
         if (-not (Test-BcdDebuggerTypeAllowed ([string]$Backup.Type))) { return $false }
         if ([string]::IsNullOrWhiteSpace([string]$Backup.Arguments)) { return $false }
-        return ([string]$Backup.Arguments -match '^[A-Za-z0-9:._ -]+$')
+        return ([string]$Backup.Arguments -match '^[A-Za-z0-9:._ /-]+$')
     } catch { return $false }
 }
 
