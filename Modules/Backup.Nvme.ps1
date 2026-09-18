@@ -193,7 +193,8 @@ function Restore-NvmeSafeBootBackup {
                     'Default' { $viVeExitCode = Invoke-ViVeToolCommand $ViVeTool '/reset' ([string]$f.Id) }
                     default { $featureFailures += [string]$f.Id; $allOk = $false; $script:fail++; continue }
                 }
-                if ($null -ne $viVeExitCode -and $viVeExitCode -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $viVeExitCode); $allOk = $false; $script:fail++ }
+                $isWrapper = [System.IO.Path]::GetExtension($ViVeTool) -in @('.cmd', '.bat')
+                if (-not $isWrapper -and $null -ne $viVeExitCode -and $viVeExitCode -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $viVeExitCode); $allOk = $false; $script:fail++ }
             }
         } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
         foreach ($r in @($backup.SafeBoot)) {
