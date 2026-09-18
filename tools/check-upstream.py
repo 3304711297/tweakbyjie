@@ -20,6 +20,8 @@ from datetime import datetime
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES_FILE = os.path.join(ROOT_DIR, "tools", "upstream-sources.json")
+API_TIMEOUT_SECONDS = 30
+PAGE_SIZE = 100
 
 
 def get_headers():
@@ -38,19 +40,37 @@ def api_get(url):
     if "Authorization" in headers:
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT_SECONDS) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception:
             pass
 
     try:
         endpoint = url.replace("https://api.github.com/", "")
-        res = subprocess.run(["gh", "api", endpoint], capture_output=True, text=True)
+        res = subprocess.run(["gh", "api", endpoint], capture_output=True, text=True, timeout=API_TIMEOUT_SECONDS)
         if res.returncode == 0:
             return json.loads(res.stdout)
-    except Exception:
+    except (subprocess.TimeoutExpired, OSError, ValueError, json.JSONDecodeError):
         pass
     return None
+
+
+def api_get_all(url, page_size=PAGE_SIZE):
+    """读取 GitHub 分页列表；失败返回 None，不能把截断列表当成完整结果。"""
+    items = []
+    page = 1
+    while True:
+        separator = "&" if "?" in url else "?"
+        page_data = api_get(f"{url}{separator}per_page={page_size}&page={page}")
+        if page_data is None or not isinstance(page_data, list):
+            return None
+        items.extend(page_data)
+        if len(page_data) < page_size:
+            return items
+        page += 1
+        # 防御异常 API/桩返回无限满页。
+        if page > 1000:
+            return None
 
 
 def first_line(message):
@@ -63,12 +83,27 @@ def head_commit_info(repo, sha):
 
 
 def list_branch_commits(repo, base, head):
-    """基线 -> 头部区间的全部 commit；取不到 compare 时退回单条头部。"""
-    data = api_get(f"https://api.github.com/repos/{repo}/compare/{base}...{head}")
-    if data and isinstance(data.get("commits"), list) and data["commits"]:
+    """基线 -> 头部区间的全部 commit；显式分页，避免 compare API 默认截断。"""
+    url = f"https://api.github.com/repos/{repo}/compare/{base}...{head}"
+    commits = []
+    page = 1
+    complete = True
+    while True:
+        data = api_get(f"{url}?per_page={PAGE_SIZE}&page={page}")
+        if not data or not isinstance(data.get("commits"), list):
+            complete = False
+            break
+        commits.extend(data["commits"])
+        if len(data["commits"]) < PAGE_SIZE:
+            break
+        page += 1
+        if page > 1000:
+            complete = False
+            break
+    if complete and commits:
         return [
             {"sha": c.get("sha", "")[:7], "msg": first_line(c.get("commit", {}).get("message", ""))}
-            for c in data["commits"]
+            for c in commits
         ]
     return [head_commit_info(repo, head)]
 
@@ -84,7 +119,7 @@ def check_source(name, cfg):
     updates = []
     notes = []
 
-    remote = api_get(f"https://api.github.com/repos/{repo}/branches?per_page=100")
+    remote = api_get_all(f"https://api.github.com/repos/{repo}/branches")
     if remote is None:
         # API 不可达（限流/网络抖动）时不得把分支误判为"已消失"，跳过本轮分支比对
         notes.append("GitHub API 不可达，本轮跳过分支比对与 Release 检查")

@@ -2,6 +2,7 @@
 # 备份/恢复逻辑见 Modules/Backup.Mpo.ps1
 
 function Invoke-MpoModule {
+    param([string]$Action = '')
 
     # ======================= Part 11: MPO 设置管理 =======================
     # MPO（Multi-Plane Overlay，多平面叠加）让显卡用独立硬件平面合成画面，异常时
@@ -28,8 +29,16 @@ function Invoke-MpoModule {
     Write-Host "     游戏或叠加层可能异常，仅在方案 A 无效时测试；自动清除方案 A/C 的值）" -ForegroundColor White
     Write-Host "  3. 尝试保持 MPO — 方案 C：OverlayMinFPS=0（常用于 G-Sync/FreeSync 视频卡顿；" -ForegroundColor White
     Write-Host "     实际效果取决于系统和驱动；自动清除方案 A/B 的值）" -ForegroundColor White
-    Write-Host "  4. 还原（优先恢复首次修改前备份；无备份时删除四个值恢复系统默认）" -ForegroundColor White
-    $mChoice = Read-Host "请输入 0、1、2、3 或 4 并回车 (Enter 0, 1, 2, 3 or 4)"
+    Write-Host "  4. 还原（按首次修改前备份恢复；无备份或快照损坏时失败关闭）" -ForegroundColor White
+    if ([string]::IsNullOrWhiteSpace($Action)) {
+        if ($script:TweakNonInteractive) {
+            Write-Host '[FAIL] 非交互模式必须通过 -Action 指定 MPO 子操作（0=status、1/2/3=apply、4=restore）。' -ForegroundColor Red
+            $script:fail++
+            return $false
+        }
+        $Action = Read-Host "请输入 0、1、2、3 或 4 并回车 (Enter 0, 1, 2, 3 or 4)"
+    }
+    $mChoice = $Action
 
     if ($mChoice -eq "0") {
 
@@ -65,30 +74,62 @@ function Invoke-MpoModule {
         $mpoChanged = $false
 
         if (Ensure-MpoBackup) {
+            # 每一步都检查共享失败计数；首个写入/删除失败立即停止，并按首次快照回滚。
+            $operationOk = $true
             if ($mChoice -eq "1") {
                 # 方案 A：社区使用较广的禁用组合
-                Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
-                Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
-                Set-RegDword $dwmReg "OverlayTestMode" 5 "OverlayTestMode = 5 (社区排障配置)"
-                Set-RegDword $gdReg "DisableMPO" 1 "DisableMPO = 1 (社区排障配置)"
+                $before = $script:fail; Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"; if ($script:fail -gt $before) { $operationOk = $false }
+                if ($operationOk) { $before = $script:fail; Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Set-RegDword $dwmReg "OverlayTestMode" 5 "OverlayTestMode = 5 (社区排障配置)"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Set-RegDword $gdReg "DisableMPO" 1 "DisableMPO = 1 (社区排障配置)"; if ($script:fail -gt $before) { $operationOk = $false } }
             } elseif ($mChoice -eq "2") {
                 # 方案 B：更激进的社区排障配置；与其他值互斥
-                Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
-                Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"
-                Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
-                Set-RegDword $gdReg "DisableOverlays" 1 "DisableOverlays = 1 (社区排障配置)"
-                Write-Host " [警告] 该方案可能影响 DX12 游戏或叠加层，仅建议在方案 A 无效时测试" -ForegroundColor Yellow
+                $before = $script:fail; Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"; if ($script:fail -gt $before) { $operationOk = $false }
+                if ($operationOk) { $before = $script:fail; Remove-RegDwordValue $dwmReg "OverlayMinFPS" "清除方案 C OverlayMinFPS"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Set-RegDword $gdReg "DisableOverlays" 1 "DisableOverlays = 1 (社区排障配置)"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { Write-Host " [警告] 该方案可能影响 DX12 游戏或叠加层，仅建议在方案 A 无效时测试" -ForegroundColor Yellow }
             } else {
                 # 方案 C：尝试避免低帧率时撤下 MPO；实际效果取决于系统和驱动
-                Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"
-                Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"
-                Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"
-                Set-RegDword $dwmReg "OverlayMinFPS" 0 "OverlayMinFPS = 0 (社区排障配置)"
+                $before = $script:fail; Remove-RegDwordValue $dwmReg "OverlayTestMode" "清除方案 A OverlayTestMode"; if ($script:fail -gt $before) { $operationOk = $false }
+                if ($operationOk) { $before = $script:fail; Remove-RegDwordValue $gdReg "DisableOverlays" "清除方案 B DisableOverlays"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Remove-RegDwordValue $gdReg "DisableMPO" "清除旧方法 DisableMPO"; if ($script:fail -gt $before) { $operationOk = $false } }
+                if ($operationOk) { $before = $script:fail; Set-RegDword $dwmReg "OverlayMinFPS" 0 "OverlayMinFPS = 0 (社区排障配置)"; if ($script:fail -gt $before) { $operationOk = $false } }
             }
-            $mpoChanged = $true
-            Write-Host " [提示] 这些是未公开的社区排障配置，不是微软或显卡厂商保证的稳定 API" -ForegroundColor Yellow
+
+            # 写入成功后必须逐项回读，特别是互斥方案中的清除动作。
+            if ($operationOk) {
+                $expected = @{}
+                if ($mChoice -eq '1') { $expected["$dwmReg|OverlayTestMode"] = 5; $expected["$gdReg|DisableMPO"] = 1 }
+                elseif ($mChoice -eq '2') { $expected["$gdReg|DisableOverlays"] = 1 }
+                else { $expected["$dwmReg|OverlayMinFPS"] = 0 }
+                foreach ($v in $mpoValues) {
+                    $key = "$($v.Path)|$($v.Name)"
+                    try {
+                        $item = Get-Item $v.Path -ErrorAction Stop
+                        $present = ($item.GetValueNames() -contains $v.Name)
+                        if ($expected.ContainsKey($key)) {
+                            $actual = if ($present) { [int64]$item.GetValue($v.Name) } else { $null }
+                            if (-not $present -or $actual -ne [int64]$expected[$key]) { throw '值不存在或数值不匹配' }
+                        } elseif ($present) {
+                            throw '应清除的值仍存在'
+                        }
+                    } catch {
+                        $operationOk = $false
+                        Write-Host "[VERIFY FAIL] MPO $($v.Name) 写入后回读不一致：$($_.Exception.Message)" -ForegroundColor Red
+                        $script:fail++
+                    }
+                }
+            }
+            if ($operationOk) {
+                $mpoChanged = $true
+                Write-Host " [提示] 这些是未公开的社区排障配置，不是微软或显卡厂商保证的稳定 API" -ForegroundColor Yellow
+            } else {
+                Write-Host '[FAIL] MPO 方案未完整应用，正在按首次快照回滚。' -ForegroundColor Red
+                if (-not (Restore-MpoBackup)) { Write-Host '[FAIL] MPO 自动回滚未完全成功，请人工检查。' -ForegroundColor Red }
+            }
         } else {
-            Write-Host "[ABORTED] 备份不可用，未修改 MPO，也不会自动重启" -ForegroundColor Red
+            Write-Host "[FAIL] 备份不可用，未修改 MPO，也不会自动重启" -ForegroundColor Red
         }
 
         # Summary
@@ -108,8 +149,8 @@ function Invoke-MpoModule {
 
     } elseif ($mChoice -eq "4") {
 
-        # 还原：优先恢复首次修改前状态；没有备份时才删除全部值
-        Restore-MpoBackup
+        # 还原：只按首次快照恢复；没有快照时失败关闭，绝不盲删用户值
+        $restoreOk = Restore-MpoBackup
 
         # Summary
         Write-Host ""
@@ -120,15 +161,16 @@ function Invoke-MpoModule {
         Write-Host " SKIP : $script:skip" -ForegroundColor Yellow
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
-        if (Test-Path $script:mpoBackupFile) {
+        if ($restoreOk) {
             Write-Host " 重启后 MPO 恢复首次修改前状态；备份文件保留在 $script:mpoBackupFile" -ForegroundColor Yellow
         } else {
-            Write-Host " 重启后 MPO 恢复系统默认（叠加平面按系统策略自动管理）" -ForegroundColor Yellow
+            Write-Host " 未完成 MPO 恢复；快照已保留，修复失败项后再重试。" -ForegroundColor Red
         }
 
-        Request-Restart
+        if ($restoreOk) { Request-Restart }
 
     } else {
-        Write-Host "[ERROR] 无效输入：$mChoice 。请输入 0、1、2、3 或 4 / Invalid input. Enter 0, 1, 2, 3 or 4." -ForegroundColor Red
+        Write-Host "[FAIL] 无效输入：$mChoice 。请输入 0、1、2、3 或 4 / Invalid input. Enter 0, 1, 2, 3 or 4." -ForegroundColor Red
+        $script:fail++
     }
 }

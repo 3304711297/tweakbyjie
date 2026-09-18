@@ -3,18 +3,18 @@
 ## 当前状态（2026-08-25，模块化已全部完成）
 
 - `Common.ps1` — 通用注册表/BCD/验证/重启
-- `Backup.Mpo/Bcd/Service/SecurityMitigation/Nvme/Defender` — 6 套备份闭环
-- `Bcd/Defender/Mpo/Nvme/Power/Registry/Service/Virtualization` — Part 1–11 执行逻辑全部迁出
-- `Menu.ps1` — 菜单调度（`Show-TweakMenu`，约 105 行纯调度链）
+- `Backup.Bcd/Defender/DriverBlocklist/GameQos/Mpo/Nvme/Registry/SecurityMitigation/Service/Vbs` — 10 套备份闭环
+- `Bcd/Defender/GameQos/Mpo/Nvme/Power/Registry/Service/Virtualization` — 菜单 1–12 执行逻辑全部迁出（Bcd 承载 2/3/4）
+- `Menu.ps1` — 菜单调度（`Show-TweakMenu`，约 90 行纯调度链）
 
-`tweakbyjie.ps1` 为约 127 行 Loader，通过 `. "$PSScriptRoot/Modules/X.ps1"` 点源全部 16 个模块文件，保持分发兼容。历史基线：2026-08-20 第一阶段为 81 行 Loader + 7 个文件、5 套备份。
+`tweakbyjie.ps1` 为约 232 行 Loader，通过 `. "$PSScriptRoot/Modules/X.ps1"` 点源全部 22 个 `.ps1` 模块文件，保持分发兼容。历史基线：2026-08-20 第一阶段为 81 行 Loader + 7 个文件、5 套备份。
 
 ## 后续方向
 
 ### Core（已落地）
 
 - 权限检查 — `tweakbyjie.ps1` 头部
-- 备份/恢复 — `Backup.*.ps1`（6 套 Schema 校验，旁车输入按白名单/固定路径收紧）
+- 备份/恢复 — `Backup.*.ps1`（10 套 Schema 校验，旁车输入按白名单/固定路径收紧）
 - 环境检测 — `Backup.Nvme.ps1`（`Test-NativeNvme*`）、`Common.ps1`（`Verify-*`）
 - 退出码 — `Get-TweakExitCode`（0 成功 / 2 参数无效 / 4 全部失败 / 5 部分失败）
 

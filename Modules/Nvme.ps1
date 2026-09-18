@@ -2,6 +2,7 @@
 # 备份/恢复逻辑见 Modules/Backup.Nvme.ps1
 
 function Invoke-NvmeModule {
+    param([string]$Action = '')
 
     # ======================= Part 8: Native NVMe Driver =======================
     # Preferred path: ViVeTool feature IDs 60786016 + 48433719.
@@ -28,7 +29,15 @@ function Invoke-NvmeModule {
     Write-Host "  0. 查看当前状态（Feature / SafeBoot / Legacy Override / nvmedisk 实际状态）" -ForegroundColor White
     Write-Host "  1. 启用 Native NVMe（ViVeTool 60786016 + 48433719）" -ForegroundColor White
     Write-Host "  2. 还原到启用前快照" -ForegroundColor White
-    $nChoice = Read-Host "请输入 0、1 或 2 并回车"
+    if ([string]::IsNullOrWhiteSpace($Action)) {
+        if ($script:TweakNonInteractive) {
+            Write-Host '[FAIL] 非交互模式必须通过 -Action 指定 NVMe 子操作（0=status、1=apply、2=restore）。' -ForegroundColor Red
+            $script:fail++
+            return $false
+        }
+        $Action = Read-Host "请输入 0、1 或 2 并回车"
+    }
+    $nChoice = $Action
 
     if ($nChoice -eq '0') {
 
@@ -84,27 +93,51 @@ function Invoke-NvmeModule {
         if ($nvmeDisks.Count -eq 0) {
             Write-Host "[SKIP] 未检测到 NVMe 磁盘，本项无作用，不修改。" -ForegroundColor Yellow
         } elseif ($buildNum -lt 26200) {
-            Write-Host "[ABORTED] build $buildNum 低于 26200；此模块仅针对 Windows 11 25H2+（26200+）。" -ForegroundColor Red
+            Write-Host "[FAIL] build $buildNum 低于 26200；此模块仅针对 Windows 11 25H2+（26200+）。" -ForegroundColor Red
+            $script:fail++
         } elseif (-not $viVe) {
-            Write-Host "[ABORTED] 未找到 ViVeTool.exe。" -ForegroundColor Red
+            Write-Host "[FAIL] 未找到 ViVeTool.exe，无法安全启用或精确恢复 Feature 状态。" -ForegroundColor Red
             Write-Host "请从官方 ViVeTool 发布页获取与系统架构匹配的版本，并将 ViVeTool.exe 放在本脚本目录或加入 PATH。" -ForegroundColor Yellow
+            $script:fail++
         } elseif (-not (Ensure-NvmeBackup $sbGuid $viVe $fmPath)) {
-            Write-Host "[ABORTED] Native NVMe 备份不可用，未执行修改。" -ForegroundColor Red
+            Write-Host "[FAIL] Native NVMe 备份不可用，未执行修改。" -ForegroundColor Red
         } else {
+            $initialNvme = Get-Content -LiteralPath $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (@($initialNvme.Features | Where-Object { [string]$_.BeforeState -eq 'Unknown' }).Count -gt 0) {
+                Write-Host '[FAIL] 无法确认启用前 Feature 状态，拒绝修改以避免无法精确回滚。' -ForegroundColor Red
+                $script:fail++
+                return $false
+            }
 
             Write-Host ""
             Write-Host "[1/3] 启用 Native NVMe Feature：60786016 + 48433719" -ForegroundColor Cyan
             & $viVe /enable /id:60786016,48433719 2>&1 | ForEach-Object { Write-Host $_ }
             if ($LASTEXITCODE -ne 0) {
-                Write-Host "[FAIL] ViVeTool 启用 Feature 失败，未继续修改 SafeBoot。" -ForegroundColor Red
+                Write-Host "[FAIL] ViVeTool 启用 Feature 失败，未继续修改 SafeBoot；正在按启用前快照回滚。" -ForegroundColor Red
                 $script:fail++
+                $rebootBeforeRollback = $script:rebootRequired
+                $rollbackOk = Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath
+                if ($rollbackOk) {
+                    $script:rebootRequired = $rebootBeforeRollback
+                    Write-Host '[OK] ViVeTool 部分修改已按快照回滚。' -ForegroundColor Yellow
+                } else {
+                    Write-Host '[FAIL] ViVeTool 失败后的 Native NVMe 自动回滚未完全成功，请立即使用 8 -> 2 并人工核对状态。' -ForegroundColor Red
+                }
             } else {
                 $cfgAfter = Test-NativeNvmeConfigured $viVe
                 if (-not $cfgAfter.BothEnabled) {
-                    Write-Host "[WARN] ViVeTool 命令完成，但查询不到两个 Feature 都为 Enabled；停止后续修改。" -ForegroundColor Yellow
+                    Write-Host "[FAIL] ViVeTool 命令完成，但查询不到两个 Feature 都为 Enabled；正在按启用前快照回滚。" -ForegroundColor Red
                     $script:fail++
+                    $rebootBeforeRollback = $script:rebootRequired
+                    $rollbackOk = Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath
+                    if ($rollbackOk) {
+                        $script:rebootRequired = $rebootBeforeRollback
+                        Write-Host "[OK] Native NVMe Feature 已回滚，未继续修改 SafeBoot。" -ForegroundColor Yellow
+                    } else {
+                        Write-Host "[FAIL] Native NVMe 自动回滚未完全成功，请立即使用 8 -> 2 并人工核对状态。" -ForegroundColor Red
+                    }
                 } else {
-                    Write-Host "[OK] 60786016 + 48433719 = Enabled" -ForegroundColor Green
+                    Write-Host "[OK] 60786016 + 48433719 = Enabled（已查询确认）" -ForegroundColor Green
                     $script:ok += 2
                     $script:rebootRequired = $true
 
@@ -121,12 +154,20 @@ function Invoke-NvmeModule {
                             Write-Host "[FAIL] SafeBoot $mode : reg.exe exit code $LASTEXITCODE" -ForegroundColor Red
                             $script:fail++
                             $safeBootOk = $false
+                            break
                         }
                     }
 
                     if (-not $safeBootOk) {
                         Write-Host "[FAIL] SafeBoot 配置未完整完成，正在按启用前 Version 3 快照回滚。" -ForegroundColor Red
-                        Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath | Out-Null
+                        $rebootBeforeRollback = $script:rebootRequired
+                        $rollbackOk = Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath
+                        if ($rollbackOk) {
+                            $script:rebootRequired = $rebootBeforeRollback
+                            Write-Host "[OK] SafeBoot 与 Feature 已按快照回滚。" -ForegroundColor Yellow
+                        } else {
+                            Write-Host "[FAIL] SafeBoot 自动回滚未完全成功，请立即使用 8 -> 2 并人工核对。" -ForegroundColor Red
+                        }
                     } else {
                         Write-Host ""
                         Write-Host "[3/3] Legacy Override 兼容说明" -ForegroundColor Cyan
@@ -150,12 +191,15 @@ function Invoke-NvmeModule {
             Write-Host "请将与启用时相同的 ViVeTool.exe 放回脚本目录或 PATH，再执行 8 -> 2。" -ForegroundColor Yellow
             $script:fail++
         } else {
-            Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath | Out-Null
-            Request-Restart
+            $restoreOk = Restore-NvmeSafeBootBackup $sbGuid $viVe $fmPath
+            if ($restoreOk) { Request-Restart }
+            else { return $false }
         }
 
     } else {
-        Write-Host "[ERROR] 无效输入：$nChoice 。请输入 0、1 或 2" -ForegroundColor Red
+        Write-Host "[FAIL] 无效输入：$nChoice 。请输入 0、1 或 2" -ForegroundColor Red
+        $script:fail++
+        return $false
     }
 
     Write-Host ""

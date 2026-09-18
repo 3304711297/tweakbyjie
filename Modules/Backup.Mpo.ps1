@@ -1,7 +1,11 @@
 ﻿function Get-MpoValueSnapshot {
     param([hashtable]$Definition)
-    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
-    $exists = $item -and ($item.GetValueNames() -contains $Definition.Name)
+    try {
+        $item = Get-Item $Definition.Path -ErrorAction Stop
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Exists = $false; Kind = $null; Data = $null }
+    }
+    $exists = ($item.GetValueNames() -contains $Definition.Name)
     if (-not $exists) {
         return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Exists = $false; Kind = $null; Data = $null }
     }
@@ -39,7 +43,8 @@ function Ensure-MpoBackup {
         $snapshots = @($script:mpoManagedValues | ForEach-Object { Get-MpoValueSnapshot $_ })
         $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Values = $snapshots }
         if (-not (Test-MpoBackupSchema $backup)) { throw '生成的 MPO 备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:mpoBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 6
+        Write-TweakAtomicTextFile -Path $script:mpoBackupFile -Content $json
         $check = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-MpoBackupSchema $check)) { throw '写入后的 MPO 备份校验失败' }
         $script:mpoBackupReady = $true
@@ -74,30 +79,40 @@ function Test-MpoBackupSchema {
 }
 
 function Restore-MpoBackup {
-    if (-not (Test-Path $script:mpoBackupFile)) {
-        Write-Host "[WARN] 未找到 mpo-backup.json，将删除受管理值并恢复系统默认；这不会恢复此前的自定义值" -ForegroundColor Yellow
-        foreach ($v in $script:mpoManagedValues) { Remove-RegDwordValue $v.Path $v.Name ("还原 " + $v.Name) }
-        return $true
+    if (-not (Test-Path -LiteralPath $script:mpoBackupFile -PathType Leaf)) {
+        # 没有快照就无法区分“工具值”和用户自己的同名值；恢复动作必须失败关闭。
+        Write-Host "[FAIL] 未找到 mpo-backup.json，拒绝盲删受管理值；请先确认原始状态。" -ForegroundColor Red
+        $script:fail++
+        return $false
     }
     try {
-        $backup = Get-Content $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $backup = Get-Content -LiteralPath $script:mpoBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-MpoBackupSchema $backup)) { throw 'mpo-backup.json 结构、记录唯一性或值数据不正确' }
+        $allOk = $true
         foreach ($r in @($backup.Values)) {
+            $before = $script:fail
             if (-not $r.Exists) {
                 Remove-RegDwordValue $r.Path $r.Name ("还原 " + $r.Name)
-                continue
+            } else {
+                $regPath = Convert-RegExePath $r.Path
+                $regType = Convert-RegKindForExe $r.Kind
+                $data = [string]$r.Data
+                & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
+                if ($LASTEXITCODE -ne 0) { $script:fail++; $allOk = $false }
+                else {
+                    Write-Host ("[OK] 已恢复 {0} 原始值 {1}" -f $r.Name, $r.Data)
+                    $script:ok++
+                    $script:rebootRequired = $true
+                }
             }
-            $regPath = Convert-RegExePath $r.Path
-            $regType = Convert-RegKindForExe $r.Kind
-            $data = [string]$r.Data
-            & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
-            if ($LASTEXITCODE -ne 0) { throw "恢复 $($r.Name) 失败，reg.exe exit code $LASTEXITCODE" }
-            Write-Host ("[OK] 已恢复 {0} 原始值 {1}" -f $r.Name, $r.Data)
-            $script:ok++
-            $script:rebootRequired = $true
+            if ($script:fail -gt $before) { $allOk = $false }
         }
-        Write-Host "[OK] MPO 已恢复到首次修改前状态；备份文件已保留：$script:mpoBackupFile" -ForegroundColor Green
-        return $true
+        if ($allOk) {
+            Write-Host "[OK] MPO 已恢复到首次修改前状态；备份文件已保留：$script:mpoBackupFile" -ForegroundColor Green
+        } else {
+            Write-Host '[WARN] MPO 恢复未完全成功，请复查输出中的 FAIL 项；快照已保留供重试。' -ForegroundColor Yellow
+        }
+        return $allOk
     } catch {
         Write-Host "[FAIL] MPO 状态恢复失败：$($_.Exception.Message)" -ForegroundColor Red
         $script:fail++

@@ -157,19 +157,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Resolve released version
         id: ver
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          # 本任务仅在推送 v* tag 时运行；版本号即 tag 本身
-          VERSION="$GITHUB_REF_NAME"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "version: ${VERSION}"
+          # 只接受严格的 vMAJOR.MINOR.PATCH，避免 tag 内容进入 sed/zip/gh 参数。
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid release tag: $RELEASE_TAG" >&2
+            exit 2
+          fi
+          echo "version=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version_number=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "version: $RELEASE_TAG"
       - name: Stamp version into packaged script
+        env:
+          RELEASE_TAG: ${{ steps.ver.outputs.version }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
+          V="$RELEASE_TAG"
           sed -i "s/\$script:TweakVersion = '[^']*'/\$script:TweakVersion = '${V#v}'/" tweakbyjie.ps1
           grep -n "TweakVersion =" tweakbyjie.ps1
       - name: Package runtime ZIP with checksum
+        env:
+          RELEASE_TAG: ${{ steps.ver.outputs.version }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
+          V="$RELEASE_TAG"
           zip -r "tweakbyjie-${V}.zip" \
             tweakbyjie.ps1 \
             tweakbyjie.cmd \
@@ -183,8 +193,9 @@ jobs:
       - name: Create GitHub Release with generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.ver.outputs.version }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
+          V="$RELEASE_TAG"
           gh release create "$V" \
             --target "$GITHUB_SHA" \
             --generate-notes \

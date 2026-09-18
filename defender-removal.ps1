@@ -21,17 +21,19 @@
 #   - 强烈建议运行前创建系统还原点 / 备份
 #
 # 权限说明 / Permissions:
-#   受 TrustedInstaller 保护的键，脚本会先以管理员尝试，再以 SYSTEM 批量重试；
+#   受 TrustedInstaller 保护的键，脚本仅以管理员尝试；任一实际删除失败后停止后续危险写入。
 #   仍被拒绝的键会如实报告 [FAIL]，如需彻底删除可借助 NSudo / PowerRun 等提权工具。
-#   Keys protected by TrustedInstaller are not retried automatically; any denied
-#   key is reported [FAIL] and requires separate, explicitly approved handling.
+#   Keys protected by TrustedInstaller are not retried automatically; after a failed
+#   destructive write the remaining destructive operations are stopped.
 
 [CmdletBinding()]
 param(
     [switch]$Execute,
     [switch]$DryRun,
     [switch]$Restart,
-    [switch]$NoRestart
+    [switch]$NoRestart,
+    [switch]$NonInteractive,
+    [switch]$ConfirmIrreversible
 )
 
 if ($Execute -and $DryRun) {
@@ -44,6 +46,12 @@ $ErrorActionPreference = "Stop"
 $ok = 0
 $fail = 0
 $skip = 0
+$script:abortDestructive = $false
+
+if ($NonInteractive -and -not $ConfirmIrreversible -and $Execute) {
+    Write-Host "[ERROR] 非交互执行不可省略不可逆确认；请同时提供 -ConfirmIrreversible。" -ForegroundColor Red
+    exit 2
+}
 
 $dryRunTargets = @(
     "Part 1: Defender 服务注册表键、WinRT 和 svchost 注册",
@@ -63,7 +71,7 @@ if (-not $Execute) {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Host "[ERROR] 请以管理员身份运行此脚本 / Please run this script as Administrator." -ForegroundColor Red
-    Read-Host "Press Enter to exit"
+    if (-not $NonInteractive) { Read-Host "Press Enter to exit" }
     exit 1
 }
 
@@ -72,6 +80,7 @@ if (-not $isAdmin) {
 # Delete an entire registry key (reg.exe format: HKLM\..., HKCU\..., HKCR\...)
 function Remove-RegKey {
     param([string]$RegPath, [string]$Label)
+    if ($script:abortDestructive) { return }
     $null = & reg.exe query $RegPath 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Host ("[SKIP] {0}" -f $Label) -ForegroundColor Yellow
@@ -85,12 +94,14 @@ function Remove-RegKey {
     } else {
         Write-Host ("[FAIL] {0} : reg.exe delete failed" -f $Label) -ForegroundColor Red
         $script:fail++
+        $script:abortDestructive = $true
     }
 }
 
 # Delete a single registry value
 function Remove-RegValue {
     param([string]$RegPath, [string]$Value, [string]$Label)
+    if ($script:abortDestructive) { return }
     $null = & reg.exe query $RegPath /v $Value 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Host ("[SKIP] {0}" -f $Label) -ForegroundColor Yellow
@@ -104,12 +115,14 @@ function Remove-RegValue {
     } else {
         Write-Host ("[FAIL] {0} : reg.exe delete failed" -f $Label) -ForegroundColor Red
         $script:fail++
+        $script:abortDestructive = $true
     }
 }
 
 # takeown + icacls + remove a directory tree
 function Remove-DefenderPath {
     param([string]$FsPath, [string]$Label)
+    if ($script:abortDestructive) { return }
     if (-not (Test-Path -LiteralPath $FsPath)) {
         Write-Host ("[SKIP] {0} : 不存在 / not found" -f $Label) -ForegroundColor Yellow
         $script:skip++
@@ -127,6 +140,7 @@ function Remove-DefenderPath {
     } catch {
         Write-Host ("[FAIL] {0} : {1}" -f $Label, $_.Exception.Message) -ForegroundColor Red
         $script:fail++
+        $script:abortDestructive = $true
     }
 }
 
@@ -155,7 +169,7 @@ function Start-RestartCountdown {
     if ($cancelled) {
         Write-Host "[已取消] 重启已取消，请稍后手动重启以使设置生效" -ForegroundColor Green
         Write-Host "[CANCELLED] Restart cancelled. Restart manually later for changes to take effect." -ForegroundColor Green
-        Read-Host "Press Enter to exit"
+        if (-not $NonInteractive) { Read-Host "Press Enter to exit" }
     } else {
         Write-Host "[重启] 立即重启 / Restarting now..." -ForegroundColor Red
         Restart-Computer -Force
@@ -177,15 +191,19 @@ Write-Host " [警告] 此操作不可逆！恢复需重装 Windows 或 SFC/DISM 
 Write-Host " [WARNING] IRREVERSIBLE! Recovery requires Windows reinstall or SFC/DISM." -ForegroundColor Yellow
 Write-Host " 建议先运行 tweakbyjie.ps1 选项 5（关闭安全中心），再视需要运行本脚本。" -ForegroundColor Yellow
 Write-Host ""
-$confirm = Read-Host "确认执行请输入 REMOVE 并回车 / Type REMOVE to proceed"
-if ($confirm -ne "REMOVE") {
-    Write-Host "[已取消] 未输入 REMOVE，脚本退出 / Cancelled. Exiting." -ForegroundColor Green
-    exit 0
-}
-$confirmAgain = Read-Host "这是不可逆操作，请再次输入 REMOVE 确认 / Type REMOVE again to confirm"
-if ($confirmAgain -ne "REMOVE") {
-    Write-Host "[已取消] 二次确认失败，未执行删除 / Confirmation failed. Nothing was removed." -ForegroundColor Green
-    exit 0
+if ($NonInteractive) {
+    Write-Host "[OK] 非交互模式已收到 -ConfirmIrreversible；跳过 Read-Host 确认。" -ForegroundColor Yellow
+} else {
+    $confirm = Read-Host "确认执行请输入 REMOVE 并回车 / Type REMOVE to proceed"
+    if ($confirm -ne "REMOVE") {
+        Write-Host "[已取消] 未输入 REMOVE，脚本退出 / Cancelled. Exiting." -ForegroundColor Green
+        exit 0
+    }
+    $confirmAgain = Read-Host "这是不可逆操作，请再次输入 REMOVE 确认 / Type REMOVE again to confirm"
+    if ($confirmAgain -ne "REMOVE") {
+        Write-Host "[已取消] 二次确认失败，未执行删除 / Confirmation failed. Nothing was removed." -ForegroundColor Green
+        exit 0
+    }
 }
 
 # ============================ Part 1: Services ============================

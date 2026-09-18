@@ -188,11 +188,11 @@ if ($sourceRefs.Count -gt 0 -and $failures.Count -eq 0) {
     Write-Host "[PASS] $($sourceRefs.Count) 个源码引用（映射+执行参考）均可解析" -ForegroundColor Green
 }
 
-# 菜单契约：Menu.ps1 必须仍调度全部 11 个模块入口函数，防止菜单编号与实现脱钩。
+# 菜单契约：Menu.ps1 必须仍调度全部 12 个模块入口函数，防止菜单编号与实现脱钩。
 $expectedMenuFunctions = @(
     'Invoke-RegistryModule','Invoke-BcdAdvancedModule','Invoke-TestModeEnableModule','Invoke-TestModeDisableModule',
     'Invoke-DefenderModule','Invoke-ServiceModule','Invoke-PowerModule','Invoke-NvmeModule',
-    'Invoke-DeviceGuardModule','Invoke-VbsModule','Invoke-MpoModule'
+    'Invoke-DeviceGuardModule','Invoke-VbsModule','Invoke-MpoModule','Invoke-GameQosModule'
 )
 $menuPath = Join-Path $repoRoot 'Modules/Menu.ps1'
 if (Test-Path -LiteralPath $menuPath -PathType Leaf) {

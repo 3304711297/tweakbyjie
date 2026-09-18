@@ -111,7 +111,8 @@ $script:defenderStartupValues = @(
 
 function Get-DefenderValueSnapshot {
     param([hashtable]$Definition)
-    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    try { $item = Get-Item $Definition.Path -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] { $item = $null }
     $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
     if (-not $present) {
         return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Type = $Definition.Type; Present = $false; Value = $null; Desc = $Definition.Desc }
@@ -181,7 +182,8 @@ function Ensure-DefenderPolicyBackup {
             StartupValues = @($StartupDefinitions | ForEach-Object { Get-DefenderValueSnapshot $_ })
         }
         if (-not (Test-DefenderBackupSchema $backup $Definitions $StartupDefinitions)) { throw '生成的 Defender 策略备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:defenderPolicyBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $script:defenderPolicyBackupFile -Content $json
         $check = Get-Content $script:defenderPolicyBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-DefenderBackupSchema $check $Definitions $StartupDefinitions)) { throw '写入后的 Defender 策略备份校验失败' }
         Write-Host "[OK] Defender 策略原始状态已备份：$script:defenderPolicyBackupFile" -ForegroundColor Green
@@ -190,10 +192,14 @@ function Ensure-DefenderPolicyBackup {
 }
 
 function Invoke-DefenderPolicyWrites {
+    $allOk = $true
     foreach ($d in $script:defenderPolicyValues) {
+        $before = $script:fail
         if ([string]$d.Type -eq 'String') { Set-RegString $d.Path $d.Name ([string]$d.Value) $d.Desc }
         else { Set-RegDword $d.Path $d.Name $d.Value $d.Desc }
+        if ($script:fail -gt $before) { $allOk = $false; break }
     }
+    return $allOk
 }
 
 function Restore-DefenderRegistryValue {

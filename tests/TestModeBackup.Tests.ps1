@@ -64,6 +64,7 @@ Describe "Test mode modules guard with backup" {
 
     It "Invoke-TestModeEnableModule backs up before modifying BCD" {
         Mock Ensure-BcdBackup { return $true }
+        Mock Ensure-BcdDebuggerBackup { return $true }
         Mock Invoke-BcdEdit { return $true }
         Mock Request-Restart { }
         Invoke-TestModeEnableModule | Out-Null
@@ -72,6 +73,7 @@ Describe "Test mode modules guard with backup" {
 
     It "Invoke-TestModeEnableModule aborts modifications when backup fails" {
         Mock Ensure-BcdBackup { return $false }
+        Mock Ensure-BcdDebuggerBackup { return $true }
         Mock Invoke-BcdEdit { return $true }
         Mock Request-Restart { }
         Invoke-TestModeEnableModule | Out-Null
@@ -80,13 +82,16 @@ Describe "Test mode modules guard with backup" {
 
     It "Invoke-TestModeDisableModule restores from backup when it exists" {
         Mock Restore-BcdBackup { return $true } -Verifiable
+        Mock Restore-BcdDebuggerBackup { return $true }
         Mock Invoke-BcdEdit { return $true }
         Mock Remove-BcdValue { }
         Mock Request-Restart { }
         New-Item -Path $script:testModeBackupFile -Value '{}' -Force | Out-Null
+        New-Item -Path $script:testModeDebuggerBackupFile -Value '{}' -Force | Out-Null
         Invoke-TestModeDisableModule | Out-Null
         Should -Invoke Restore-BcdBackup -Times 1
+        Should -Invoke Restore-BcdDebuggerBackup -Times 1
         Should -Invoke Invoke-BcdEdit -Times 0 -ParameterFilter { $Arguments -match 'deletevalue testsigning' }
-        Remove-Item $script:testModeBackupFile -Force -ErrorAction SilentlyContinue
+        Remove-Item $script:testModeBackupFile,$script:testModeDebuggerBackupFile -Force -ErrorAction SilentlyContinue
     }
 }

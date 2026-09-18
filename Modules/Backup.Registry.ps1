@@ -99,7 +99,8 @@ function Ensure-RegistryBackup {
             System    = @($SystemDefinitions | ForEach-Object { Get-MpoValueSnapshot $_ })
         }
         if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) { throw '生成的注册表备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 6 | Set-Content -Path $script:registryBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 6
+        Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json
         $check = Get-Content $script:registryBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-RegistryBackupSchema $check $CoreDefinitions $SystemDefinitions)) { throw '写入后的注册表备份校验失败' }
         Write-Host "[OK] 核心/系统优化原始状态已备份：$script:registryBackupFile" -ForegroundColor Green
@@ -145,8 +146,12 @@ function Restore-RegistryBackup {
                         $script:fail++
                     }
                 }
-                if ($script:fail -gt $before) { $allOk = $false }
+                if ($script:fail -gt $before) {
+                    $allOk = $false
+                    break
+                }
             }
+            if (-not $allOk) { break }
         }
         if ($allOk) { Write-Host '[OK] 核心/系统优化已按修改前快照恢复；Memory Compression 与 TRIM 不在本快照范围内。' -ForegroundColor Green }
         else { Write-Host '[WARN] 注册表恢复未完全成功，请复查输出中的 FAIL 项。' -ForegroundColor Yellow }

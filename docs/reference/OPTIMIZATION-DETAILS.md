@@ -21,7 +21,7 @@
 
 #### 02 GameBar 后台写入
 
-通过 `reg.exe` 写入受保护键，管理员失败时自动以 SYSTEM 身份通过计划任务重试。
+通过 `reg.exe` 写入受保护键；管理员写入失败会立即停止核心优化后续写入，并按首次快照尝试回滚，不自动创建 SYSTEM 计划任务。
 
 | 注册表路径 | 值名 | 类型 | 值 | 作用 |
 |---|---|---|---|---|
@@ -79,7 +79,7 @@
 
 关闭后系统不再拒绝加载已知存在提权漏洞的已签名内核驱动（BYOVD 攻击面扩大），常见目的是让需要直读 MSR / 物理内存的工具能够加载驱动。该值与内存完整性（HVCI）联动：**HVCI 开启时黑名单强制生效，单改此值不解除**，需重启后以 `msinfo32` 或安全中心复核实际状态。
 
-首次应用前写入 `driver-blocklist-backup.json`（机器绑定），备份校验固定路径、值名、存在性和 DWORD 数据；损坏备份会阻止修改。恢复时按原始存在性删除或写回。本项属可逆的安全弱化项，与 CPU 安全缓解子项同一门禁级别，不设 `I-UNDERSTAND-RISK` 短语确认。机制与代价见知识库《易受攻击驱动黑名单机制与关闭代价》。
+首次应用前写入 `driver-blocklist-backup.json`（机器绑定），备份校验固定路径、值名、存在性和 DWORD 数据；损坏备份会阻止修改。应用写入后逐项回读，失败会按原始快照尝试回滚。本项属可逆的安全弱化项，仍要求 `I-UNDERSTAND-RISK` 短语确认。机制与代价见知识库《易受攻击驱动黑名单机制与关闭代价》。
 
 #### 09 HAGS（硬件加速 GPU 调度）
 
@@ -216,12 +216,14 @@
 
 ### Part 4：关闭测试模式（选项 4）
 
-| 命令 | 作用 |
-|---|---|
-| `bcdedit /deletevalue testsigning` | 删除测试签名启动项（水印消失） |
-| `bcdedit /deletevalue debug` | 删除调试启动项 |
+脚本优先读取 `testmode-backup.json` 与 `testmode-debugger-backup.json`，按开启前的存在性和值恢复 `testsigning`、`debug` 及原始 `dbgsettings`；`nointegritychecks` 按设计不在关闭动作中隐式改写。只有缺少测试模式快照时才退回删除 `testsigning`/`debug`，该路径明确标注为**非精确恢复**，并检查每条 BCD 命令的返回值。
 
-> 注意：`nointegritychecks` 不会被删除，需手动运行 `bcdedit /set nointegritychecks off` 恢复。
+| 恢复内容 | 作用 |
+|---|---|
+| `Restore-BcdBackup` | 按快照恢复或删除 `testsigning`、`debug` |
+| `Restore-BcdDebuggerBackup` | 按快照恢复原始 `dbgsettings`；无快照时拒绝声称已精确恢复 |
+
+> 注意：`nointegritychecks` 不会被选项 4 自动删除；如需恢复该值，使用选项 2 的安全 BCD 快照恢复或在充分了解风险后手动处理。
 
 ---
 
@@ -633,7 +635,7 @@
 
 **子选项 2：还原**：依赖启用时可用的 ViVeTool，按 `nvme-backup.json` 恢复两个 Feature 的原始状态；同时恢复首次修改前的 Minimal/Network SafeBoot 默认值和三个旧版 Override。缺少 ViVeTool 或 Version 3 快照无效时拒绝声称已精确恢复。配置变更需重启后再确认 `nvmedisk` 是否停止运行。
 
-**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）可作为辅助信号；菜单状态检查与启用后验证由 `Modules/Backup.Nvme.ps1:75 Test-NativeNvmeConfigured`（查询 ViVeTool 两个 Feature 是否均为 Enabled）与 `Modules/Backup.Nvme.ps1:83 Test-NativeNvmeEffective`（检查 `nvmedisk.sys` 文件与 `nvmedisk` 驱动状态）提供，CI 在 Pester 5 环境下对二者的定义与返回值已有覆盖（`tests/Backup.Tests.ps1:27`），最终仍应以重启后驱动状态、系统稳定性和 NVMe 实际行为核对。
+**验证方式**：设备管理器 → 磁盘驱动器 → NVMe 磁盘属性 → 驱动程序 → 驱动程序文件，列表中出现 `nvmedisk.sys`（占据原 `disk.sys` 位置）可作为辅助信号；菜单状态检查与启用后验证由 `Modules/Backup.Nvme.ps1:75 Test-NativeNvmeConfigured`（查询 ViVeTool 两个 Feature 是否均为 Enabled）与 `Modules/Backup.Nvme.ps1:83 Test-NativeNvmeEffective`（检查 `nvmedisk.sys` 文件与 `nvmedisk` 驱动状态）提供，CI 在 Pester 6 环境下对二者的定义与返回值已有覆盖（`tests/Backup.Tests.ps1:27`），最终仍应以重启后驱动状态、系统稳定性和 NVMe 实际行为核对。
 
 > 实测版本数据：26200.5516 / 5601 / 5641 / 5651 / 5691 / 7623 均启用成功；**26100.2454（24H2 十月更新批次）无法启用**；个别 26100.7xxx 用户反馈未操作即已生效（疑似该版本已默认启用）。微软可能在部分版本移除或调整该灰度功能，无法启用属正常现象，脚本无法绕过。
 
@@ -742,8 +744,8 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 | 闪屏 / 切屏黑屏 / Chromium 残影 / 副屏冻结（N 卡多屏高发） | 先记录现状并测试 11 → 1；无效再谨慎测试 11 → 2 |
 | 仅 G-Sync/FreeSync 开启时视频播放全屏卡顿，游戏画面正常 | 可测试 11 → 3；它是社区排障方案，不保证有效 |
 | 禁用 MPO 后窗口化游戏丢失 VRR / 变卡 | 11 → 4 恢复原状态；若仍需排查视频卡顿，再单独测试 11 → 3 |
-| 恢复首次修改前状态 | 11 → 4（需要有效的 `mpo-backup.json`） |
-| 恢复系统默认但没有备份 | 删除 `mpo-backup.json` 后再运行 11 → 4（不可恢复原自定义值） |
+| 恢复首次修改前状态 | 11 → 4（必须存在有效的 `mpo-backup.json`） |
+| 没有备份或备份损坏 | 11 → 4 会失败关闭，不盲删同名值；先人工确认原始状态 |
 
 **四个受管理的注册表值**
 
@@ -762,9 +764,9 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 | 1 | **方案 A**：清除 `DisableOverlays` / `OverlayMinFPS`，写入 `OverlayTestMode=5` + `DisableMPO=1`（社区使用较广，但可能影响窗口化 VRR/视频呈现） |
 | 2 | **方案 B**：清除 `OverlayTestMode` / `OverlayMinFPS` / `DisableMPO`，写入 `DisableOverlays=1`（更激进，仅在方案 A 无效时测试；可能影响 DX12 游戏或其他叠加层） |
 | 3 | **方案 C**：清除 `OverlayTestMode` / `DisableOverlays` / `DisableMPO`，写入 `OverlayMinFPS=0`（社区用于排查 G-Sync/FreeSync 视频卡顿；实际效果取决于系统和驱动） |
-| 4 | **还原**：优先按 `mpo-backup.json` 恢复首次修改前状态；没有备份时才删除全部四个值并恢复系统默认 |
+| 4 | **还原**：按有效的 `mpo-backup.json` 恢复首次修改前状态；没有备份或快照损坏时失败关闭，不删除任何受管值 |
 
-首次执行子选项 1–3 前，脚本会在脚本目录创建 `mpo-backup.json`，已有备份不会覆盖。修改后不会强制倒计时重启；模块结束只显示待重启提示，退出主菜单时统一询问；MPO 设置需重启才生效。备份文件损坏或无法读取时，脚本会阻止新的 MPO 修改。
+首次执行子选项 1–3 前，脚本会在脚本目录创建 `mpo-backup.json`，已有备份不会覆盖。修改过程逐步检查并在失败时按首次快照回滚；修改后不会强制倒计时重启，模块结束只显示待重启提示，退出主菜单时统一询问；MPO 设置需重启才生效。备份文件损坏或无法读取时，脚本会阻止新的 MPO 修改和恢复动作。
 
 **验证方式**：重启后 `Win+R` 运行 `dxdiag` → 保存所有信息 → 打开保存的 txt 搜索 `MPO`。`MPO` 条目消失或 `MPO MaxPlanes` 为 0 在部分系统上可作为禁用的辅助信号；不同 Windows/驱动版本的输出可能不同，不能证明所有应用的运行时状态。最终应结合浏览器/视频、G-Sync/FreeSync、多显示器、窗口化游戏、DX12、HDR、录屏和 Steam/Discord 等覆盖层实测。方案 C 不禁用 MPO，不能用 MaxPlanes 消失判断其是否“生效”。
 
@@ -772,9 +774,27 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 12：竞技游戏网络 QoS 策略管理（选项 12）
+
+该模块在 `HKLM:\Software\Policies\Microsoft\Windows\QoS` 下为预置游戏进程创建策略键，写入 `Application Name`、通配协议/端口/IP、`DSCP Value=46` 与 `Throttle Rate=-1`。DSCP 是否被网络设备采纳取决于本地组策略、网卡、路由器和运营商，不保证实际降低延迟；它不会修改 `TCPNoDelay` 或 `TcpAckFrequency`。
+
+**安全边界**：首次应用前由 `Ensure-GameQosBackup` 创建 `$env:TEMP\gameqos-backup.json`，快照包含当前 QoS 子键及属性，已存在的有效快照绝不覆盖；策略名称和属性名按安全字符白名单校验，写入后逐项回读。任一写入失败会停止后续规则并尝试按首次快照回滚。恢复会先校验快照，缺少或损坏快照时拒绝删除任何托管策略，避免把用户同名规则当成工具产物。
+
+| 子选项 | 内容 |
+|---|---|
+| 0 | 只读检查预置策略是否完整；不修改注册表 |
+| 1 | 备份并应用 11 个预置游戏 QoS 策略 |
+| 2 | 先验证快照，清理托管策略并恢复快照中原有策略；没有快照时失败关闭 |
+
+受管游戏策略包括 `CS2`、`Valorant`、`ApexLegends`、`Fortnite`、`LeagueOfLegends`、`RainbowSixSiege`、`Overwatch2`、`CrossFire`、`NarakaBladepoint`、`PUBG` 与 `CallOfDuty`。应用后建议用 `Get-NetQosPolicy` 或组策略结果及实际游戏流量验证，重启是否必要取决于组策略刷新。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。
+>
+> 默认运行是 DryRun；真正执行必须显式使用 `-Execute`。交互执行仍要求两次 `REMOVE` 确认；无人值守执行必须同时使用 `-NonInteractive -ConfirmIrreversible`，否则直接退出而不读取 `Read-Host`。任一实际删除失败后，脚本停止后续危险写入并以退出码 `4` 结束；不会自动创建 SYSTEM 计划任务或自动重启。
 
 ---
 
@@ -928,12 +948,6 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
-### SYSTEM 重试机制
+### 删除失败边界（无 SYSTEM 自动重试）
 
-脚本首先以管理员身份执行所有删除操作。被 TrustedInstaller 保护的键如果失败，会收集起来以 **SYSTEM** 身份通过临时计划任务批量重试：
-1. 在 `%TEMP%` 创建临时 `.cmd` 文件，包含所有失败的 `reg.exe delete` 命令
-2. 创建计划任务，以 `SYSTEM` 身份、最高权限运行该 `.cmd`
-3. 等待 5 秒后验证删除结果
-4. 自动清理临时计划任务和 `.cmd` 文件
-
-仍被拒绝的键会如实报告 `[FAIL]`，需借助 NSudo / PowerRun 等提权工具手动处理。
+本脚本以管理员身份执行删除操作；被 TrustedInstaller 保护的键不会自动创建 SYSTEM 计划任务重试。任何拒绝都会如实报告 `[FAIL]`，并以失败退出，不会伪造删除成功。若用户明确批准，可在脚本外使用 NSudo / PowerRun 等工具处理，但这不属于本项目的自动恢复范围。
