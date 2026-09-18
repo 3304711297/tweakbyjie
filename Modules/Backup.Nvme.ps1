@@ -173,9 +173,9 @@ function Restore-NvmeSafeBootBackup {
         if ($ViVeTool) {
             foreach ($f in @($backup.Features)) {
                 switch ([string]$f.BeforeState) {
-                    'Enabled' { & $ViVeTool /enable /id:$($f.Id) 2>&1 | Out-Null }
-                    'Disabled' { & $ViVeTool /disable /id:$($f.Id) 2>&1 | Out-Null }
-                    'Default' { & $ViVeTool /reset /id:$($f.Id) 2>&1 | Out-Null }
+                    'Enabled' { $null = & $ViVeTool /enable /id:$($f.Id) 2>&1 }
+                    'Disabled' { $null = & $ViVeTool /disable /id:$($f.Id) 2>&1 }
+                    'Default' { $null = & $ViVeTool /reset /id:$($f.Id) 2>&1 }
                     default { $featureFailures += [string]$f.Id; $allOk = $false; $script:fail++; continue }
                 }
                 if ($LASTEXITCODE -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $LASTEXITCODE); $allOk = $false; $script:fail++ }
