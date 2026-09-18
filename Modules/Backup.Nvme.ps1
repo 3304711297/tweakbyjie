@@ -268,7 +268,7 @@ function Restore-NvmeSafeBootBackup {
         }
         if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else {
             $viveLogText = if ($env:TWEAK_VIVE_LOG -and (Test-Path -LiteralPath $env:TWEAK_VIVE_LOG)) { (Get-Content -LiteralPath $env:TWEAK_VIVE_LOG -Raw) -replace '[\r\n]+', '/' } else { '<none>' }
-            Write-Host ("::error title=NVMe restore diagnostic::features={0};safeboot={1};legacy={2};calls={3}" -f ($featureFailures -join ','), ($safeBootFailures -join ','), ($legacyFailures -join ','), $viveLogText)
+            Write-Host ("::error title=NVMe restore diagnostic::allok={0};features={1};safeboot={2};legacy={3};last={4};wrapper={5};calls={6}" -f $allOk, ($featureFailures -join ','), ($safeBootFailures -join ','), ($legacyFailures -join ','), $viVeExitCode, ([System.IO.Path]::GetExtension($ViVeTool) -in @('.cmd', '.bat')), $viveLogText)
             Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow
         }
         return $allOk
