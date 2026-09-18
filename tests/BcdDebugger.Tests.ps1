@@ -101,12 +101,12 @@ key                     abcd.1234.efgh.5678
             Test-BcdDebuggerBackupSchema $snap | Should -Be $true
         }
 
-        It "captures global start and noumex options" {
+        It "captures global debugstart AUTOENABLE and noumex options" {
             $mockOutput = @"
 debugtype               Net
 hostip                  192.168.1.10
 port                    50000
-start                   ACTIVE
+debugstart              AUTOENABLE
 noumex                  Yes
 "@
             Mock bcdedit.exe {
@@ -114,7 +114,39 @@ noumex                  Yes
                 return $mockOutput
             }
             $snap = Get-BcdDebuggerSnapshot
-            $snap.Arguments | Should -Be 'net hostip:192.168.1.10 port:50000 /start:ACTIVE /noumex'
+            $snap.Arguments | Should -Be 'net hostip:192.168.1.10 port:50000 /start:AUTOENABLE /noumex'
+            Test-BcdDebuggerBackupSchema $snap | Should -Be $true
+        }
+
+        It "captures debugstart DISABLE" {
+            $mockOutput = @"
+debugtype               Net
+hostip                  192.168.1.10
+port                    50000
+debugstart              DISABLE
+"@
+            Mock bcdedit.exe {
+                $global:LASTEXITCODE = 0
+                return $mockOutput
+            }
+            $snap = Get-BcdDebuggerSnapshot
+            $snap.Arguments | Should -Be 'net hostip:192.168.1.10 port:50000 /start:DISABLE'
+            Test-BcdDebuggerBackupSchema $snap | Should -Be $true
+        }
+
+        It "captures start ACTIVE (legacy/alias compatibility)" {
+            $mockOutput = @"
+debugtype               Net
+hostip                  192.168.1.10
+port                    50000
+start                   active
+"@
+            Mock bcdedit.exe {
+                $global:LASTEXITCODE = 0
+                return $mockOutput
+            }
+            $snap = Get-BcdDebuggerSnapshot
+            $snap.Arguments | Should -Be 'net hostip:192.168.1.10 port:50000 /start:ACTIVE'
             Test-BcdDebuggerBackupSchema $snap | Should -Be $true
         }
 
