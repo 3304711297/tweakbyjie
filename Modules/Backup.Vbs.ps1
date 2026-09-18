@@ -14,8 +14,11 @@ $script:vbsFeatureNames = @('Microsoft-Hyper-V-All','VirtualMachinePlatform','Hy
 
 function Get-VbsValueSnapshot {
     param([hashtable]$Definition)
-    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
-    $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
+    try { $item = Get-Item $Definition.Path -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] {
+        return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null }
+    }
+    $present = ($item.GetValueNames() -contains $Definition.Name)
     if (-not $present) { return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null } }
     if ($item.GetValueKind($Definition.Name).ToString() -ne 'DWord') { throw "$($Definition.Name) 不是 DWORD" }
     [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $true; Value = [uint32]$item.GetValue($Definition.Name) }
@@ -47,9 +50,12 @@ function Get-VbsBcdSnapshot {
 
 function Get-VbsFeatureSnapshot {
     param([string]$FeatureName)
-    $feature = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction SilentlyContinue
+    # 查询异常与“功能未安装”必须区分；$null 是合法的未安装结果，异常则阻止快照。
+    $feature = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction Stop
     if ($feature) {
-        [pscustomobject]@{ Name = $FeatureName; Present = $true; State = [string]$feature.State }
+        $state = [string]$feature.State
+        if ($state -notin @('Enabled','Disabled')) { throw "无法精确恢复 Windows 功能 $FeatureName 的状态：$state" }
+        [pscustomobject]@{ Name = $FeatureName; Present = $true; State = $state }
     } else {
         [pscustomobject]@{ Name = $FeatureName; Present = $false; State = $null }
     }
@@ -94,7 +100,7 @@ function Test-VbsBackupSchema {
             if ($record.Count -ne 1) { return $false }
             if ($null -eq $record[0].Present -or $record[0].Present -isnot [bool]) { return $false }
             if ([bool]$record[0].Present) {
-                if ([string]::IsNullOrWhiteSpace([string]$record[0].State)) { return $false }
+                if ([string]$record[0].State -notin @('Enabled','Disabled')) { return $false }
             } elseif ($null -ne $record[0].State) { return $false }
         }
         return $true
@@ -121,7 +127,8 @@ function Ensure-VbsBackup {
             Features  = @($FeatureNames | ForEach-Object { Get-VbsFeatureSnapshot $_ })
         }
         if (-not (Test-VbsBackupSchema $backup $RegistryDefinitions $BcdNames $FeatureNames)) { throw '生成的 VBS 备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:vbsBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $script:vbsBackupFile -Content $json
         $check = Get-Content $script:vbsBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-VbsBackupSchema $check $RegistryDefinitions $BcdNames $FeatureNames)) { throw '写入后的 VBS 备份校验失败' }
         Write-Host "[OK] VBS/Hyper-V 原始状态已备份：$script:vbsBackupFile" -ForegroundColor Green
@@ -157,12 +164,19 @@ function Restore-VbsBackup {
         }
 
         foreach ($f in @($backup.Features)) {
+            # Present=false 表示功能未安装；快照无法把后来安装的组件精确变回“未安装”，
+            # 因而启用路径不会主动安装这类功能，恢复也保持不触碰。
             if (-not [bool]$f.Present) { continue }
             $state = [string]$f.State
-            if ($state -in @('Disabled','DisablePending')) { continue }
             $before = $script:fail
             try {
-                $null = Enable-WindowsOptionalFeature -Online -FeatureName $f.Name -NoRestart -ErrorAction Stop
+                if ($state -eq 'Enabled') {
+                    $null = Enable-WindowsOptionalFeature -Online -FeatureName $f.Name -NoRestart -ErrorAction Stop
+                } elseif ($state -eq 'Disabled') {
+                    $null = Disable-WindowsOptionalFeature -Online -FeatureName $f.Name -NoRestart -ErrorAction Stop
+                } else {
+                    throw "快照中的 Windows 功能状态不可精确恢复：$state"
+                }
                 Write-Host "[OK] 恢复 Windows 功能 $($f.Name)（原状态 $state）"
                 $script:ok++
                 $script:rebootRequired = $true

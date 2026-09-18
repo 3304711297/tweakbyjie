@@ -71,7 +71,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **8** | **原生 NVMe 驱动切换** | 基于 ViVeTool 特性开关启用 Windows 11 原生 NVMe 驱动栈（支持快照还原） | [存储与 NVMe 原理](https://3304711297.github.io/youshouldknow/内存与存储/存储与NVMe原理/) |
 | **9** | **清除 EFI 锁定 (Device Guard)** | 执行 SecConfig.efi 解锁流程，内置 BitLocker 状态强制检测 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
-| **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，支持子选项一键恢复默认 | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
+| **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，按首次快照恢复（无快照时失败关闭） | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
 | **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks），操作前自动落盘策略快照 | — |
 
 ---
@@ -80,13 +80,14 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 
 ### 1. 启动预检与智能模块灰掉 (Preflight)
 脚本启动时会自动执行硬件与系统环境扫描（`scripts/preflight.ps1`），若环境不满足前置条件，对应菜单项将显示 `[不适用] (原因)` 并自动禁止触发：
-- **Secure Boot 开启时** ── 自动灰掉 **菜单 3 / 4（测试模式）**；
-- **检测到第三方杀毒软件时** ── 自动灰掉 **菜单 5（安全中心）**；
-- **未检测到 ViVeTool 时** ── 自动灰掉 **菜单 8（原生 NVMe）**；
-- **BitLocker 启用时** ── 自动灰掉 **菜单 9（清除 EFI 锁）**，防止改变 TPM 度量导致锁盘。
+- **Secure Boot 开启或状态未知时** ── 自动灰掉 **菜单 3 / 4（测试模式）**；
+- **检测到第三方杀毒软件或无法确认杀软状态时** ── 自动灰掉 **菜单 5（安全中心）**；
+- **未检测到或无法确认 ViVeTool 时** ── 自动灰掉 **菜单 8（原生 NVMe）**；
+- **BitLocker 开启或状态未知时** ── 自动灰掉 **菜单 9（清除 EFI 锁）**，防止改变 TPM 度量导致锁盘；
+- **无法读取 Windows 构建号时** ── 自动灰掉 **菜单 10（VBS / Hyper-V）**。
 
 ### 2. 高风险双重短语确认
-对于破坏性/不可逆级别操作（菜单 5 和菜单 9），必须按提示输入完整的区分大小写短语：
+对于会降低系统安全边界或修改 EFI 启动状态的操作（菜单 1 → 3/5、菜单 2 → 3、菜单 5 和菜单 9），必须按提示输入完整的区分大小写短语：
 `I-UNDERSTAND-RISK`
 输入任何其他字符或直接回车将立即安全取消，不做任何系统变动。
 
@@ -94,13 +95,15 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 支持通过参数直接指定模块队列，用于自动化批量部署：
 
 ```powershell
-# 1. 队列执行指定模块（执行完毕后交互询问重启）
-.\tweakbyjie.cmd -RunModule "7,11"
+# 1. 非交互队列：每个仍有子菜单的模块都必须显式给出动作
+.\tweakbyjie.cmd -RunModule "7,11" -Action "7=1,11=0"
 
-# 2. 显式无人值守模式（接受默认行为，会话收尾默认绝不自动重启主机）
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -AcceptDefaults
+# 2. 显式无人值守应用 QoS；-AcceptDefaults 才会放行高风险确认
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
+  -RunModule "12" -Action "12=1" -AcceptDefaults
 ```
 
+* **动作格式**：`-Action "模块编号=子操作"`，例如 `1=3-2`（模块 1 的 CPU 缓解应用，仍需 `-AcceptDefaults` 放行高风险确认）、`1=5-2`（关闭易受攻击驱动黑名单）、`5=2`（恢复 Defender）、`12=1`（应用 QoS）；缺少动作会在执行前直接报参数错误，绝不等待 `Read-Host`。
 * **会话日志自动落盘**：所有命令行及交互输出均自动写入 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`。
 * **标准退出码规范**：`0` 成功/无失败，`2` 参数错误，`4` 全项失败，`5` 部分失败。
 
@@ -108,7 +111,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
 
 针对底层系统调整的不确定性，本项目构建了严密的**状态快照（Snapshot）与回滚（Rollback）防御闭环**，遵循三大安全设计原则：
 1. **首次快照保护（First Snapshot Protection）**：所有涉及系统配置变更的模块在首次执行优化前，均会自动抓取当前原始状态快照（`Ensure-*Backup`）。若快照已存在，系统绝不覆写，确保保留纯净“出厂”基线，避免二次优化污染初始状态。
-2. **硬件与系统标识绑定（Machine Binding）**：各模块快照元数据中通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证，坚决拦截跨机器复制或伪造快照导致的配置错乱。
+2. **硬件与系统标识绑定（Machine Binding）**：带 `Binding` 字段的 JSON 快照通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证；电源 `.pow` 与游戏 QoS 快照使用各自的格式/名称校验，不能把任意快照跨机器当作精确恢复依据。
 3. **Fail-Closed 闭环恢复**：找不到快照、文件损坏或结构校验未通过时，立即拒绝并阻断操作，绝不伪造成功假象。
 
 仓库已内置 10 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
@@ -116,7 +119,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
 | 备份恢复模块 | 快照存储文件 | 备份与回滚覆盖范围 | 核心导出函数 |
 | :--- | :--- | :--- | :--- |
 | **Backup.Registry.ps1** | `registry-backup.json` | 核心优化与系统行为注册表键值（GameDVR、MMCSS、Prefetch、TRIM、Memory Compression 等） | `Ensure-RegistryBackup`<br>`Restore-RegistryBackup` |
-| **Backup.Bcd.ps1** | `bcd-backup.json`<br>`testmode-backup.json` | BCD 底层启动参数与测试模式状态（`useplatformclock`、`nx`、`tpmbootentropy`、`testsigning`、`debug` 等） | `Ensure-BcdBackup`<br>`Restore-BcdBackup` |
+| **Backup.Bcd.ps1** | `bcd-backup.json`<br>`testmode-backup.json`<br>`testmode-debugger-backup.json` | BCD 底层启动参数、测试模式状态与原始 `dbgsettings` | `Ensure-BcdBackup`<br>`Ensure-BcdDebuggerBackup`<br>`Restore-BcdDebuggerBackup` |
 | **Backup.SecurityMitigation.ps1** | `security-mitigation-backup.json` | CPU 硬件安全缓解状态（`FeatureSettingsOverride` 与 `FeatureSettingsOverrideMask` 掩码） | `Ensure-SecurityMitigationBackup`<br>`Restore-SecurityMitigationBackup` |
 | **Backup.DriverBlocklist.ps1** | `driver-blocklist-backup.json` | 易受攻击驱动黑名单状态（`VulnerableDriverBlocklistEnable`，菜单 1 子项 5） | `Ensure-DriverBlocklistBackup`<br>`Restore-DriverBlocklistBackup`<br>`Test-DriverBlocklistBackupSchema` |
 | **Backup.Service.ps1** | `service-backup.json` | Windows 系统服务状态（37 个受管服务的原始 `StartMode` 启动类型、延迟启动与运行状态） | `Ensure-ServiceBackup`<br>`Restore-ServiceBackup` |
@@ -124,7 +127,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
 | **Backup.Nvme.ps1** | `nvme-backup.json` | 原生 NVMe 驱动切换状态（SafeBoot 最小安全引导状态与 ViVeTool 特性开关，防止引导故障） | `Ensure-NvmeBackup`<br>`Restore-NvmeSafeBootBackup` |
 | **Backup.Vbs.ps1** | `vbs-backup.json` | 虚拟化 / VBS / Hyper-V 配置（Device Guard 注册表、BCD `hypervisorlaunchtype` 与可选功能） | `Ensure-VbsBackup`<br>`Restore-VbsBackup` |
 | **Backup.Mpo.ps1** | `mpo-backup.json` | 多平面叠加 (MPO) 显示管线排障状态（DWM `OverlayTestMode`、`OverlayMinFPS` 等配置） | `Ensure-MpoBackup`<br>`Restore-MpoBackup` |
-| **Backup.GameQos.ps1** | `$env:TEMP\gameqos-backup.json` | 竞技游戏网络 QoS 策略（DSCP 46 优先级、`TCPNoDelay`、`TcpAckFrequency` 网络注册表配置） | `Ensure-GameQosBackup`<br>`Restore-GameQosBackup` |
+| **Backup.GameQos.ps1** | `$env:TEMP\gameqos-backup.json` | 竞技游戏 QoS 策略（DSCP 46）；首次快照不覆盖、严格名称校验、写入后回读与失败回滚 | `Ensure-GameQosBackup`<br>`Restore-GameQosBackup` |
 
 *(注：电源计划模块 `Modules/Power.ps1` 亦内置原生 `power-backup.pow` 方案导出与精准回滚机制)*
 
@@ -141,7 +144,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 -RunModule "7" -A
   Restore-ServiceBackup                 # 恢复 37 项受管服务原始状态
   Restore-DefenderPolicyBackup          # 恢复安全中心与 Defender 组策略
   Restore-VbsBackup                     # 恢复虚拟化与 VBS 配置
-  Restore-MpoBackup                     # 恢复 MPO 显示管线默认状态
+  Restore-MpoBackup                     # 按首次快照恢复 MPO 显示管线（无快照时失败关闭）
   Restore-GameQosBackup                 # 恢复网络 QoS 策略
   ```
 
@@ -166,7 +169,7 @@ tweakbyjie/
 │   ├── Virtualization.ps1   # 模块 9/10: EFI 锁清除与虚拟化 / VBS
 │   ├── Mpo.ps1              # 模块 11: MPO 管理
 │   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
-│   └── Menu.ps1             # 82 行高内聚纯菜单调度链
+│   └── Menu.ps1             # 90 行高内聚纯菜单调度链
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
 └── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
 ```
@@ -175,7 +178,7 @@ tweakbyjie/
 
 ## 🤝 贡献与测试
 
-本项目采用 Pester 6 进行全覆盖单元测试与往返测试（Roundtrip Tests）：
+本项目采用 Pester 6 进行单元测试与往返测试（Roundtrip Tests）；这些测试不替代真实 Windows BCD/EFI/服务/Defender/NVMe 集成验证：
 
 ```powershell
 # 运行完整 Pester 自动化测试套件
@@ -210,7 +213,7 @@ Invoke-Pester -Path .\tests\
 <details>
 <summary>为什么某些菜单项显示 [不适用]？</summary>
 
-这是启动预检（`scripts/preflight.ps1`）的正常行为：**Secure Boot 开启**时菜单 3 / 4（测试模式）灰掉；**检测到第三方杀软**时菜单 5（安全中心）灰掉；**未检测到 ViVeTool** 时菜单 8（原生 NVMe）灰掉；**BitLocker 启用**时菜单 9（清除 EFI 锁）灰掉。修复对应前置条件后重新运行脚本，即可恢复可选中状态。
+这是启动预检（`scripts/preflight.ps1`）的正常行为：**Secure Boot 开启或无法确认**时菜单 3 / 4（测试模式）灰掉；**检测到或无法确认第三方杀软状态**时菜单 5（安全中心）灰掉；**未检测到或无法确认 ViVeTool** 时菜单 8（原生 NVMe）灰掉；**BitLocker 启用或无法确认**时菜单 9（清除 EFI 锁）灰掉；无法读取 Windows 构建号时菜单 10（VBS / Hyper-V）灰掉。修复对应前置条件后重新运行脚本，即可恢复可选中状态。
 
 </details>
 

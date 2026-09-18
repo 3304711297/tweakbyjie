@@ -184,6 +184,7 @@ Describe "Service backup/restore round-trip (mocked CIM/Set-Service)" {
         ConvertTo-Json $backup -Depth 5 | Set-Content $script:serviceBackupFile -Encoding UTF8
 
         Mock Set-Service { }
+        Mock Verify-ServiceStartupType { return $true }
         Restore-ServiceBackup | Should -Be $true
 
         Should -Invoke Set-Service -Times 1 -ParameterFilter { $Name -eq 'TweakRtAuto' -and $StartupType -eq 'Manual' }
@@ -201,6 +202,7 @@ Describe "Service backup/restore round-trip (mocked CIM/Set-Service)" {
         ConvertTo-Json $backup -Depth 5 | Set-Content $script:serviceBackupFile -Encoding UTF8
 
         Mock Set-Service { }
+        Mock Verify-ServiceStartupType { return $true }
         Restore-ServiceBackup | Should -Be $false
 
         # delayed-auto 必须走 sc.exe 路径，Set-Service 不参与

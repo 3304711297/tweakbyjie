@@ -15,6 +15,112 @@
     return $allowed.ContainsKey($Name) -and $allowed[$Name] -contains $Value
 }
 
+function Test-BcdDebuggerTypeAllowed {
+    param([string]$Type)
+    return $Type -in @('Local','Serial','1394','USB','Net')
+}
+
+function Get-BcdDebuggerSnapshot {
+    try {
+        $out = (& bcdedit.exe /dbgsettings 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw '无法读取 BCD debugger settings' }
+        $type = $null
+        if ($out -match '(?im)^\s*debugtype\s+([^\r\n]+)') { $type = $Matches[1].Trim() }
+        if ([string]::IsNullOrWhiteSpace($type)) {
+            return [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Present = $false; Type = $null; Arguments = $null }
+        }
+        if (-not (Test-BcdDebuggerTypeAllowed $type)) { throw "不支持或无法安全还原的 debugger type：$type" }
+
+        # 只把受允许字符组成的参数写回 bcdedit，绝不把整段命令输出当作参数执行。
+        $arguments = switch ($type) {
+            'Local' { 'local' }
+            'Serial' {
+                $port = if ($out -match '(?im)^\s*port\s+([^\r\n]+)') { $Matches[1].Trim() } else { '1' }
+                $baud = if ($out -match '(?im)^\s*baudrate\s+([^\r\n]+)') { $Matches[1].Trim() } else { '115200' }
+                "serial port:$port baudrate:$baud"
+            }
+            '1394' {
+                $channel = if ($out -match '(?im)^\s*channel\s+([^\r\n]+)') { $Matches[1].Trim() } else { '1' }
+                "1394 channel:$channel"
+            }
+            'USB' {
+                $target = if ($out -match '(?im)^\s*targetname\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'USB debugger settings 缺少 targetname' }
+                "usb targetname:$target"
+            }
+            'Net' {
+                $hostIp = if ($out -match '(?im)^\s*hostip\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 hostip' }
+                $port = if ($out -match '(?im)^\s*port\s+([^\r\n]+)') { $Matches[1].Trim() } else { throw 'Net debugger settings 缺少 port' }
+                "net hostip:$hostIp port:$port"
+            }
+        }
+        if ($arguments -notmatch '^[A-Za-z0-9:._ -]+$') { throw 'debugger settings 参数含有未允许字符' }
+        [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Present = $true; Type = $type; Arguments = $arguments }
+    } catch { throw }
+}
+
+function Test-BcdDebuggerBackupSchema {
+    param([object]$Backup)
+    try {
+        if ($null -eq $Backup -or [int]$Backup.Version -ne 1) { return $false }
+        if ([string]$Backup.Binding -ine (Get-BackupMachineId)) { return $false }
+        if ($null -eq $Backup.Present -or $Backup.Present -isnot [bool]) { return $false }
+        if (-not [bool]$Backup.Present) { return ($null -eq $Backup.Type -and $null -eq $Backup.Arguments) }
+        if (-not (Test-BcdDebuggerTypeAllowed ([string]$Backup.Type))) { return $false }
+        if ([string]::IsNullOrWhiteSpace([string]$Backup.Arguments)) { return $false }
+        return ([string]$Backup.Arguments -match '^[A-Za-z0-9:._ -]+$')
+    } catch { return $false }
+}
+
+function Ensure-BcdDebuggerBackup {
+    param([string]$BackupFile = $script:testModeDebuggerBackupFile)
+    try {
+        if (Test-Path -LiteralPath $BackupFile -PathType Leaf) {
+            $existing = Get-Content -LiteralPath $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Test-BcdDebuggerBackupSchema $existing)) { throw '已有 debugger settings 快照结构不正确，拒绝覆盖' }
+            Write-Host "[OK] 已存在有效的 BCD debugger settings 快照（不会覆盖）：$BackupFile" -ForegroundColor Green
+            return $true
+        }
+        $snapshot = Get-BcdDebuggerSnapshot
+        if (-not (Test-BcdDebuggerBackupSchema $snapshot)) { throw '生成的 debugger settings 快照未通过结构校验' }
+        $json = ConvertTo-Json -InputObject $snapshot -Depth 4
+        Write-TweakAtomicTextFile -Path $BackupFile -Content $json
+        $check = Get-Content -LiteralPath $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-BcdDebuggerBackupSchema $check)) { throw '写入后的 debugger settings 快照校验失败' }
+        Write-Host "[OK] BCD debugger settings 已备份：$BackupFile" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] BCD debugger settings 备份失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
+function Restore-BcdDebuggerBackup {
+    param([string]$BackupFile = $script:testModeDebuggerBackupFile)
+    if (-not (Test-Path -LiteralPath $BackupFile -PathType Leaf)) {
+        Write-Host '[WARN] 未找到 debugger settings 快照；不会声称已恢复原始调试器配置。' -ForegroundColor Yellow
+        $script:fail++
+        return $false
+    }
+    try {
+        $backup = Get-Content -LiteralPath $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-BcdDebuggerBackupSchema $backup)) { throw 'debugger settings 快照结构不正确' }
+        if ([bool]$backup.Present) {
+            if (-not (Invoke-BcdEdit ("/dbgsettings " + [string]$backup.Arguments) '恢复原始 BCD debugger settings')) { return $false }
+        } else {
+            # bcdedit 没有通用“关闭调试器”开关；删除受管全局值比盲设 local 更接近未设置状态。
+            $ok = Invoke-BcdEdit '/deletevalue {dbgsettings} debugtype' '删除原本未设置的 BCD debugger type'
+            if (-not $ok) { return $false }
+        }
+        Write-Host '[OK] BCD debugger settings 已按修改前快照恢复。' -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "[FAIL] BCD debugger settings 恢复失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
+}
+
 function Test-BcdBackupSchema {
     param([object]$Backup, [string[]]$ValueNames)
     if ($null -eq $Backup -or $Backup.Version -ne 1 -or $Backup.Object -ne '{current}') { return $false }
@@ -59,7 +165,8 @@ function Ensure-BcdBackup {
         }
         $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Object = '{current}'; CreatedAt = (Get-Date).ToString('o'); Values = @($values) }
         if (-not (Test-BcdBackupSchema $backup $managedNames)) { throw '生成的 BCD 备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $BackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $BackupFile -Content $json
         $check = Get-Content $BackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-BcdBackupSchema $check $managedNames)) { throw '写入后的 BCD 备份校验失败' }
         Write-Host "[OK] BCD 原始状态已备份：$BackupFile" -ForegroundColor Green
@@ -85,11 +192,17 @@ function Restore-BcdBackup {
         foreach ($name in $ValueNames) {
             $record = @($backup.Values | Where-Object { $_.Name -eq $name })[0]
             if ([bool]$record.Present) {
-                if (-not (Invoke-BcdEdit "/set $name $($record.Value)" "恢复 $name = $($record.Value)")) { $allOk = $false }
+                if (-not (Invoke-BcdEdit "/set $name $($record.Value)" "恢复 $name = $($record.Value)")) {
+                    $allOk = $false
+                    break
+                }
             } else {
                 $before = $script:fail
                 Remove-BcdValue $name "删除 $name（恢复原始未设置状态）"
-                if ($script:fail -gt $before) { $allOk = $false }
+                if ($script:fail -gt $before) {
+                    $allOk = $false
+                    break
+                }
             }
         }
         if ($allOk) { Write-Host "[OK] BCD 已按修改前快照恢复；备份文件保留：$BackupFile" -ForegroundColor Green }

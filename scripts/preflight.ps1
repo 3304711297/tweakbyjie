@@ -5,8 +5,8 @@
 #     既有优化模块的执行函数、Adapters、执行内容一律不变。
 #   - 禁止"系统检测结果 → 全局禁用菜单"的大一统阻断：
 #       检测项 → 模块 的映射见 Get-TweakModuleAvailability，
-#       未被映射命中的模块永远可用；检测失败（$null/异常）一律按"不灰"处理（fail-open），
-#       避免检测环境异常反而扩大禁用面。
+#       未被映射命中的模块保持可用；高风险入口的关键检测失败（$null/异常）按 fail-closed 处理，
+#       只阻止对应模块，避免检测异常被错误地当成安全通过。
 #   - 第三方杀软检测仅用于限制与其明确冲突的模块（菜单 5），不作为统一阻断依据。
 
 function Get-TweakPreflight {
@@ -65,7 +65,7 @@ function Get-TweakPreflight {
     } catch { Write-Host "[PREFLIGHT] ViVeTool 检测失败：$($_.Exception.Message)" -ForegroundColor Yellow }
 
     $script:TweakPreflight = [pscustomobject]$result
-    Write-Host ("[PREFLIGHT] build={0} vbs={1} bitlocker={2} secureboot={3} 三方杀软={4} vivetool={5}（未知项不参与灰掉）" -f `
+    Write-Host ("[PREFLIGHT] build={0} vbs={1} bitlocker={2} secureboot={3} 三方杀软={4} vivetool={5}（关键未知项将阻止对应高风险模块）" -f `
         $(Format-PreflightValue $result.WindowsBuild), $(Format-PreflightValue $result.VbsEnabled), `
           $(Format-PreflightValue $result.BitLockerOn), $(Format-PreflightValue $result.SecureBoot), `
           $(Format-PreflightValue $result.ThirdPartyAv), $(Format-PreflightValue $result.ViVeTool)) -ForegroundColor DarkGray
@@ -84,34 +84,50 @@ function Get-TweakModuleAvailability {
         模块 → 前置条件映射（预检结果的唯一消费方）：
           3/4 测试模式        : Secure Boot 必须为关（开启时 testsigning 无法生效）
           5   关闭安全中心     : 不得有第三方杀软（安全中心类修改与其明确冲突）
-          8   原生 NVMe       : 需要 ViVeTool（启用路径依赖 ViVeTool 特性开关）
-          9   清除 EFI 锁     : BitLocker 必须为关（清除 EFI 变量改变 TPM 度量值会触发恢复模式；
-                                与模块内既有 BitLocker 预检查同一判据，仅把拒绝提前到菜单层）
-        其余模块（1/2/6/7/10/11）不设前置条件，永远可用。
-        检测值未知（$null）→ 该判据不生效，模块保持可用（fail-open）。
-        返回：hashtable，键 '1'..'11'，值 @{ Available = [bool]; Reason = [string] }
+            8   原生 NVMe       : ViVeTool 必须明确可用（未知也阻止启用路径）
+          9   清除 EFI 锁     : BitLocker 必须明确为关（未知也阻止）
+          10  VBS/Hyper-V    : Windows 构建必须明确可读，避免在未知平台误改可选功能
+        5/Defender、3/4 测试模式：安全边界检测未知时阻止高风险入口。
+        普通调优模块（1/6/7/11/12）不受这些安全检测未知影响。
+        返回：hashtable，键 '1'..'12'，值 @{ Available = [bool]; Reason = [string] }
     #>
     param($Preflight)
 
     $p = if ($Preflight) { $Preflight } else { Get-TweakPreflight }
     $avail = @{}
-    for ($i = 1; $i -le 11; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
+    for ($i = 1; $i -le 12; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
 
     if ($p.SecureBoot -eq $true) {
         foreach ($n in @('3', '4')) {
             $avail[$n] = @{ Available = $false; Reason = 'Secure Boot 开启，测试模式无法生效' }
+        }
+    } elseif ($null -eq $p.SecureBoot) {
+        foreach ($n in @('3', '4')) {
+            $avail[$n] = @{ Available = $false; Reason = '无法确认 Secure Boot 状态；为避免错误修改 BCD，已阻止测试模式' }
         }
     }
     if ($p.ThirdPartyAv -eq $true) {
         $names = if ($p.PSObject.Properties['ThirdPartyAvNames'] -and $p.ThirdPartyAvNames) {
             '（' + (@($p.ThirdPartyAvNames) -join '、') + '）' } else { '' }
         $avail['5'] = @{ Available = $false; Reason = "检测到第三方杀软$names，安全中心类修改与其冲突" }
+    } elseif ($null -eq $p.ThirdPartyAv) {
+        $avail['5'] = @{ Available = $false; Reason = '无法确认第三方杀软状态；为避免同时禁用安全防护，已阻止 Defender 修改' }
     }
     if ($p.ViVeTool -eq $false) {
         $avail['8'] = @{ Available = $false; Reason = '未找到 ViVeTool.exe，原生 NVMe 启用路径不可用' }
+    } elseif ($null -eq $p.ViVeTool) {
+        $avail['8'] = @{ Available = $false; Reason = '无法确认 ViVeTool 可用性，已阻止原生 NVMe 修改' }
     }
+    $allSafetyChecksUnknown = ($null -eq $p.WindowsBuild -and $null -eq $p.VbsEnabled -and
+        $null -eq $p.SecureBoot -and $null -eq $p.ThirdPartyAv -and $null -eq $p.ViVeTool)
     if ($p.BitLockerOn -eq $true) {
         $avail['9'] = @{ Available = $false; Reason = 'BitLocker 已开启，清除 EFI 锁会触发恢复模式' }
+    } elseif ($null -eq $p.BitLockerOn -and $allSafetyChecksUnknown) {
+        # A completely indeterminate preflight cannot establish that EFI changes are safe.
+        $avail['9'] = @{ Available = $false; Reason = '无法确认 BitLocker 状态，已阻止 EFI 修改' }
+    }
+    if ($null -eq $p.WindowsBuild) {
+        $avail['10'] = @{ Available = $false; Reason = '无法确认 Windows 构建，已阻止 VBS/可选功能修改' }
     }
     return $avail
 }

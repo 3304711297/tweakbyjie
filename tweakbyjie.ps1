@@ -18,14 +18,20 @@
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
-    # 非交互执行指定模块：编号 0-12，支持逗号分隔（如 -RunModule '7,11,12'）；省略则进入交互菜单
+    # 非交互执行指定模块：编号 0-12，支持逗号分隔；需要子操作的模块必须同时提供 -Action。
     [string]$RunModule = '',
-    # 仅能与 -RunModule 组合使用：显式请求无人值守执行，并接受该模块定义的默认风险行为
-    # （模块内确认自动接受；退出时的重启维持默认"不重启"）。不等于"自动执行一切危险操作"。
+    # 动作映射，格式为 <模块编号>=<子操作>，多个映射用逗号分隔，例如：12=1,8=0。
+    [string]$Action = '',
+    # 显式声明非交互模式；-RunModule 本身也会启用该模式。
+    [switch]$NonInteractive,
+    # 仅能与 -RunModule 组合使用：接受该模块定义的默认风险行为。
+    # （退出时的重启维持默认"不重启"）。不等于"自动执行一切危险操作"。
     [switch]$AcceptDefaults
 )
 
 $ErrorActionPreference = "Stop"
+# 在管理员/模块完整性门禁之前识别无人值守请求；无人值守失败不得隐藏等待 Read-Host。
+$__tweakUnattendedRequested = [bool](($RunModule -and $RunModule.Trim()) -or $NonInteractive)
 # 版本号：与最新已发布 v* tag 对应（菜单标题会显示）。
 # 约定：源码常量 = 最近一次 Release 的版本；CI 打包时会把"下一个"版本注入 ZIP 内副本，
 # 因此源码常量在发布后天然落后一位属正常，但不得与最新 tag 脱钩（tests/VersionConsistency.Tests.ps1 校验）。
@@ -51,7 +57,7 @@ function Get-TweakExitCode {
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1') {
     Write-Host "[ERROR] 请以管理员身份运行此脚本 / Please run this script as Administrator." -ForegroundColor Red
-    Read-Host "Press Enter to exit"
+    if (-not $__tweakUnattendedRequested) { Read-Host "Press Enter to exit" }
     exit 1
 }
 
@@ -94,6 +100,7 @@ $script:bcdBackupFile = Join-Path $PSScriptRoot 'bcd-backup.json'
 $script:bcdManagedValues = @('useplatformclock','useplatformtick','disabledynamictick','tscsyncpolicy','nx','tpmbootentropy','nointegritychecks')
 # 测试模式独立备份文件：与高级 BCD 的 bcd-backup.json 分开，避免互相覆盖/校验冲突
 $script:testModeBackupFile = Join-Path $PSScriptRoot 'testmode-backup.json'
+$script:testModeDebuggerBackupFile = Join-Path $PSScriptRoot 'testmode-debugger-backup.json'
 $script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'
 $script:securityMitigationBackupFile = Join-Path $PSScriptRoot 'security-mitigation-backup.json'
 $script:securityMitigationValues = @(
@@ -105,9 +112,12 @@ $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-back
 $script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
 $script:driverBlocklistBackupFile = Join-Path $PSScriptRoot 'driver-blocklist-backup.json'
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
+# EFI 清理状态：记录原始 bootsequence 与脚本实际创建的 EFI 文件，避免盲删用户数据。
+$script:deviceGuardBackupFile = Join-Path $PSScriptRoot 'deviceguard-efi-backup.json'
 
 # 无人值守标志默认值（点源加载场景下也保持 $false，确认层读取不报未定义）
 $script:TweakAcceptDefaults = $false
+$script:TweakNonInteractive = $false
 
 # 缺模块自检
 $__tweakModules = @(
@@ -139,7 +149,7 @@ foreach ($__m in $__tweakModules) {
     $__p = Join-Path $PSScriptRoot $__m
     if (-not (Test-Path $__p)) {
         Write-Host "[ERROR] 缺少模块 $__m，请下载完整仓库而非单独复制 .ps1" -ForegroundColor Red
-        Read-Host "Press Enter to exit"
+        if (-not $__tweakUnattendedRequested) { Read-Host "Press Enter to exit" }
         exit 1
     }
     try {
@@ -153,17 +163,46 @@ foreach ($__m in $__tweakModules) {
 }
 Remove-Variable __tweakModules,__m,__p -ErrorAction SilentlyContinue
 
+function ConvertTo-TweakActionMap {
+    <# 将 -Action 解析为严格的 module=action 映射；拒绝模糊/重复输入。 #>
+    param([string]$ActionText)
+    $map = @{}
+    if ([string]::IsNullOrWhiteSpace($ActionText)) { return $map }
+    foreach ($token in ($ActionText -split '[,;，；\s]+')) {
+        if ([string]::IsNullOrWhiteSpace($token)) { continue }
+        if ($token -notmatch '^(?<module>0|[1-9]|1[0-2])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
+            throw "无效 -Action 项 '$token'；格式应为 <模块编号>=<子操作>，例如 12=1"
+        }
+        $module = $Matches['module']
+        $action = $Matches['action']
+        if ($map.ContainsKey($module)) { throw "-Action 重复指定模块 $module" }
+        $map[$module] = $action
+    }
+    return $map
+}
+
+function Get-TweakActionRequiredModules {
+    # 这些入口内部还有 Read-Host 子菜单；CLI 必须明确给出动作，否则直接失败而不是挂起。
+    # 3/4 虽然只有单一路径，也要求显式动作，防止无人值守队列误触发 BCD 安全修改。
+    return @('1','2','3','4','5','6','7','8','9','10','11','12')
+}
+
 if ($__isScript) {
-    # -AcceptDefaults 语义守卫：仅在与 -RunModule 组合时生效，不单独存在
-    if ($AcceptDefaults -and -not ($RunModule -and $RunModule.Trim())) {
-        Write-Host "[ERROR] -AcceptDefaults 仅能与 -RunModule 组合使用（显式请求无人值守执行）；单独使用视为参数误用。" -ForegroundColor Red
+    # -AcceptDefaults / -Action / -NonInteractive 的组合守卫
+    if (($AcceptDefaults -or $NonInteractive -or ($Action -and $Action.Trim())) -and -not ($RunModule -and $RunModule.Trim())) {
+        Write-Host "[ERROR] -AcceptDefaults、-NonInteractive、-Action 都必须与 -RunModule 组合使用。" -ForegroundColor Red
         try { Stop-Transcript } catch {}
         exit (Get-TweakExitCode -InvalidInput)
     }
-    # 无人值守标志：确认层（Test-ConfirmChoice / Test-HighRiskConfirmation）读取
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
+    $script:TweakNonInteractive = [bool]($NonInteractive -or ($RunModule -and $RunModule.Trim()))
     $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
+    if ($__requested.Count -eq 0) {
+        Write-Host "[ERROR] -RunModule 不能为空；交互模式请不要传入 -NonInteractive。" -ForegroundColor Red
+        try { Stop-Transcript } catch {}
+        exit (Get-TweakExitCode -InvalidInput)
+    }
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {
         Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-12）" -ForegroundColor Red
@@ -171,7 +210,18 @@ if ($__isScript) {
         exit (Get-TweakExitCode -InvalidInput)
     }
     try {
-        Show-TweakMenu -RunModules ($__requested -join ',')
+        $__actions = ConvertTo-TweakActionMap $Action
+        $__unknownActionModules = @($__actions.Keys | Where-Object { $_ -notin $__requested })
+        if ($__unknownActionModules.Count -gt 0) {
+            throw "-Action 指定了不在 -RunModule 队列中的模块：$($__unknownActionModules -join ',')"
+        }
+        $__missingActions = @(Get-TweakActionRequiredModules | Where-Object {
+            $_ -in $__requested -and -not $__actions.ContainsKey($_)
+        })
+        if ($__missingActions.Count -gt 0) {
+            throw "非交互模式缺少模块动作：$($__missingActions -join ',')。请使用 -Action '模块=子操作'，例如 -RunModule 12 -Action 12=1"
+        }
+        Show-TweakMenu -RunModules ($__requested -join ',') -Actions $__actions -NonInteractive:$true
     } catch {
         Write-Host "[ERROR] 未预期的终止错误：$($_.Exception.Message)" -ForegroundColor Red
         Write-Host "[ERROR] 会话已中断；请核对日志确认已完成的修改与失败项。" -ForegroundColor Red

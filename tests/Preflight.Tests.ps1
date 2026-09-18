@@ -11,7 +11,7 @@ Describe "P1-10 模块前置条件映射（Get-TweakModuleAvailability）" {
         $a = Get-TweakModuleAvailability $p
         $a['3'].Available | Should -BeFalse
         $a['4'].Available | Should -BeFalse
-        foreach ($n in @('1','2','5','6','7','8','9','10','11')) {
+        foreach ($n in @('1','2','5','6','7','8','9','10','11','12')) {
             $a[$n].Available | Should -BeTrue "模块 $n 不应被 Secure Boot 连带灰掉"
         }
     }
@@ -21,7 +21,7 @@ Describe "P1-10 模块前置条件映射（Get-TweakModuleAvailability）" {
         $a = Get-TweakModuleAvailability $p
         $a['5'].Available | Should -BeFalse
         $a['5'].Reason | Should -Match '第三方杀软'
-        foreach ($n in @('1','2','3','4','6','7','8','9','10','11')) {
+        foreach ($n in @('1','2','3','4','6','7','8','9','10','11','12')) {
             $a[$n].Available | Should -BeTrue "模块 $n 不应被杀软检测连带灰掉"
         }
     }
@@ -30,20 +30,23 @@ Describe "P1-10 模块前置条件映射（Get-TweakModuleAvailability）" {
             SecureBoot = $false; ThirdPartyAv = $false; ViVeTool = $false }
         $a1 = Get-TweakModuleAvailability $p1
         $a1['8'].Available | Should -BeFalse
-        foreach ($n in @('1','2','3','4','5','6','7','9','10','11')) { $a1[$n].Available | Should -BeTrue }
+        foreach ($n in @('1','2','3','4','5','6','7','9','10','11','12')) { $a1[$n].Available | Should -BeTrue }
 
         $p2 = [pscustomobject]@{ WindowsBuild = 26100; VbsEnabled = $null; BitLockerOn = $true
             SecureBoot = $false; ThirdPartyAv = $false; ViVeTool = $true }
         $a2 = Get-TweakModuleAvailability $p2
         $a2['9'].Available | Should -BeFalse
-        foreach ($n in @('1','2','3','4','5','6','7','8','10','11')) { $a2[$n].Available | Should -BeTrue }
+        foreach ($n in @('1','2','3','4','5','6','7','8','10','11','12')) { $a2[$n].Available | Should -BeTrue }
     }
-    It "检测项未知（$null）时一律不灰掉（fail-open），全部模块可用" {
+    It "关键检测项未知时仅阻止对应高风险模块（fail-closed）" {
         $p = [pscustomobject]@{ WindowsBuild = $null; VbsEnabled = $null; BitLockerOn = $null
             SecureBoot = $null; ThirdPartyAv = $null; ViVeTool = $null }
         $a = Get-TweakModuleAvailability $p
-        foreach ($n in @('1','2','3','4','5','6','7','8','9','10','11')) {
-            $a[$n].Available | Should -BeTrue "检测未知时模块 $n 应保持可用"
+        foreach ($n in @('3','4','5','8','9','10')) {
+            $a[$n].Available | Should -BeFalse "检测未知时模块 $n 应被安全阻止"
+        }
+        foreach ($n in @('1','2','6','7','11','12')) {
+            $a[$n].Available | Should -BeTrue "检测未知时普通模块 $n 不应被连带阻止"
         }
     }
     It "预检结果会缓存到会话（二次调用不重复检测）" {
@@ -104,7 +107,7 @@ Describe "P1-10 菜单灰掉（不满足前置条件的模块仅自身被拒，�
         Mock Invoke-TestModeEnableModule { throw '模块 3 已被灰掉,不应进入执行函数' }
         Mock Invoke-MpoModule { }
         try {
-            { Show-TweakMenu -RunModules '3,11,0' } | Should -Not -Throw
+            { Show-TweakMenu -RunModules '3,11,0' -Actions @{ '3' = '1'; '11' = '0' } -NonInteractive } | Should -Not -Throw
             Should -Invoke Invoke-TestModeEnableModule -Times 0 -Exactly
             Should -Invoke Invoke-MpoModule -Times 1 -Exactly
         } finally {

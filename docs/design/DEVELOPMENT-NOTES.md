@@ -2,14 +2,14 @@
 
 ## 当前结构（2026-08-25）
 
-`tweakbyjie.ps1`（约 127 行 Loader）+ `Modules/`（16 个文件，全部被 Loader 点源）：
+`tweakbyjie.ps1`（约 232 行 Loader）+ `Modules/`（22 个 `.ps1` 文件，全部被 Loader 点源）：
 
 | 模块 | 文件 | 职责 |
 |---|---|---|
 | 通用 | `Common.ps1` | `Convert-RegExePath`/`Set-Reg*`/`Invoke-BcdEdit`/`Verify-*`/`Request-Restart` |
-| 备份 | `Backup.Mpo/Bcd/Service/SecurityMitigation/Nvme/Defender.ps1` | 6 套 `Test/Ensure/Restore` 闭环 |
-| 执行 | `Bcd/Defender/Mpo/Nvme/Power/Registry/Service/Virtualization.ps1` | Part 1–11 的实际执行逻辑 |
-| 菜单 | `Menu.ps1` | `Show-TweakMenu`（约 105 行纯调度，11 个 Part） |
+| 备份 | `Backup.Bcd/Defender/DriverBlocklist/GameQos/Mpo/Nvme/Registry/SecurityMitigation/Service/Vbs.ps1` | 10 套 `Test/Ensure/Restore` 闭环 |
+| 执行 | `Bcd/Defender/GameQos/Mpo/Nvme/Power/Registry/Service/Virtualization.ps1` | 菜单 1–12 的实际执行逻辑（Bcd 承载 2/3/4） |
+| 菜单 | `Menu.ps1` | `Show-TweakMenu`（约 90 行纯调度，12 个菜单入口（Bcd 承载 2/3/4）） |
 
 Loader 点源清单与菜单调度函数由 `tools/Test-CrossRepoCoverage.ps1` 的 Loader/菜单契约自动校验。
 
@@ -31,7 +31,7 @@ powershell -ExecutionPolicy Bypass -File .\tweakbyjie.ps1
 
 ### 备份统一
 
-`bcd-backup.json` 等 6 个备份文件继续由 `Backup.*.ps1` 管理，位置保持 `$PSScriptRoot`，不迁移到 `docs/`。后续可考虑集中到 `backup/` 子目录，但需保证旧备份兼容。
+`Backup.*.ps1` 管理 10 套状态快照，位置按各模块约定保持在 `$PSScriptRoot` 或 `$env:TEMP`，不迁移到 `docs/`。后续可考虑集中到 `backup/` 子目录，但需保证旧备份兼容。
 
 ### 模块独立
 

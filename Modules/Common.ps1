@@ -166,9 +166,9 @@ function Verify-ServiceStartupType {
     try {
         $svc = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f $ServiceName.Replace("'", "''")) -ErrorAction Stop
         if (-not $svc) {
-            Write-Host "[VERIFY SKIP] $Label：服务不存在" -ForegroundColor Yellow
-            $script:skip++
-            return $true
+            Write-Host "[VERIFY FAIL] $Label：服务不存在，无法确认启动类型" -ForegroundColor Red
+            $script:fail++
+            return $false
         }
         if ($svc.StartMode -ieq $Expected) {
             Write-Host "[VERIFY OK] $Label StartupType = $($svc.StartMode)" -ForegroundColor Green
@@ -197,29 +197,68 @@ function Verify-HypervisorRuntime {
     catch { Write-Host "[VERIFY SKIP] 无法读取 HypervisorPresent：$($_.Exception.Message)" -ForegroundColor Yellow;$script:skip++;return $true }
 }
 
+function Write-TweakAtomicTextFile {
+    <#
+        将文本快照先写入同目录临时文件，再一次性移动到目标路径。
+        备份文件是恢复的唯一依据，不能让进程中断留下半个 JSON；调用方负责在
+        写入前决定是否允许覆盖已有快照。
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Content
+    )
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $parent = [System.IO.Path]::GetDirectoryName($fullPath)
+    if ([string]::IsNullOrWhiteSpace($parent)) { throw "无法确定备份目录：$Path" }
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null
+    }
+    $tempPath = Join-Path $parent ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($fullPath), [guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tempPath, $Content, [System.Text.UTF8Encoding]::new($false))
+        # File.Move 在同一目录内是原子 rename，且目标已存在时以独占方式失败；
+        # 不使用 Test-Path + Move-Item，避免两个进程同时发布首个快照的竞态。
+        [System.IO.File]::Move($tempPath, $fullPath)
+    } finally {
+        if (Test-Path -LiteralPath $tempPath) {
+            Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Test-ConfirmChoice {
-    # 统一的 Y/N 确认入口：返回 $true 仅当用户输入 Y/y
-    # -AcceptDefaults（无人值守）模式下自动接受模块内确认；退出重启提示单独处理（见 Invoke-FinalRestartPrompt）
+    # 统一的 Y/N 确认入口：返回 $true 仅当用户输入 Y/y。
+    # 非交互模式绝不回退到 Read-Host：没有 -AcceptDefaults 就安全拒绝。
     param([string]$Prompt)
     if ($script:TweakAcceptDefaults) {
         Write-Host "[AUTO] -AcceptDefaults 无人值守模式：自动接受确认（$Prompt）" -ForegroundColor Yellow
         return $true
+    }
+    if ($script:TweakNonInteractive) {
+        Write-Host "[FAIL] 非交互模式缺少 -AcceptDefaults，已拒绝需要确认的操作：$Prompt" -ForegroundColor Red
+        $script:fail++
+        return $false
     }
     return (& $script:TweakAdapters.Confirm $Prompt)
 }
 
 function Test-HighRiskConfirmation {
     <#
-        高风险确认入口（菜单 5 关闭安全中心 / 菜单 9 清除 Device Guard EFI 锁专用）：
+        高风险确认入口（菜单 1 安全弱化子项 / 菜单 2 安全 BCD / 菜单 5 / 菜单 9）：
         将普通 Y/N 升级为完整短语确认（默认 I-UNDERSTAND-RISK，区分大小写），
         错误短语、空输入一律取消且不触发执行。
-        -AcceptDefaults 无人值守模式下自动接受（该参数的定义即"显式请求无人值守执行，
-        并接受该模块定义的默认风险行为"）。
+        非交互模式只有显式 -AcceptDefaults 才能放行；否则必须直接失败，不能隐藏地
+        读取 stdin 或把危险动作当成成功。
     #>
     param([string]$Prompt, [string]$Phrase = 'I-UNDERSTAND-RISK')
     if ($script:TweakAcceptDefaults) {
         Write-Host "[AUTO] -AcceptDefaults 无人值守模式：自动接受高风险确认（$Prompt）" -ForegroundColor Yellow
         return $true
+    }
+    if ($script:TweakNonInteractive) {
+        Write-Host "[FAIL] 非交互模式缺少 -AcceptDefaults，已拒绝高风险操作：$Prompt" -ForegroundColor Red
+        $script:fail++
+        return $false
     }
     Write-Host ""
     Write-Host "[高风险操作] $Prompt" -ForegroundColor Yellow

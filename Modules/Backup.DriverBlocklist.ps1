@@ -4,8 +4,8 @@
 #
 # 机制背景：Windows 11 22H2 起对易受攻击驱动黑名单默认启用（Windows 10 1809 起为可选），
 # 该值关闭后系统不再拒绝加载已知存在提权漏洞的已签名内核驱动（BYOVD 攻击面）。
-# 操作完全可逆（写回 1 或删除值即可），故不设 I-UNDERSTAND-RISK 短语确认，
-# 与同为安全弱化但可逆的 CPU 安全缓解子项（菜单 1 -> 3）保持同一门禁级别。
+# 操作虽可逆，但会扩大 BYOVD 攻击面；执行编排仍要求 I-UNDERSTAND-RISK 短语确认，
+# 并在失败/验证不一致时按快照回滚。
 
 $script:driverBlocklistValues = @(
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config'; Name = 'VulnerableDriverBlocklistEnable'; Desc = '易受攻击驱动黑名单' }
@@ -13,7 +13,8 @@ $script:driverBlocklistValues = @(
 
 function Get-DriverBlocklistSnapshot {
     param([hashtable]$Definition)
-    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    try { $item = Get-Item $Definition.Path -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] { $item = $null }
     $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
     if (-not $present) { return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null } }
     if ($item.GetValueKind($Definition.Name).ToString() -ne 'DWord') { throw "$($Definition.Name) 不是 DWORD" }
@@ -48,7 +49,8 @@ function Ensure-DriverBlocklistBackup {
         }
         $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-DriverBlocklistSnapshot $_ }) }
         if (-not (Test-DriverBlocklistBackupSchema $backup $Definitions)) { throw '生成的驱动黑名单备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:driverBlocklistBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $script:driverBlocklistBackupFile -Content $json
         $check = Get-Content $script:driverBlocklistBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-DriverBlocklistBackupSchema $check $Definitions)) { throw '写入后的驱动黑名单备份校验失败' }
         Write-Host "[OK] 驱动黑名单原始状态已备份：$script:driverBlocklistBackupFile" -ForegroundColor Green

@@ -10,6 +10,13 @@ Describe 'Defender removal safety contract' {
         $scriptText | Should -Match 'if\s*\(\s*-not\s*\$Execute\s*\)'
     }
 
+    It 'has an explicit non-interactive confirmation path without hidden prompts' {
+        $scriptText | Should -Match '\[switch\]\$NonInteractive'
+        $scriptText | Should -Match '\[switch\]\$ConfirmIrreversible'
+        $scriptText | Should -Match '非交互执行不可省略不可逆确认'
+        $scriptText | Should -Match 'if\s*\(-not\s*\$NonInteractive\)\s*\{\s*Read-Host'
+    }
+
     It 'supports disabling restart by default' {
         $scriptText | Should -Match '\[switch\]\$NoRestart'
         $scriptText | Should -Match '\$Execute\s+-and\s+\$Restart\s+-and\s+-not\s+\$NoRestart'

@@ -70,9 +70,10 @@ function Ensure-ServiceBackup {
             else { [pscustomobject]@{ Name = $name; StartMode = $null; State = $null; DelayedAutostart = $null } }
         }
         $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); Services = @($records) }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:serviceBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $script:serviceBackupFile -Content $json
         $check = Get-Content $script:serviceBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if ($check.Version -ne 1 -or @($check.Services).Count -ne @($records).Count) { throw '写入后的服务备份校验失败' }
+        if (-not (Test-ServiceBackupSchema $check $ServiceNames)) { throw '写入后的服务备份校验失败' }
         Write-Host "[OK] 服务原始状态已备份：$script:serviceBackupFile" -ForegroundColor Green
         return $true
     } catch {
@@ -114,13 +115,21 @@ function Restore-ServiceBackup {
                 } else {
                     Set-Service -Name $r.Name -StartupType $mapped.SetService -ErrorAction Stop
                 }
+                if (-not (Verify-ServiceStartupType $r.Name ([string]$r.StartMode) "恢复 $($r.Name)")) {
+                    throw "恢复后的服务启动类型回读未确认：$($r.Name)"
+                }
                 Write-Host "[OK] 已恢复 $($r.Name) StartupType = $(if ($isDelayed) { 'Automatic (Delayed)' } else { $mapped.SetService })"
                 $script:ok++
                 $script:rebootRequired = $true
             } catch {
                 $scStart = if ($isDelayed) { 'delayed-auto' } else { $mapped.Sc }
                 & sc.exe config $r.Name start= $scStart *> $null
-                if ($LASTEXITCODE -eq 0) { $script:ok++; $script:rebootRequired = $true } else { $script:fail++; $allOk = $false }
+                if ($LASTEXITCODE -eq 0) {
+                    if (Verify-ServiceStartupType $r.Name ([string]$r.StartMode) "回退恢复 $($r.Name)") {
+                        $script:ok++
+                        $script:rebootRequired = $true
+                    } else { $allOk = $false }
+                } else { $script:fail++; $allOk = $false }
             }
         }
         if ($allOk) { Write-Host "[OK] 服务启动类型已按快照恢复；运行状态不强制恢复" -ForegroundColor Green }

@@ -14,7 +14,7 @@ Describe 'Loader strict error handling contract' {
     }
 
     It 'converts unexpected terminating errors into a counted failure exit' {
-        $loaderText | Should -Match 'try\s*\{\s*Show-TweakMenu'
+        $loaderText | Should -Match 'try\s*\{[\s\S]*?Show-TweakMenu'
         $loaderText | Should -Match '\}\s*catch\s*\{[\s\S]*?Get-TweakExitCode'
     }
 }

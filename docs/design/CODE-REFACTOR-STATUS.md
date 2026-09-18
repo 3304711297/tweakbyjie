@@ -2,17 +2,19 @@
 
 ## 当前状态（2026-08-25，模块化已全部完成）
 
-`tweakbyjie.ps1` 由单文件（2102 行）精简为 Loader（约 127 行），点源 `Modules/` 全部 16 个文件；11 个 Part 已全部迁出为独立模块，`Menu.ps1` 仅剩约 105 行纯调度链（`Show-TweakMenu`）。历史基线：第一阶段（2026-08-20）为 81 行 Loader + 7 个模块文件、Menu 1358 行；第二阶段（2026-08-21，`94aff84`/`202e77a`）完成剩余 Part 拆分。
+`tweakbyjie.ps1` 由单文件（2102 行）精简为 Loader（约 232 行），点源 `Modules/` 全部 22 个 `.ps1` 文件；12 个菜单入口（Bcd 承载 2/3/4） 已全部迁出为独立模块，`Menu.ps1` 仅剩约 90 行纯调度链（`Show-TweakMenu`）。历史基线：第一阶段（2026-08-20）为 81 行 Loader + 7 个模块文件、Menu 1358 行；第二阶段（2026-08-21，`94aff84`/`202e77a`）完成剩余 Part 拆分。
 
 | 模块 | 职责 | 说明 |
 |---|---|---|
 | `Common.ps1` | 通用注册表/BCD/验证/重启 | `Convert-RegExePath`/`Set-Reg*`/`Invoke-BcdEdit`/`Verify-*`/`Request-Restart` |
 | `Backup.Mpo.ps1` | MPO 备份闭环 | `Get-MpoValueSnapshot` + `Test/Ensure/Restore-MpoBackup` |
-| `Backup.Bcd.ps1` | BCD 备份闭环 | `Test-BcdValueAllowed`/`Test/Ensure/Restore-BcdBackup`（值按字段枚举白名单校验） |
+| `Backup.GameQos.ps1` | 游戏 QoS 备份闭环 | 首次快照不覆盖、策略名校验、回读与失败报告 |
+| `Backup.Bcd.ps1` | BCD 备份闭环 | `Test-BcdValueAllowed`/`Test/Ensure/Restore-BcdBackup`/`Ensure/Restore-BcdDebuggerBackup`（值按字段枚举白名单校验） |
 | `Backup.Service.ps1` | 服务备份闭环 | `Test-ServiceBackupSchema` + `Ensure/Restore-ServiceBackup`（37 项固定服务清单） |
 | `Backup.SecurityMitigation.ps1` | CPU 缓解备份 | `Get-SecurityMitigationSnapshot` + 三元组 |
 | `Backup.Nvme.ps1` | NVMe 备份与检测 | `Test-NvmeBackupSchema`（SafeBoot 路径绑定受管理 GUID）/`Get-Nvme*Snapshot`/`Test-NativeNvme*`/`Ensure/Restore-Nvme` |
 | `Backup.Defender.ps1` | Defender 策略备份 | 约 95 个策略值 + 4 个自启动项统一定义 |
+| `Backup.DriverBlocklist.ps1` / `Backup.Registry.ps1` / `Backup.Vbs.ps1` | 其他状态快照 | 驱动黑名单、注册表与 VBS/Hyper-V 原始状态 |
 | `Bcd.ps1` | Part 2/3/4 | 高级 BCD、开启/关闭测试模式 |
 | `Defender.ps1` | Part 5 | 安全中心策略与可选删除类分支 |
 | `Mpo.ps1` | Part 11 | MPO 三方案互斥管理 |
@@ -23,7 +25,7 @@
 | `Virtualization.ps1` | Part 9/10 | Device Guard EFI 与 VBS/Hyper-V |
 | `Menu.ps1` | 菜单调度 | `Show-TweakMenu`（纯调度，支持 `-RunModules` 队列） |
 
-Loader 点源清单由 `tools/Test-CrossRepoCoverage.ps1` 的 Loader 契约自动校验：`Modules/` 下每个 `.ps1` 都必须被主入口点源；菜单契约校验 11 个 `Invoke-*Module` 调度函数仍在 `Menu.ps1` 中。
+Loader 点源清单由 `tools/Test-CrossRepoCoverage.ps1` 的 Loader 契约自动校验：`Modules/` 下每个 `.ps1` 都必须被主入口点源；菜单契约校验 12 个 `Invoke-*Module` 调度函数仍在 `Menu.ps1` 中。
 
 `defender-removal.ps1` 保持独立入口，默认仅 DryRun，显式 `-Execute` 并二次确认后才执行不可逆删除；失败禁止重启（契约由 `tests/DefenderSafety.Tests.ps1` 锁定）。
 
@@ -34,7 +36,7 @@ Loader 点源清单由 `tools/Test-CrossRepoCoverage.ps1` 的 Loader 契约自�
 - 注册表值删除恢复流程
 - 执行成功/失败/跳过统计 + 稳定退出码（`Get-TweakExitCode`：0/2/4/5）
 - BCD `bcdedit` 封装与 `deletevalue` 保护
-- 备份 Schema 校验（MPO/BCD/Service/Security/NVMe/Defender 共 6 套，旁车输入按白名单/固定路径校验）
+- 备份 Schema 校验（10 套 Backup 模块，旁车输入按白名单/固定路径校验）
 
 ## 下一阶段
 

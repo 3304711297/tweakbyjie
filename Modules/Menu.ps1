@@ -1,8 +1,18 @@
 ﻿function Show-TweakMenu {
-    # RunModules：非交互模式，逗号分隔的模块编号队列；为空则进入交互菜单
-    param([string]$RunModules = '')
+    # RunModules：模块编号队列；Actions 为严格的模块编号 -> 子操作映射。
+    param([string]$RunModules = '', [hashtable]$Actions = @{}, [switch]$NonInteractive)
     $__queue = @($RunModules -split '[,，\s]+' | Where-Object { $_ })
     $__autoMode = ($RunModules -ne '')
+    if ($NonInteractive -and -not $__autoMode) {
+        throw '非交互菜单必须提供 -RunModule 队列，已拒绝回退到 Read-Host'
+    }
+    if ($NonInteractive -and $__autoMode) {
+        $__required = @(Get-TweakActionRequiredModules)
+        $__missing = @($__required | Where-Object { $_ -in $__queue -and -not $Actions.ContainsKey($_) })
+        if ($__missing.Count -gt 0) {
+            throw "非交互菜单缺少动作：$($__missing -join ',')"
+        }
+    }
 # ============================ Menu ============================
 # 启动预检（会话内只检测一次，结果缓存并写入会话日志）+ 按模块灰掉。
 # 灰掉只发生在菜单层：不可用模块显示 [不适用] 且选择时被拒绝，不触碰任何执行函数。
@@ -52,28 +62,36 @@ if ($choice -eq "0") {
         $entry = $__avail[$choice]
         if ($entry -and -not $entry.Available) {
             if ($__autoMode) {
+                # 前置条件只禁用当前模块；队列中的其他安全模块仍应继续执行。
                 Write-Host ("[AUTO] 模块 {0} 不适用（{1}），已跳过。" -f $choice, $entry.Reason) -ForegroundColor Yellow
                 $script:skip++
+                continue
             } else {
                 Write-Host ("[不适用] 模块 {0}：{1}" -f $choice, $entry.Reason) -ForegroundColor Red
                 Write-Host "[提示] 该模块的前置条件未满足，其余模块不受影响，可继续选择。" -ForegroundColor Yellow
+                continue
             }
-            continue
         }
-        # ======================= 分发（各 Part 实现位于 Modules/，执行内容不变） =======================
-        switch ($choice) {
-            '1'  { Invoke-RegistryModule }
-            '2'  { Invoke-BcdAdvancedModule }
-            '3'  { Invoke-TestModeEnableModule }
-            '4'  { Invoke-TestModeDisableModule }
-            '5'  { Invoke-DefenderModule }
-            '6'  { Invoke-ServiceModule }
-            '7'  { Invoke-PowerModule }
-            '8'  { Invoke-NvmeModule }
-            '9'  { Invoke-DeviceGuardModule }
-            '10' { Invoke-VbsModule }
-            '11' { Invoke-MpoModule }
-            '12' { Invoke-GameQosModule }
+        # ======================= 分发（各 Part 实现位于 Modules/） =======================
+        $__action = if ($Actions -and $Actions.ContainsKey($choice)) { [string]$Actions[$choice] } else { '' }
+        $__beforeModuleFail = $script:fail
+        $__moduleResult = switch ($choice) {
+            '1'  { Invoke-RegistryModule -Action $__action }
+            '2'  { Invoke-BcdAdvancedModule -Action $__action }
+            '3'  { Invoke-TestModeEnableModule -Action $__action }
+            '4'  { Invoke-TestModeDisableModule -Action $__action }
+            '5'  { Invoke-DefenderModule -Action $__action }
+            '6'  { Invoke-ServiceModule -Action $__action }
+            '7'  { Invoke-PowerModule -Action $__action }
+            '8'  { Invoke-NvmeModule -Action $__action }
+            '9'  { Invoke-DeviceGuardModule -Action $__action }
+            '10' { Invoke-VbsModule -Action $__action }
+            '11' { Invoke-MpoModule -Action $__action }
+            '12' { Invoke-GameQosModule -Action $__action }
+        }
+        if ($__autoMode -and ($script:fail -gt $__beforeModuleFail -or @($__moduleResult | Where-Object { $_ -is [bool] -and -not $_ }).Count -gt 0)) {
+            Write-Host '[AUTO] 模块执行失败，已停止后续队列，避免在失败状态下继续写入。' -ForegroundColor Red
+            break
         }
     } else {
     Write-Host "[ERROR] 无效输入：$choice 。请输入 0-12 / Invalid input. Enter 0-12." -ForegroundColor Red

@@ -1,6 +1,7 @@
 ﻿function Get-SecurityMitigationSnapshot {
     param([hashtable]$Definition)
-    $item = Get-Item $Definition.Path -ErrorAction SilentlyContinue
+    try { $item = Get-Item $Definition.Path -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] { $item = $null }
     $present = $item -and ($item.GetValueNames() -contains $Definition.Name)
     if (-not $present) { return [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Present = $false; Value = $null } }
     if ($item.GetValueKind($Definition.Name).ToString() -ne 'DWord') { throw "$($Definition.Name) 不是 DWORD" }
@@ -35,7 +36,8 @@ function Ensure-SecurityMitigationBackup {
         }
         $backup = [pscustomobject]@{ Version = 1; Binding = (Get-BackupMachineId); CreatedAt = (Get-Date).ToString('o'); Values = @($Definitions | ForEach-Object { Get-SecurityMitigationSnapshot $_ }) }
         if (-not (Test-SecurityMitigationBackupSchema $backup $Definitions)) { throw '生成的安全缓解备份未通过结构校验' }
-        ConvertTo-Json -InputObject $backup -Depth 5 | Set-Content -Path $script:securityMitigationBackupFile -Encoding UTF8 -ErrorAction Stop
+        $json = ConvertTo-Json -InputObject $backup -Depth 5
+        Write-TweakAtomicTextFile -Path $script:securityMitigationBackupFile -Content $json
         $check = Get-Content $script:securityMitigationBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-SecurityMitigationBackupSchema $check $Definitions)) { throw '写入后的安全缓解备份校验失败' }
         Write-Host "[OK] CPU 安全缓解原始状态已备份：$script:securityMitigationBackupFile" -ForegroundColor Green
