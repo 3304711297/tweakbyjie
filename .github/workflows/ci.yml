@@ -100,6 +100,13 @@ jobs:
             . .\Modules\Virtualization.ps1
             $stillMissing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
             $resolved = @($required | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
+            $parseNames = @()
+            foreach ($path in @('.\Modules\Menu.ps1','.\Modules\Registry.ps1','.\Modules\Virtualization.ps1')) {
+              $tokens = $null; $parseErrors = $null
+              $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$parseErrors)
+              $parseNames += @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object Name)
+            }
+            Write-Host ("::error title=Loader diagnostic::stillMissing=" + ($stillMissing -join ',') + ";resolved=" + ($resolved -join ',') + ";ast=" + (($parseNames | Sort-Object -Unique) -join ','))
             throw ("missing after direct source: " + ($stillMissing -join ',') + "; resolved: " + ($resolved -join ','))
           }
           if (@($script:defenderPolicyValues).Count -ne 95) {
