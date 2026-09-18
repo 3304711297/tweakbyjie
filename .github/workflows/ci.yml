@@ -53,6 +53,9 @@ jobs:
           $config = New-PesterConfiguration
           $config.Run.Path = "./tests"
           $config.Output.Verbosity = "Detailed"
+          # Pester's own GitHub annotations consume the annotation budget; emit one
+          # normalized annotation per failure below so the actual ErrorRecord is visible.
+          $config.Output.CIFormat = "None"
           $config.CodeCoverage.Enabled = $true
           $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
           # 覆盖率门禁:2026-08-28 实测 54.3%,阈值取 50% ——低于此值说明新增代码无测试即失败

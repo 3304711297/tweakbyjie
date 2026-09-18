@@ -42,16 +42,18 @@ function Test-GameQosBackupSchema {
     param($Snapshot)
     try {
         if ($null -eq $Snapshot) { return $false }
-        if ([string]$Snapshot.Version -ne $script:GameQosBackupVersion) { return $false }
-        if (-not $Snapshot.PSObject.Properties['Policies']) { return $false }
-        foreach ($policy in @(Get-GameQosPolicyEntries $Snapshot.Policies)) {
-            if (-not (Test-GameQosSafeName $policy.Name)) { return $false }
+        if ([string]$Snapshot.Version -cne [string]$script:GameQosBackupVersion) { return $false }
+        $policiesProperty = $Snapshot.PSObject.Properties['Policies']
+        if ($null -eq $policiesProperty -or $null -eq $policiesProperty.Value) { return $false }
+        foreach ($policy in @(Get-GameQosPolicyEntries $policiesProperty.Value)) {
+            if (-not (Test-GameQosSafeName ([string]$policy.Name))) { return $false }
             $values = @(Get-GameQosValueEntries $policy.Values)
             if ($values.Count -gt 128) { return $false }
             foreach ($value in $values) {
-                if (-not (Test-GameQosSafeName $value.Name)) { return $false }
-                if ($null -eq $value.Value -or $value.Value -is [hashtable] -or $value.Value -is [array]) { return $false }
-                if ([string]$value.Value.Length -gt 4096) { return $false }
+                if (-not (Test-GameQosSafeName ([string]$value.Name))) { return $false }
+                if ($null -eq $value.Value -or $value.Value -is [System.Collections.IDictionary] -or $value.Value -is [System.Array]) { return $false }
+                $valueText = [string]$value.Value
+                if ($valueText.Length -gt 4096) { return $false }
             }
         }
         return $true
@@ -160,9 +162,9 @@ function Restore-GameQosBackup {
         }
         foreach ($policy in @(Get-GameQosPolicyEntries $snapshot.Policies)) {
             $targetKey = Join-Path $RegistryBasePath $policy.Name
-            if (-not (Test-Path -LiteralPath $targetKey)) {
-                New-Item -Path $targetKey -Force -ErrorAction Stop | Out-Null
-            }
+            # Always open/create the snapshot key so a failed registry create/open is reported;
+            # Test-Path alone can hide access failures and make recovery look successful.
+            New-Item -Path $targetKey -Force -ErrorAction Stop | Out-Null
             foreach ($value in @(Get-GameQosValueEntries $policy.Values)) {
                 Set-ItemProperty -LiteralPath $targetKey -Name $value.Name -Value ([string]$value.Value) -Type String -Force -ErrorAction Stop | Out-Null
                 $actual = (Get-ItemProperty -LiteralPath $targetKey -Name $value.Name -ErrorAction Stop).$($value.Name)

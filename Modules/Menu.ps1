@@ -62,10 +62,10 @@ if ($choice -eq "0") {
         $entry = $__avail[$choice]
         if ($entry -and -not $entry.Available) {
             if ($__autoMode) {
-                # 非交互调用者明确请求了该模块；前置条件不满足必须是失败，不能以 0 退出码伪装成成功。
-                Write-Host ("[AUTO] 模块 {0} 不适用（{1}），已拒绝执行。" -f $choice, $entry.Reason) -ForegroundColor Red
-                $script:fail++
-                break
+                # 前置条件只禁用当前模块；队列中的其他安全模块仍应继续执行。
+                Write-Host ("[AUTO] 模块 {0} 不适用（{1}），已跳过。" -f $choice, $entry.Reason) -ForegroundColor Yellow
+                $script:skip++
+                continue
             } else {
                 Write-Host ("[不适用] 模块 {0}：{1}" -f $choice, $entry.Reason) -ForegroundColor Red
                 Write-Host "[提示] 该模块的前置条件未满足，其余模块不受影响，可继续选择。" -ForegroundColor Yellow
