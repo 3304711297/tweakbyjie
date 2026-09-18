@@ -167,15 +167,18 @@ function Restore-NvmeSafeBootBackup {
         $backup = Get-Content $script:nvmeBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if (-not (Test-NvmeBackupSchema $backup $Guid)) { throw 'nvme-backup.json 结构不正确' }
         $allOk = $true
+        $featureFailures = @()
+        $safeBootFailures = @()
+        $legacyFailures = @()
         if ($ViVeTool) {
             foreach ($f in @($backup.Features)) {
                 switch ([string]$f.BeforeState) {
                     'Enabled' { & $ViVeTool /enable /id:$($f.Id) 2>&1 | Out-Null }
                     'Disabled' { & $ViVeTool /disable /id:$($f.Id) 2>&1 | Out-Null }
                     'Default' { & $ViVeTool /reset /id:$($f.Id) 2>&1 | Out-Null }
-                    default { $allOk = $false; $script:fail++; continue }
+                    default { $featureFailures += [string]$f.Id; $allOk = $false; $script:fail++; continue }
                 }
-                if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ }
+                if ($LASTEXITCODE -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $LASTEXITCODE); $allOk = $false; $script:fail++ }
             }
         } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
         foreach ($r in @($backup.SafeBoot)) {
@@ -211,7 +214,7 @@ function Restore-NvmeSafeBootBackup {
                             $script:ok++; $script:rebootRequired = $true
                         }
                     } else { $script:skip++ }
-                } catch { $allOk = $false; $script:fail++ }
+                } catch { $safeBootFailures += [string]$r.Mode; $allOk = $false; $script:fail++ }
             }
         }
         foreach ($r in @($backup.LegacyOverrides)) {
@@ -244,10 +247,18 @@ function Restore-NvmeSafeBootBackup {
                             $script:ok++; $script:rebootRequired = $true
                         }
                     } else { $script:skip++ }
-                } catch { $allOk = $false; $script:fail++ }
+                } catch { $legacyFailures += [string]$r.Name; $allOk = $false; $script:fail++ }
             }
         }
-        if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else { Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow }
+        if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else {
+            Write-Host ("::error title=NVMe restore diagnostic::features={0};safeboot={1};legacy={2}" -f ($featureFailures -join ','), ($safeBootFailures -join ','), ($legacyFailures -join ','))
+            Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow
+        }
         return $allOk
-    } catch { Write-Host "[FAIL] NVMe 恢复失败：$($_.Exception.Message)" -ForegroundColor Red; $script:fail++; return $false }
+    } catch {
+        Write-Host ("::error title=NVMe restore exception::" + $_.Exception.Message)
+        Write-Host "[FAIL] NVMe 恢复失败：$($_.Exception.Message)" -ForegroundColor Red
+        $script:fail++
+        return $false
+    }
 }
