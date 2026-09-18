@@ -57,16 +57,28 @@ jobs:
           $config.CodeCoverage.Path = @('./tweakbyjie.ps1', './Modules/*.ps1')
           # 覆盖率门禁:2026-08-28 实测 54.3%,阈值取 50% ——低于此值说明新增代码无测试即失败
           $config.CodeCoverage.CoveragePercentTarget = 50
-          $pesterResult = Invoke-Pester -Configuration $config -PassThru
-          $failedTests = @($pesterResult.Tests | Where-Object { [string]$_.Result -eq 'Failed' })
-          foreach ($failedTest in $failedTests) {
-            $detail = if ($failedTest.ErrorRecord) { [string]$failedTest.ErrorRecord.Exception.Message } else { [string]$failedTest.ErrorRecord }
-            if ([string]::IsNullOrWhiteSpace($detail)) { $detail = 'no error detail returned by Pester' }
+          $config.Run.PassThru = $true
+          $config.Run.Exit = $false
+          $config.Run.Throw = $false
+          $pesterResult = Invoke-Pester -Configuration $config
+          $failedTests = @($pesterResult.Failed)
+          $failedBlocks = @($pesterResult.FailedBlocks)
+          $failedContainers = @($pesterResult.FailedContainers)
+          foreach ($failure in @($failedTests + $failedBlocks + $failedContainers)) {
+            $errors = @($failure.ErrorRecord | ForEach-Object {
+              if ($_.DisplayErrorMessage) { [string]$_.DisplayErrorMessage }
+              elseif ($_.Exception) { [string]$_.Exception.Message }
+              else { [string]$_ }
+            } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            $detail = if ($errors.Count -gt 0) { $errors -join ' | ' } else { 'no error detail returned by Pester' }
             $detail = $detail -replace '[\r\n]+', ' '
-            $name = [string]$failedTest.ExpandedName
-            Write-Host ("::error file={0},title=Pester failure::{1}: {2}" -f $failedTest.Path, $name, $detail)
+            $name = if ($failure.ExpandedPath) { [string]$failure.ExpandedPath } else { [string]$failure.Name }
+            $line = if ($failure.StartLine) { [int]$failure.StartLine } else { 1 }
+            Write-Host ("::error file=tests,title=Pester failure,line={0}::{1}: {2}" -f $line, $name, $detail)
           }
-          if ($failedTests.Count -gt 0) { throw "Pester reported $($failedTests.Count) failed test(s)." }
+          if ([int]$pesterResult.FailedCount -gt 0 -or [int]$pesterResult.FailedBlocksCount -gt 0 -or [int]$pesterResult.FailedContainersCount -gt 0) {
+            exit 1
+          }
       - name: Upload coverage report
         if: always()
         # v6.0.0:运行时 Node 24,消除 v4 的 Node.js 20 弃用告警;输入输出与 v4 兼容
@@ -93,22 +105,8 @@ jobs:
           $required = @('Show-TweakMenu','Invoke-RegistryModule','Invoke-NvmeModule','Invoke-DeviceGuardModule','Invoke-VbsModule','Invoke-DefenderModule','Ensure-DefenderPolicyBackup','Restore-DefenderPolicyBackup','Test-DefenderBackupSchema','Set-RegDword','Verify-RegDword')
           $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
           if ($missing.Count -gt 0) {
-            $sourceResults = @()
-            foreach ($path in @('.\Modules\Menu.ps1','.\Modules\Registry.ps1','.\Modules\Virtualization.ps1')) {
-              try { . $path; $sourceResults += "$path=OK" }
-              catch { $sourceResults += "$path=$($_.Exception.GetType().FullName):$($_.Exception.Message)" }
-            }
-            $stillMissing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
-            $resolved = @($required | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
-            $parseNames = @()
-            foreach ($path in @('.\Modules\Menu.ps1','.\Modules\Registry.ps1','.\Modules\Virtualization.ps1')) {
-              $tokens = $null; $parseErrors = $null
-              $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$parseErrors)
-              $parseNames += @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object Name)
-            }
-            $detail = "rootMissing=$($missing -join ',');stillMissing=$($stillMissing -join ',');resolved=$($resolved -join ',');source=$(($sourceResults -join '|'));ast=$(($parseNames | Sort-Object -Unique) -join ',')"
-            Write-Host ("::error title=Loader diagnostic::" + $detail)
-            throw $detail
+            Write-Host ("::error title=Loader smoke missing functions::" + ($missing -join ','))
+            throw ("missing functions: " + ($missing -join ','))
           }
           if (@($script:defenderPolicyValues).Count -ne 95) {
             Write-Host ("::error title=Defender contract::policy count was " + @($script:defenderPolicyValues).Count)
