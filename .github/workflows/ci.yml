@@ -93,9 +93,11 @@ jobs:
           $required = @('Show-TweakMenu','Invoke-RegistryModule','Invoke-NvmeModule','Invoke-DeviceGuardModule','Invoke-VbsModule','Invoke-DefenderModule','Ensure-DefenderPolicyBackup','Restore-DefenderPolicyBackup','Test-DefenderBackupSchema','Set-RegDword','Verify-RegDword')
           $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
           if ($missing.Count -gt 0) {
-            . .\Modules\Menu.ps1
-            . .\Modules\Registry.ps1
-            . .\Modules\Virtualization.ps1
+            $sourceResults = @()
+            foreach ($path in @('.\Modules\Menu.ps1','.\Modules\Registry.ps1','.\Modules\Virtualization.ps1')) {
+              try { . $path; $sourceResults += "$path=OK" }
+              catch { $sourceResults += "$path=$($_.Exception.GetType().FullName):$($_.Exception.Message)" }
+            }
             $stillMissing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
             $resolved = @($required | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
             $parseNames = @()
@@ -104,7 +106,7 @@ jobs:
               $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$parseErrors)
               $parseNames += @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object Name)
             }
-            $detail = "rootMissing=$($missing -join ',');stillMissing=$($stillMissing -join ',');resolved=$($resolved -join ',');ast=$(($parseNames | Sort-Object -Unique) -join ',')"
+            $detail = "rootMissing=$($missing -join ',');stillMissing=$($stillMissing -join ',');resolved=$($resolved -join ',');source=$(($sourceResults -join '|'));ast=$(($parseNames | Sort-Object -Unique) -join ',')"
             Write-Host ("::error title=Loader diagnostic::" + $detail)
             throw $detail
           }
