@@ -91,6 +91,20 @@ function Get-ViVeFeatureState {
     } catch { return 'Unknown' }
 }
 
+function Invoke-ViVeToolCommand {
+    param([string]$ViVeTool, [string]$Verb, [string]$Id)
+    $arguments = @($Verb, "/id:$Id")
+    $extension = [System.IO.Path]::GetExtension($ViVeTool)
+    if ($extension -in @('.cmd', '.bat')) {
+        # Execute wrapper scripts through cmd /c call so their exit code is propagated.
+        $quotedTool = '"' + $ViVeTool.Replace('"', '""') + '"'
+        $process = Start-Process -FilePath $env:ComSpec -ArgumentList (@('/d', '/c', 'call', $quotedTool) + $arguments) -Wait -PassThru -WindowStyle Hidden
+    } else {
+        $process = Start-Process -FilePath $ViVeTool -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
+    }
+    return [int]$process.ExitCode
+}
+
 function Find-ViVeTool {
     $local = Join-Path $script:RepoRoot 'ViVeTool.exe'
     if (Test-Path $local) { return $local }
@@ -174,18 +188,9 @@ function Restore-NvmeSafeBootBackup {
             foreach ($f in @($backup.Features)) {
                 $viVeExitCode = $null
                 switch ([string]$f.BeforeState) {
-                    'Enabled' {
-                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/enable', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
-                        $viVeExitCode = $process.ExitCode
-                    }
-                    'Disabled' {
-                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/disable', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
-                        $viVeExitCode = $process.ExitCode
-                    }
-                    'Default' {
-                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/reset', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
-                        $viVeExitCode = $process.ExitCode
-                    }
+                    'Enabled' { $viVeExitCode = Invoke-ViVeToolCommand $ViVeTool '/enable' ([string]$f.Id) }
+                    'Disabled' { $viVeExitCode = Invoke-ViVeToolCommand $ViVeTool '/disable' ([string]$f.Id) }
+                    'Default' { $viVeExitCode = Invoke-ViVeToolCommand $ViVeTool '/reset' ([string]$f.Id) }
                     default { $featureFailures += [string]$f.Id; $allOk = $false; $script:fail++; continue }
                 }
                 if ($viVeExitCode -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $viVeExitCode); $allOk = $false; $script:fail++ }
