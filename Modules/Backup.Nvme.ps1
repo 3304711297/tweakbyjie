@@ -195,19 +195,23 @@ function Restore-NvmeSafeBootBackup {
                 }
             }
             else {
+                # A genuinely absent SafeBoot key is an expected no-op; other provider errors fail closed.
+                if (-not (Test-Path -LiteralPath $psPath -PathType Container -ErrorAction Stop)) {
+                    $script:skip++
+                    continue
+                }
                 try {
-                    $item = Get-Item $psPath -ErrorAction Stop
+                    $item = Get-Item -LiteralPath $psPath -ErrorAction Stop
                     if ($item.GetValueNames() -contains '') {
                         & reg.exe DELETE $regPath /ve /f 2>$null *> $null
                         if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ }
                         else {
-                            $after = Get-Item $psPath -ErrorAction Stop
+                            $after = Get-Item -LiteralPath $psPath -ErrorAction Stop
                             if ($after.GetValueNames() -contains '') { throw 'SafeBoot 默认值删除后仍存在' }
                             $script:ok++; $script:rebootRequired = $true
                         }
                     } else { $script:skip++ }
-                } catch [System.Management.Automation.ItemNotFoundException] { $script:skip++ }
-                  catch { $allOk = $false; $script:fail++ }
+                } catch { $allOk = $false; $script:fail++ }
             }
         }
         foreach ($r in @($backup.LegacyOverrides)) {
@@ -224,19 +228,23 @@ function Restore-NvmeSafeBootBackup {
                 }
             }
             else {
+                # An absent legacy override is an expected no-op; other provider errors fail closed.
+                if (-not (Test-Path -LiteralPath $LegacyPath -PathType Container -ErrorAction Stop)) {
+                    $script:skip++
+                    continue
+                }
                 try {
-                    $item = Get-Item $LegacyPath -ErrorAction Stop
+                    $item = Get-Item -LiteralPath $LegacyPath -ErrorAction Stop
                     if ($item.GetValueNames() -contains $r.Name) {
                         & reg.exe DELETE $regPath /v $r.Name /f 2>$null *> $null
                         if ($LASTEXITCODE -ne 0) { $allOk = $false; $script:fail++ }
                         else {
-                            $after = Get-Item $LegacyPath -ErrorAction Stop
+                            $after = Get-Item -LiteralPath $LegacyPath -ErrorAction Stop
                             if ($after.GetValueNames() -contains $r.Name) { throw "Legacy 值 $($r.Name) 删除后仍存在" }
                             $script:ok++; $script:rebootRequired = $true
                         }
                     } else { $script:skip++ }
-                } catch [System.Management.Automation.ItemNotFoundException] { $script:skip++ }
-                  catch { $allOk = $false; $script:fail++ }
+                } catch { $allOk = $false; $script:fail++ }
             }
         }
         if ($allOk) { Write-Host '[OK] Native NVMe 已按修改前快照恢复。' -ForegroundColor Green } else { Write-Host '[WARN] Native NVMe 恢复未完全确认，请执行 8 -> 0 检查。' -ForegroundColor Yellow }

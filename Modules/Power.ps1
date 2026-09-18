@@ -59,18 +59,12 @@ function Invoke-PowerModule {
                     } else {
                         throw "无法解析当前电源计划 GUID"
                     }
-                    # 先导出到同目录临时文件，校验非空后再以不可覆盖 rename 固化首次快照。
-                    $backupTemp = Join-Path ([System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($backupFile))) ('.power-backup.{0}.tmp.pow' -f ([guid]::NewGuid().ToString('N')))
-                    try {
-                        & powercfg.exe /export $backupTemp $activeGuid *> $null
-                        if ($LASTEXITCODE -ne 0) { throw "powercfg /export exit code $LASTEXITCODE" }
-                        if (-not (Test-Path -LiteralPath $backupTemp -PathType Leaf) -or (Get-Item -LiteralPath $backupTemp -ErrorAction Stop).Length -le 0) {
-                            throw 'powercfg 导出的原始计划文件为空或不存在'
-                        }
-                        # 使用 .NET 的独占 Move：目标若被并发进程先创建会直接失败，绝不覆盖首次快照。
-                        [System.IO.File]::Move($backupTemp, $backupFile)
-                    } finally {
-                        if (Test-Path -LiteralPath $backupTemp) { Remove-Item -LiteralPath $backupTemp -Force -ErrorAction SilentlyContinue }
+                    # 直接导出到首次快照路径；目标在进入此分支前已确认不存在。
+                    # 导出成功后立即校验非空，空/残缺快照不得作为后续修改的安全门禁。
+                    & powercfg.exe /export $backupFile $activeGuid *> $null
+                    if ($LASTEXITCODE -ne 0) { throw "powercfg /export exit code $LASTEXITCODE" }
+                    if (-not (Test-Path -LiteralPath $backupFile -PathType Leaf) -or (Get-Item -LiteralPath $backupFile -ErrorAction Stop).Length -le 0) {
+                        throw 'powercfg 导出的原始计划文件为空或不存在'
                     }
                     Write-Host "[OK] 当前电源计划已备份: $backupFile ($activeGuid)"
                     $script:ok++

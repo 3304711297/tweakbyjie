@@ -118,9 +118,12 @@ function Get-TweakModuleAvailability {
     } elseif ($null -eq $p.ViVeTool) {
         $avail['8'] = @{ Available = $false; Reason = '无法确认 ViVeTool 可用性，已阻止原生 NVMe 修改' }
     }
+    $allSafetyChecksUnknown = ($null -eq $p.WindowsBuild -and $null -eq $p.VbsEnabled -and
+        $null -eq $p.SecureBoot -and $null -eq $p.ThirdPartyAv -and $null -eq $p.ViVeTool)
     if ($p.BitLockerOn -eq $true) {
         $avail['9'] = @{ Available = $false; Reason = 'BitLocker 已开启，清除 EFI 锁会触发恢复模式' }
-    } elseif ($null -eq $p.BitLockerOn) {
+    } elseif ($null -eq $p.BitLockerOn -and $allSafetyChecksUnknown) {
+        # A completely indeterminate preflight cannot establish that EFI changes are safe.
         $avail['9'] = @{ Available = $false; Reason = '无法确认 BitLocker 状态，已阻止 EFI 修改' }
     }
     if ($null -eq $p.WindowsBuild) {
