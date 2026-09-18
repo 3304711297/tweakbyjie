@@ -172,13 +172,23 @@ function Restore-NvmeSafeBootBackup {
         $legacyFailures = @()
         if ($ViVeTool) {
             foreach ($f in @($backup.Features)) {
+                $viVeExitCode = $null
                 switch ([string]$f.BeforeState) {
-                    'Enabled' { $null = & $ViVeTool /enable /id:$($f.Id) 2>&1 }
-                    'Disabled' { $null = & $ViVeTool /disable /id:$($f.Id) 2>&1 }
-                    'Default' { $null = & $ViVeTool /reset /id:$($f.Id) 2>&1 }
+                    'Enabled' {
+                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/enable', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
+                        $viVeExitCode = $process.ExitCode
+                    }
+                    'Disabled' {
+                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/disable', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
+                        $viVeExitCode = $process.ExitCode
+                    }
+                    'Default' {
+                        $process = Start-Process -FilePath $ViVeTool -ArgumentList @('/reset', "/id:$($f.Id)") -Wait -PassThru -WindowStyle Hidden
+                        $viVeExitCode = $process.ExitCode
+                    }
                     default { $featureFailures += [string]$f.Id; $allOk = $false; $script:fail++; continue }
                 }
-                if ($LASTEXITCODE -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $LASTEXITCODE); $allOk = $false; $script:fail++ }
+                if ($viVeExitCode -ne 0) { $featureFailures += ("{0}:exit{1}" -f $f.Id, $viVeExitCode); $allOk = $false; $script:fail++ }
             }
         } else { Write-Host '[WARN] 未找到 ViVeTool，无法精确恢复 Feature 状态。' -ForegroundColor Yellow; $allOk = $false }
         foreach ($r in @($backup.SafeBoot)) {
