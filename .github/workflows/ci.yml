@@ -94,7 +94,20 @@ jobs:
           $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
           if ($missing.Count -gt 0) {
             Write-Host ("::error title=Loader smoke missing functions::" + ($missing -join ','))
-            throw ("missing functions: " + ($missing -join ','))
+            foreach ($name in $missing) {
+              $module = switch ($name) {
+                'Show-TweakMenu' { '.\Modules\Menu.ps1'; break }
+                'Invoke-RegistryModule' { '.\Modules\Registry.ps1'; break }
+                'Invoke-DeviceGuardModule' { '.\Modules\Virtualization.ps1'; break }
+                'Invoke-VbsModule' { '.\Modules\Virtualization.ps1'; break }
+              }
+              Write-Host ("loader probe before direct source: {0} -> {1}" -f $name, $module)
+              . $module
+              Write-Host ("loader probe after direct source: {0} -> {1}" -f $name, [bool](Get-Command $name -ErrorAction SilentlyContinue))
+            }
+            $stillMissing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+            Write-Host ("::error title=Loader smoke after direct source::" + ($stillMissing -join ','))
+            throw ("missing functions: " + ($stillMissing -join ','))
           }
           if (@($script:defenderPolicyValues).Count -ne 95) {
             Write-Host ("::error title=Defender contract::policy count was " + @($script:defenderPolicyValues).Count)
