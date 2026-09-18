@@ -93,8 +93,6 @@ jobs:
           $required = @('Show-TweakMenu','Invoke-RegistryModule','Invoke-NvmeModule','Invoke-DeviceGuardModule','Invoke-VbsModule','Invoke-DefenderModule','Ensure-DefenderPolicyBackup','Restore-DefenderPolicyBackup','Test-DefenderBackupSchema','Set-RegDword','Verify-RegDword')
           $missing = @($required | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
           if ($missing.Count -gt 0) {
-            Write-Host ("::error title=Loader smoke missing functions::" + ($missing -join ','))
-            Write-Host 'loader probe: directly dot-sourcing Menu, Registry, and Virtualization'
             . .\Modules\Menu.ps1
             . .\Modules\Registry.ps1
             . .\Modules\Virtualization.ps1
@@ -106,8 +104,9 @@ jobs:
               $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$parseErrors)
               $parseNames += @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object Name)
             }
-            Write-Host ("::error title=Loader diagnostic::stillMissing=" + ($stillMissing -join ',') + ";resolved=" + ($resolved -join ',') + ";ast=" + (($parseNames | Sort-Object -Unique) -join ','))
-            throw ("missing after direct source: " + ($stillMissing -join ',') + "; resolved: " + ($resolved -join ','))
+            $detail = "rootMissing=$($missing -join ',');stillMissing=$($stillMissing -join ',');resolved=$($resolved -join ',');ast=$(($parseNames | Sort-Object -Unique) -join ',')"
+            Write-Host ("::error title=Loader diagnostic::" + $detail)
+            throw $detail
           }
           if (@($script:defenderPolicyValues).Count -ne 95) {
             Write-Host ("::error title=Defender contract::policy count was " + @($script:defenderPolicyValues).Count)
