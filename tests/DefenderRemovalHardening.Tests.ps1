@@ -33,6 +33,13 @@ Describe "Defender removal safety and hardening contract" {
         $defModulePath = Join-Path $PSScriptRoot '../Modules/Defender.ps1'
         $defModuleText = Get-Content -LiteralPath $defModulePath -Raw -Encoding UTF8
         $defModuleText | Should -Match 'set-nonremovableapppolicy'
-        $defModuleText | Should -Match '\$LASTEXITCODE\s+-eq\s+0'
+        $defModuleText | Should -Match '\$LASTEXITCODE\s+-ne\s+0[\s\S]*?throw'
+    }
+
+    It "verifies SecHealthUI removal with live readback before marking success" {
+        $defModulePath = Join-Path $PSScriptRoot '../Modules/Defender.ps1'
+        $defModuleText = Get-Content -LiteralPath $defModulePath -Raw -Encoding UTF8
+        $defModuleText | Should -Match 'live-readback verification'
+        $defModuleText | Should -Match 'Remove-AppxProvisionedPackage[\s\S]*?-ErrorAction Stop'
     }
 }

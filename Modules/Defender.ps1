@@ -483,17 +483,27 @@ function Invoke-DefenderModule {
                         }
                         if ($family) {
                             & dism.exe /online /set-nonremovableapppolicy /packagefamily:$family /nonremovable:0 *> $null
-                            if ($LASTEXITCODE -eq 0) {
-                                Write-Host "[OK] DISM set-nonremovableapppolicy cleared: $family"
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "DISM set-nonremovableapppolicy failed with exit code $LASTEXITCODE"
                             }
+                            Write-Host "[OK] DISM set-nonremovableapppolicy cleared: $family"
                         }
                         # 卸载 Provisioned 包
                         foreach ($pPkg in $provApp) {
-                            Remove-AppxProvisionedPackage -Online -PackageName $pPkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+                            Remove-AppxProvisionedPackage -Online -PackageName $pPkg.PackageName -ErrorAction Stop | Out-Null
                         }
                         # 卸载已安装的 AppX
                         if ($secApp.Count -gt 0) {
                             $secApp | Remove-AppxPackage -AllUsers -ErrorAction Stop
+                        }
+                        # Live readback verification: 确认组件已彻底从系统中消失
+                        $remainInstalled = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction SilentlyContinue)
+                        $remainProv = @()
+                        if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
+                            $remainProv = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                        }
+                        if ($remainInstalled.Count -gt 0 -or $remainProv.Count -gt 0) {
+                            throw "SecHealthUI live-readback verification failed: package still present after removal"
                         }
                         # 标记 Deprovisioned，防止后续 Windows Update 幽灵复活
                         if ($family) {
