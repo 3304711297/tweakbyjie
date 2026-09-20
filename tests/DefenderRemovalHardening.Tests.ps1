@@ -41,5 +41,7 @@ Describe "Defender removal safety and hardening contract" {
         $defModuleText = Get-Content -LiteralPath $defModulePath -Raw -Encoding UTF8
         $defModuleText | Should -Match 'live-readback verification'
         $defModuleText | Should -Match 'Remove-AppxProvisionedPackage[\s\S]*?-ErrorAction Stop'
+        $defModuleText | Should -Match 'Get-AppxPackage[\s\S]*?-AllUsers\s+-ErrorAction Stop'
+        $defModuleText | Should -Match 'Deprovisioned marker creation verification failed'
     }
 }

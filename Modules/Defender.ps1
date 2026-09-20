@@ -497,10 +497,19 @@ function Invoke-DefenderModule {
                             $secApp | Remove-AppxPackage -AllUsers -ErrorAction Stop
                         }
                         # Live readback verification: 确认组件已彻底从系统中消失
-                        $remainInstalled = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction SilentlyContinue)
+                        $remainInstalled = @()
+                        try {
+                            $remainInstalled = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction Stop)
+                        } catch {
+                            throw "SecHealthUI live-readback Get-AppxPackage failed: $($_.Exception.Message)"
+                        }
                         $remainProv = @()
                         if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
-                            $remainProv = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                            try {
+                                $remainProv = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                            } catch {
+                                throw "SecHealthUI live-readback Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
+                            }
                         }
                         if ($remainInstalled.Count -gt 0 -or $remainProv.Count -gt 0) {
                             throw "SecHealthUI live-readback verification failed: package still present after removal"
@@ -509,7 +518,10 @@ function Invoke-DefenderModule {
                         if ($family) {
                             $deprovStore = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\$family"
                             if (-not (Test-Path -LiteralPath $deprovStore)) {
-                                New-Item -Path $deprovStore -Force -ErrorAction SilentlyContinue | Out-Null
+                                New-Item -Path $deprovStore -Force -ErrorAction Stop | Out-Null
+                                if (-not (Test-Path -LiteralPath $deprovStore)) {
+                                    throw "Deprovisioned marker creation verification failed: $deprovStore"
+                                }
                             }
                         }
                         Write-Host "[OK] SecHealthUI (Windows Security app) removed"
