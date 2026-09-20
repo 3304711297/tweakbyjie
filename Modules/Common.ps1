@@ -343,3 +343,38 @@ function Invoke-FinalRestartPrompt {
         & $script:TweakAdapters.Restart
     } else { Write-Host '[结束] 本次不重启；待重启设置仍会保留。' -ForegroundColor Green }
 }
+
+function Get-MergedSettingsPageVisibility {
+    param([string]$CurrentValue)
+    if ([string]::IsNullOrWhiteSpace($CurrentValue)) {
+        return 'hide:windowsdefender'
+    }
+    $val = $CurrentValue.Trim()
+    if ($val.StartsWith('hide:', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $content = $val.Substring(5)
+        $tokens = [System.Collections.Generic.List[string]]::new()
+        foreach ($t in ($content -split ';')) {
+            $token = $t.Trim()
+            if ($token.Length -gt 0 -and (-not ($tokens -contains $token))) {
+                $tokens.Add($token)
+            }
+        }
+        $hasWd = $false
+        foreach ($t in $tokens) {
+            if ($t.Equals('windowsdefender', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $hasWd = $true
+                break
+            }
+        }
+        if (-not $hasWd) {
+            $tokens.Add('windowsdefender')
+        }
+        return 'hide:' + ($tokens -join ';')
+    } elseif ($val.StartsWith('showonly:', [System.StringComparison]::OrdinalIgnoreCase)) {
+        # P1: 外部已有 showonly 白名单策略，保持只读，绝不擅自篡改覆盖
+        return $val
+    } else {
+        # 非法或未知格式，保持原值
+        return $val
+    }
+}

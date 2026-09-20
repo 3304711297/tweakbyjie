@@ -78,6 +78,39 @@ if (-not $isAdmin) {
 # ============================ Helpers ============================
 
 # Delete an entire registry key (reg.exe format: HKLM\..., HKCU\..., HKCR\...)
+function Get-MergedSettingsPageVisibility {
+    param([string]$CurrentValue)
+    if ([string]::IsNullOrWhiteSpace($CurrentValue)) {
+        return 'hide:windowsdefender'
+    }
+    $val = $CurrentValue.Trim()
+    if ($val.StartsWith('hide:', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $content = $val.Substring(5)
+        $tokens = [System.Collections.Generic.List[string]]::new()
+        foreach ($t in ($content -split ';')) {
+            $token = $t.Trim()
+            if ($token.Length -gt 0 -and (-not ($tokens -contains $token))) {
+                $tokens.Add($token)
+            }
+        }
+        $hasWd = $false
+        foreach ($t in $tokens) {
+            if ($t.Equals('windowsdefender', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $hasWd = $true
+                break
+            }
+        }
+        if (-not $hasWd) {
+            $tokens.Add('windowsdefender')
+        }
+        return 'hide:' + ($tokens -join ';')
+    } elseif ($val.StartsWith('showonly:', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $val
+    } else {
+        return $val
+    }
+}
+
 function Remove-RegKey {
     param([string]$RegPath, [string]$Label)
     if ($script:abortDestructive) { return }
@@ -219,7 +252,7 @@ Write-Host ""
 # 先尽力停止服务 / best-effort stop
 $svcNames = @(
     "MsSecCore","wscsvc","WdNisDrv","WdNisSvc","WdFilter","WdBoot",
-    "SgrmAgent","SgrmBroker","WinDefend","MsSecFlt","MsSecWfp","whesvc",
+    "SecurityHealthService","SgrmAgent","SgrmBroker","WinDefend","MsSecFlt","MsSecWfp","whesvc",
     "webthreatdefsvc","PlutonHsp2","PlutonHeci","Hsp"
 )
 foreach ($svc in $svcNames) {
@@ -328,6 +361,27 @@ $fwCfg = "HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\Firewal
 Remove-RegValue $fwCfg "{2A5FE97D-01A4-4A9C-8241-BB3755B65EE0}" "FW Cfg {2A5FE97D...}"
 Remove-RegValue $fwCfg "72e33e44-dc4c-40c5-a688-a77b6e988c69" "FW Cfg 72e33e44..."
 Remove-RegValue $fwCfg "b23879b5-1ef3-45b7-8933-554a4303d2f3" "FW Cfg b23879b5..."
+
+# --- 设置页面可见性策略（隐藏 Windows 安全中心页面，幂等合并保护既有策略）---
+try {
+    $spPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+    if (-not (Test-Path -LiteralPath $spPath)) {
+        New-Item -Path $spPath -Force | Out-Null
+    }
+    $spProp = Get-ItemProperty -LiteralPath $spPath -ErrorAction SilentlyContinue
+    $spOrig = if ($spProp -and $spProp.SettingsPageVisibility) { [string]$spProp.SettingsPageVisibility } else { $null }
+    $spMerged = Get-MergedSettingsPageVisibility $spOrig
+    if ($spMerged -ne $spOrig) {
+        Set-ItemProperty -LiteralPath $spPath -Name "SettingsPageVisibility" -Value $spMerged -Type String -Force -ErrorAction Stop
+        Write-Host ("[OK] SettingsPageVisibility: {0}" -f $spMerged)
+        $script:ok++
+    } else {
+        Write-Host ("[SKIP] SettingsPageVisibility 已符合预期或处于只读策略: {0}" -f $spOrig) -ForegroundColor Yellow
+        $script:skip++
+    }
+} catch {
+    Write-Host ("[WARN] 设置页面隐藏策略写入失败: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
+}
 
 # ============================ Part 3: Entity Files ============================
 Write-Host ""

@@ -199,6 +199,7 @@ Invoke-Pester -Path .\tests\
 | **MPO-GPU-FIX**（社区排障经验） | [RedDot-3ND7355/MPO-GPU-FIX](https://github.com/RedDot-3ND7355/MPO-GPU-FIX) | MPO 防掉帧/防闪烁排障注册表方案参考 → 菜单 11「MPO 管理」（详见 [优化详情文档](docs/reference/OPTIMIZATION-DETAILS.md)） |
 | **defendnot** (v1.6.0) | [es3n1n/defendnot](https://github.com/es3n1n/defendnot) | WSC 安全中心与驱动驻留检测启示 → 菜单 5「关闭安全中心」（`Modules/Defender.ps1`，CIM 驱动多维运行态探测、Server SKU 识别与 Restore 范围闭环） |
 | **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
+| **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
 
 外部工具依赖：
 

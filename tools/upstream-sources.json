@@ -67,6 +67,19 @@
       "last_synced_commits": {
         "master": "af76b2c"
       }
+    },
+    "windows-defender-remover": {
+      "repo": "ionuttbara/windows-defender-remover",
+      "last_synced_release": "release13-rev1",
+      "description": "windows-defender-remover release13-rev1 (Defender 物理移除参考，SecurityHealthService服务删除/设置页可见性策略合并)",
+      "branches": [
+        "main",
+        "17-windows-11-quality-update-failed-0x800f081f"
+      ],
+      "last_synced_commits": {
+        "main": "6126092",
+        "17-windows-11-quality-update-failed-0x800f081f": "58c0da1"
+      }
     }
   }
 }

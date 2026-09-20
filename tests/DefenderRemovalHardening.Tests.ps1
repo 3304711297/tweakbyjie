@@ -1,0 +1,27 @@
+BeforeAll {
+    $scriptPath = Join-Path $PSScriptRoot '../defender-removal.ps1'
+    $scriptText = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
+    . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
+}
+
+Describe "Defender removal safety and hardening contract" {
+    It "strictly excludes Action Center GUID {BB64F8A7-BEE7-4E1A-AB8D-7D8273F7FDB6} to prevent system corruption" {
+        $scriptText | Should -Not -Match 'BB64F8A7-BEE7-4E1A-AB8D-7D8273F7FDB6'
+    }
+
+    It "includes SecurityHealthService in the service list" {
+        $scriptText | Should -Match 'SecurityHealthService'
+    }
+
+    It "merges SettingsPageVisibility idempotently without destroying existing hide rules" {
+        Get-MergedSettingsPageVisibility $null | Should -Be 'hide:windowsdefender'
+        Get-MergedSettingsPageVisibility '' | Should -Be 'hide:windowsdefender'
+        Get-MergedSettingsPageVisibility 'hide:network-wifi;bluetooth' | Should -Match 'hide:network-wifi;bluetooth;windowsdefender'
+        Get-MergedSettingsPageVisibility 'hide:windowsdefender;display' | Should -Be 'hide:windowsdefender;display'
+    }
+
+    It "preserves existing showonly and malformed policy rules as read-only" {
+        Get-MergedSettingsPageVisibility 'showonly:display;sound' | Should -Be 'showonly:display;sound'
+        Get-MergedSettingsPageVisibility 'invalid_format_rule' | Should -Be 'invalid_format_rule'
+    }
+}
