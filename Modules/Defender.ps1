@@ -7,6 +7,175 @@ function Get-DefenderServiceRecord {
     return Get-CimInstance -ClassName Win32_Service -Filter $filter -ErrorAction Stop | Select-Object -First 1
 }
 
+function Get-DefenderEnvironmentProfile {
+    param(
+        [object]$MockProductType = $null,
+        [object]$MockWscService = 'USE_LIVE',
+        [object]$MockHasSecHealthUI = 'USE_LIVE'
+    )
+    $sku = 'Unknown'
+    $isServer = $false
+    try {
+        if ($null -ne $MockProductType) {
+            $pt = [int]$MockProductType
+        } else {
+            $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop | Select-Object -First 1
+            $pt = [int]$os.ProductType
+        }
+        if ($pt -eq 1) {
+            $sku = 'Workstation'
+            $isServer = $false
+        } elseif ($pt -eq 2 -or $pt -eq 3) {
+            $sku = 'Server'
+            $isServer = $true
+        }
+    } catch {
+        $sku = 'Unknown'
+        $isServer = $false
+    }
+
+    $wscCap = 'Unknown'
+    if (-not ($MockWscService -is [string] -and $MockWscService -eq 'USE_LIVE')) {
+        if ($MockWscService -is [string] -and $MockWscService -eq 'QUERY_FAILED') {
+            $wscCap = 'Unknown'
+        } elseif ($null -ne $MockWscService) {
+            $wscCap = 'Present'
+        } else {
+            $wscCap = 'Absent'
+        }
+    } else {
+        try {
+            $svc = Get-CimInstance -ClassName Win32_Service -Filter "Name='wscsvc'" -ErrorAction Stop | Select-Object -First 1
+            if ($svc) { $wscCap = 'Present' } else { $wscCap = 'Absent' }
+        } catch {
+            $wscCap = 'Unknown'
+        }
+    }
+
+    $uiCap = 'Unknown'
+    if (-not ($MockHasSecHealthUI -is [string] -and $MockHasSecHealthUI -eq 'USE_LIVE')) {
+        if ($MockHasSecHealthUI -is [string] -and $MockHasSecHealthUI -eq 'QUERY_FAILED') {
+            $uiCap = 'Unknown'
+        } elseif ($MockHasSecHealthUI -eq $true) {
+            $uiCap = 'Present'
+        } else {
+            $uiCap = 'Absent'
+        }
+    } else {
+        if (-not (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue)) {
+            $uiCap = 'Unknown'
+        } else {
+            try {
+                $app = @(Get-AppxPackage -Name 'Microsoft.SecHealthUI' -ErrorAction Stop)
+                if ($app.Count -gt 0) { $uiCap = 'Present' } else { $uiCap = 'Absent' }
+            } catch {
+                $uiCap = 'Unknown'
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Sku           = $sku
+        IsServer      = $isServer
+        WscCapability = $wscCap
+        UiCapability  = $uiCap
+    }
+}
+
+function Get-DefenderDriverResidency {
+    param(
+        [object]$MockDrivers = $null
+    )
+    $wdFilter = 'Unknown'
+    $msSecCore = 'Unknown'
+
+    if ($null -ne $MockDrivers) {
+        if ($MockDrivers -eq 'QUERY_FAILED') {
+            $wdFilter = 'Unknown'
+            $msSecCore = 'Unknown'
+        } else {
+            $w = $MockDrivers['WdFilter']
+            if ($null -eq $w) { $wdFilter = 'Absent' }
+            elseif ($w.State -eq 'Running') { $wdFilter = 'DriverRunning' }
+            else { $wdFilter = 'DriverStopped' }
+
+            $m = $MockDrivers['MsSecCore']
+            if ($null -eq $m) { $msSecCore = 'Absent' }
+            elseif ($m.State -eq 'Running') { $msSecCore = 'DriverRunning' }
+            else { $msSecCore = 'DriverStopped' }
+        }
+    } else {
+        try {
+            $wDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='WdFilter'" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $wDrv) { $wdFilter = 'Absent' }
+            elseif ($wDrv.State -eq 'Running') { $wdFilter = 'DriverRunning' }
+            else { $wdFilter = 'DriverStopped' }
+        } catch {
+            $wdFilter = 'Unknown'
+        }
+
+        try {
+            $mDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='MsSecCore'" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $mDrv) { $msSecCore = 'Absent' }
+            elseif ($mDrv.State -eq 'Running') { $msSecCore = 'DriverRunning' }
+            else { $msSecCore = 'DriverStopped' }
+        } catch {
+            $msSecCore = 'Unknown'
+        }
+    }
+
+    $isPresent = ($wdFilter -eq 'DriverRunning' -or $msSecCore -eq 'DriverRunning')
+    return [pscustomobject]@{
+        WdFilterState   = $wdFilter
+        MsSecCoreState  = $msSecCore
+        IsDriverPresent = $isPresent
+    }
+}
+
+function Get-DefenderMultiDimensionalStatus {
+    param(
+        [string]$PolicyState = 'Unknown',
+        [string]$WinDefendState = 'Unknown',
+        [object]$DriverResidency = $null,
+        [string]$TamperProtection = 'Unknown'
+    )
+    $driverPresent = $false
+    if ($DriverResidency -and $DriverResidency.IsDriverPresent) {
+        $driverPresent = $true
+    }
+
+    $overall = 'Unknown'
+    $verdict = ''
+
+    if ($PolicyState -eq 'Unknown' -or ($DriverResidency -and $DriverResidency.WdFilterState -eq 'Unknown')) {
+        $overall = 'Unknown'
+        $verdict = '部分 Defender 状态或驱动探针查询失败，无法得出确切收敛结论。'
+    } elseif ($PolicyState -eq 'Modified' -or $WinDefendState -eq 'Disabled' -or $WinDefendState -eq 'Stopped') {
+        if ($driverPresent) {
+            $overall = 'PendingReboot'
+            $verdict = '策略/服务已变更，但内核过滤驱动仍在内存驻留；需重启系统以完全生效。'
+        } else {
+            $overall = 'Converged'
+            $verdict = 'Defender 策略及运行态已完整停用。'
+        }
+    } elseif ($PolicyState -eq 'Original' -and $WinDefendState -eq 'Running') {
+        $overall = 'Converged'
+        $verdict = 'Defender 处于官方原始启用状态。'
+    } else {
+        $overall = 'PartiallyApplied'
+        $verdict = 'Defender 状态部分应用或处于过渡态。'
+    }
+
+    return [pscustomobject]@{
+        PolicyStore      = $PolicyState
+        TamperProtection = $TamperProtection
+        WinDefendService = $WinDefendState
+        DriverResidency  = $DriverResidency
+        Overall          = $overall
+        EffectiveVerdict = $verdict
+    }
+}
+
 function Get-DefenderTamperProtectionState {
     try {
         $regKey = 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Features'
@@ -36,6 +205,12 @@ function Invoke-DefenderModule {
     Write-Host "  2. 按快照恢复 Defender 策略原始值（defender-policy-backup.json）"
     Write-Host "  0. 返回主菜单"
 
+    $envProfile = Get-DefenderEnvironmentProfile
+    if ($envProfile.IsServer) {
+        Write-Host ""
+        Write-Host " [INFO] 当前环境识别为 Windows Server SKU；WSC 安全中心及 SecHealthUI 界面可能原生不存在。" -ForegroundColor Yellow
+    }
+
     if ([string]::IsNullOrWhiteSpace($Action)) {
         if ($script:TweakNonInteractive) {
             Write-Host '[FAIL] 非交互模式必须通过 -Action 指定 Defender 子操作（1=apply，1-delete=apply+删除，2=restore）。' -ForegroundColor Red
@@ -60,6 +235,10 @@ function Invoke-DefenderModule {
 
     if ($pChoice -eq '0') { Write-Host '[SKIP] 已取消，返回主菜单。' -ForegroundColor Yellow; $script:skip++; return $true }
     if ($pChoice -eq '2') {
+        Write-Host ""
+        Write-Host " [NOTICE] 本恢复仅执行策略与启动项快照还原（Policy Restore Only）。" -ForegroundColor Yellow
+        Write-Host "          若曾执行删除类优化（1-delete），已被停用的驱动服务、删除的计划任务与 SecHealthUI" -ForegroundColor Yellow
+        Write-Host "          不在本快照范围内，无法自动闭环复原，需人工干预。" -ForegroundColor Yellow
         $result = Restore-DefenderPolicyBackup
         Request-Restart
         return $result
@@ -275,6 +454,16 @@ function Invoke-DefenderModule {
     Write-Host "提示：Windows Defender 已被禁用，重启后生效。" -ForegroundColor Yellow
     Write-Host "策略值和删除类启动项可经 5 -> 2 按 defender-policy-backup.json 快照恢复；" -ForegroundColor Yellow
     Write-Host "计划任务、服务和 SecHealthUI 不在该 JSON 快照内，删除类操作仍需人工复核。" -ForegroundColor Yellow
+
+    $residency = Get-DefenderDriverResidency
+    $tamper = Get-DefenderTamperProtectionState
+    $multiStatus = Get-DefenderMultiDimensionalStatus -PolicyState 'Modified' -WinDefendState 'Disabled' -DriverResidency $residency -TamperProtection $tamper
+    Write-Host ""
+    Write-Host "--- [Defender 多维运行态诊断] ---" -ForegroundColor Cyan
+    Write-Host ("  策略配置层   : {0}" -f $multiStatus.PolicyStore) -ForegroundColor Gray
+    Write-Host ("  篡改防护     : {0}" -f $multiStatus.TamperProtection) -ForegroundColor Gray
+    Write-Host ("  驱动内存驻留 : {0} (WdFilter={1}, MsSecCore={2})" -f $(if ($residency.IsDriverPresent) { '驻留中' } else { '已释放/未挂载' }), $residency.WdFilterState, $residency.MsSecCoreState) -ForegroundColor Gray
+    Write-Host ("  综合运行状态 : {0} -> {1}" -f $multiStatus.Overall, $multiStatus.EffectiveVerdict) -ForegroundColor Yellow
     Request-Restart
     return ($script:fail -eq 0 -and (-not $runDeletion -or $deletionOk))
 }
