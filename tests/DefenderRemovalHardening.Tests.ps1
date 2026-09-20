@@ -44,5 +44,6 @@ Describe "Defender removal safety and hardening contract" {
         $defModuleText | Should -Match 'Get-AppxPackage[\s\S]*?-AllUsers\s+-ErrorAction Stop'
         $defModuleText | Should -Match 'Deprovisioned marker creation verification failed'
         $defModuleText | Should -Match 'pre-removal Get-AppxPackage failed'
+        $defModuleText | Should -Match 'DISM 模块不可用，无法确认 SecHealthUI 完整状态'
     }
 }

@@ -464,8 +464,8 @@ function Invoke-DefenderModule {
         if ($deletionOk) {
             Write-Host ""
             Write-Host "[Security Center UI (SecHealthUI)]" -ForegroundColor Cyan
-            if (-not (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue)) {
-                Write-Host "[FAIL] Appx 模块不可用，无法确认 SecHealthUI 状态；已停止删除类优化。" -ForegroundColor Red
+            if (-not (Get-Command Get-AppxPackage -ErrorAction SilentlyContinue) -or -not (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue)) {
+                Write-Host "[FAIL] Appx 或 DISM 模块不可用，无法确认 SecHealthUI 完整状态；已停止删除类优化。" -ForegroundColor Red
                 $script:fail++
                 $deletionOk = $false
             } else {
@@ -477,12 +477,10 @@ function Invoke-DefenderModule {
                         throw "SecHealthUI pre-removal Get-AppxPackage failed: $($_.Exception.Message)"
                     }
                     $provApp = @()
-                    if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
-                        try {
-                            $provApp = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
-                        } catch {
-                            throw "SecHealthUI pre-removal Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
-                        }
+                    try {
+                        $provApp = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                    } catch {
+                        throw "SecHealthUI pre-removal Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
                     }
                     if ($secApp.Count -gt 0 -or $provApp.Count -gt 0) {
                         # 尝试通过 DISM 解除不可移除策略锁定（显式判断退出码）
@@ -513,12 +511,10 @@ function Invoke-DefenderModule {
                             throw "SecHealthUI live-readback Get-AppxPackage failed: $($_.Exception.Message)"
                         }
                         $remainProv = @()
-                        if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
-                            try {
-                                $remainProv = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
-                            } catch {
-                                throw "SecHealthUI live-readback Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
-                            }
+                        try {
+                            $remainProv = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                        } catch {
+                            throw "SecHealthUI live-readback Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
                         }
                         if ($remainInstalled.Count -gt 0 -or $remainProv.Count -gt 0) {
                             throw "SecHealthUI live-readback verification failed: package still present after removal"
