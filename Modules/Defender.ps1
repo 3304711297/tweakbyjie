@@ -470,9 +470,38 @@ function Invoke-DefenderModule {
                 $deletionOk = $false
             } else {
                 try {
-                    $secApp = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -ErrorAction Stop)
-                    if ($secApp.Count -gt 0) {
-                        $secApp | Remove-AppxPackage -ErrorAction Stop
+                    $secApp = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction SilentlyContinue)
+                    $provApp = @()
+                    if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
+                        $provApp = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                    }
+                    if ($secApp.Count -gt 0 -or $provApp.Count -gt 0) {
+                        # 尝试通过 DISM 解除不可移除策略锁定（显式判断退出码）
+                        $family = if ($secApp.Count -gt 0) { $secApp[0].PackageFamilyName } else { $null }
+                        if (-not $family -and $provApp.Count -gt 0) {
+                            $family = "Microsoft.SecHealthUI_8wekyb3d8bbwe"
+                        }
+                        if ($family) {
+                            & dism.exe /online /set-nonremovableapppolicy /packagefamily:$family /nonremovable:0 *> $null
+                            if ($LASTEXITCODE -eq 0) {
+                                Write-Host "[OK] DISM set-nonremovableapppolicy cleared: $family"
+                            }
+                        }
+                        # 卸载 Provisioned 包
+                        foreach ($pPkg in $provApp) {
+                            Remove-AppxProvisionedPackage -Online -PackageName $pPkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+                        }
+                        # 卸载已安装的 AppX
+                        if ($secApp.Count -gt 0) {
+                            $secApp | Remove-AppxPackage -AllUsers -ErrorAction Stop
+                        }
+                        # 标记 Deprovisioned，防止后续 Windows Update 幽灵复活
+                        if ($family) {
+                            $deprovStore = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\$family"
+                            if (-not (Test-Path -LiteralPath $deprovStore)) {
+                                New-Item -Path $deprovStore -Force -ErrorAction SilentlyContinue | Out-Null
+                            }
+                        }
                         Write-Host "[OK] SecHealthUI (Windows Security app) removed"
                         $script:ok++
                         $script:rebootRequired = $true

@@ -363,24 +363,26 @@ Remove-RegValue $fwCfg "72e33e44-dc4c-40c5-a688-a77b6e988c69" "FW Cfg 72e33e44..
 Remove-RegValue $fwCfg "b23879b5-1ef3-45b7-8933-554a4303d2f3" "FW Cfg b23879b5..."
 
 # --- 设置页面可见性策略（隐藏 Windows 安全中心页面，幂等合并保护既有策略）---
-try {
-    $spPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
-    if (-not (Test-Path -LiteralPath $spPath)) {
-        New-Item -Path $spPath -Force | Out-Null
+if (-not $script:abortDestructive) {
+    try {
+        $spPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer"
+        if (-not (Test-Path -LiteralPath $spPath)) {
+            New-Item -Path $spPath -Force | Out-Null
+        }
+        $spProp = Get-ItemProperty -LiteralPath $spPath -ErrorAction SilentlyContinue
+        $spOrig = if ($spProp -and $spProp.SettingsPageVisibility) { [string]$spProp.SettingsPageVisibility } else { $null }
+        $spMerged = Get-MergedSettingsPageVisibility $spOrig
+        if ($spMerged -ne $spOrig) {
+            Set-ItemProperty -LiteralPath $spPath -Name "SettingsPageVisibility" -Value $spMerged -Type String -Force -ErrorAction Stop
+            Write-Host ("[OK] SettingsPageVisibility: {0}" -f $spMerged)
+            $script:ok++
+        } else {
+            Write-Host ("[SKIP] SettingsPageVisibility 已符合预期或处于只读策略: {0}" -f $spOrig) -ForegroundColor Yellow
+            $script:skip++
+        }
+    } catch {
+        Write-Host ("[WARN] 设置页面隐藏策略写入失败: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
     }
-    $spProp = Get-ItemProperty -LiteralPath $spPath -ErrorAction SilentlyContinue
-    $spOrig = if ($spProp -and $spProp.SettingsPageVisibility) { [string]$spProp.SettingsPageVisibility } else { $null }
-    $spMerged = Get-MergedSettingsPageVisibility $spOrig
-    if ($spMerged -ne $spOrig) {
-        Set-ItemProperty -LiteralPath $spPath -Name "SettingsPageVisibility" -Value $spMerged -Type String -Force -ErrorAction Stop
-        Write-Host ("[OK] SettingsPageVisibility: {0}" -f $spMerged)
-        $script:ok++
-    } else {
-        Write-Host ("[SKIP] SettingsPageVisibility 已符合预期或处于只读策略: {0}" -f $spOrig) -ForegroundColor Yellow
-        $script:skip++
-    }
-} catch {
-    Write-Host ("[WARN] 设置页面隐藏策略写入失败: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
 }
 
 # ============================ Part 3: Entity Files ============================

@@ -24,4 +24,15 @@ Describe "Defender removal safety and hardening contract" {
         Get-MergedSettingsPageVisibility 'showonly:display;sound' | Should -Be 'showonly:display;sound'
         Get-MergedSettingsPageVisibility 'invalid_format_rule' | Should -Be 'invalid_format_rule'
     }
+
+    It "honors abortDestructive gate before writing SettingsPageVisibility" {
+        $scriptText | Should -Match 'if\s*\(\s*-not\s+\$script:abortDestructive\s*\)\s*\{[\s\S]*?SettingsPageVisibility'
+    }
+
+    It "uses DISM nonremovable policy unlock with explicit exit code check in Defender module" {
+        $defModulePath = Join-Path $PSScriptRoot '../Modules/Defender.ps1'
+        $defModuleText = Get-Content -LiteralPath $defModulePath -Raw -Encoding UTF8
+        $defModuleText | Should -Match 'set-nonremovableapppolicy'
+        $defModuleText | Should -Match '\$LASTEXITCODE\s+-eq\s+0'
+    }
 }
