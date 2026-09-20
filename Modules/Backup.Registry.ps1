@@ -107,6 +107,8 @@ function Migrate-RegistryBackupIfNeeded {
             $key = "$($def.Path)|$($def.Name)"
             if ($existingKeys -notcontains $key) {
                 $snapshot = Get-MpoValueSnapshot $def
+                $keyExisted = Test-Path -LiteralPath $def.Path
+                $snapshot = Add-Member -InputObject $snapshot -NotePropertyName 'KeyExists' -NotePropertyValue $keyExisted -PassThru
                 $currentRecords.Add($snapshot)
                 $migrated = $true
             }
@@ -115,6 +117,44 @@ function Migrate-RegistryBackupIfNeeded {
     }
 
     return $Backup
+}
+
+function Restore-RegistryBackupRecords {
+    param([object[]]$Records, [string]$SectionLabel = '注册表')
+    $allOk = $true
+    foreach ($r in $Records) {
+        $before = $script:fail
+        if (-not [bool]$r.Exists) {
+            Remove-RegDwordValue $r.Path $r.Name ("还原 $SectionLabel " + $r.Name + "（删除恢复系统默认）")
+            # P1-4: 若父键原本不存在，且删除该值后父键变为空键（无值且无子键），安全清理该空键
+            if ($r.PSObject.Properties['KeyExists'] -and $r.KeyExists -eq $false) {
+                try {
+                    if (Test-Path -LiteralPath $r.Path) {
+                        $item = Get-Item -LiteralPath $r.Path -ErrorAction Stop
+                        if ($item.ValueCount -eq 0 -and $item.SubKeyCount -eq 0) {
+                            Remove-Item -LiteralPath $r.Path -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                } catch { }
+            }
+        } else {
+            try {
+                & reg.exe ADD (Convert-RegExePath $r.Path) /v $r.Name /t (Convert-RegKindForExe ([string]$r.Kind)) /d ([string]$r.Data) /f *> $null
+                if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
+                Write-Host ("[OK] 已恢复 {0} {1} 原始值 {2}" -f $SectionLabel, $r.Name, $r.Data)
+                $script:ok++
+                $script:rebootRequired = $true
+            } catch {
+                Write-Host "[FAIL] 恢复 $SectionLabel $($r.Name) : $($_.Exception.Message)" -ForegroundColor Red
+                $script:fail++
+            }
+        }
+        if ($script:fail -gt $before) {
+            $allOk = $false
+            break
+        }
+    }
+    return $allOk
 }
 
 function Ensure-RegistryBackup {
@@ -142,8 +182,16 @@ function Ensure-RegistryBackup {
             Version   = 1
             Binding   = (Get-BackupMachineId)
             CreatedAt = (Get-Date).ToString('o')
-            Core      = @($CoreDefinitions | ForEach-Object { Get-MpoValueSnapshot $_ })
-            System    = @($SystemDefinitions | ForEach-Object { Get-MpoValueSnapshot $_ })
+            Core      = @($CoreDefinitions | ForEach-Object {
+                $s = Get-MpoValueSnapshot $_
+                $keyExisted = Test-Path -LiteralPath $_.Path
+                Add-Member -InputObject $s -NotePropertyName 'KeyExists' -NotePropertyValue $keyExisted -PassThru
+            })
+            System    = @($SystemDefinitions | ForEach-Object {
+                $s = Get-MpoValueSnapshot $_
+                $keyExisted = Test-Path -LiteralPath $_.Path
+                Add-Member -InputObject $s -NotePropertyName 'KeyExists' -NotePropertyValue $keyExisted -PassThru
+            })
         }
         if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) { throw '生成的注册表备份未通过结构校验' }
         $json = ConvertTo-Json -InputObject $backup -Depth 6
@@ -170,6 +218,8 @@ function Restore-RegistryBackup {
             $upgraded = Migrate-RegistryBackupIfNeeded $backup $CoreDefinitions $SystemDefinitions
             if ($null -ne $upgraded -and (Test-RegistryBackupSchema $upgraded $CoreDefinitions $SystemDefinitions)) {
                 $backup = $upgraded
+                $json = ConvertTo-Json -InputObject $upgraded -Depth 6
+                Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json
             } else {
                 throw 'registry-backup.json 结构不正确或与当前清单不匹配'
             }
@@ -184,28 +234,11 @@ function Restore-RegistryBackup {
         }
         $allOk = $true
         foreach ($sec in $sections) {
-            foreach ($r in $sec.Records) {
-                $before = $script:fail
-                if (-not [bool]$r.Exists) {
-                    Remove-RegDwordValue $r.Path $r.Name ("还原 $($sec.Label) " + $r.Name + "（删除恢复系统默认）")
-                } else {
-                    try {
-                        & reg.exe ADD (Convert-RegExePath $r.Path) /v $r.Name /t (Convert-RegKindForExe ([string]$r.Kind)) /d ([string]$r.Data) /f *> $null
-                        if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
-                        Write-Host ("[OK] 已恢复 {0} {1} 原始值 {2}" -f $sec.Label, $r.Name, $r.Data)
-                        $script:ok++
-                        $script:rebootRequired = $true
-                    } catch {
-                        Write-Host "[FAIL] 恢复 $($sec.Label) $($r.Name) : $($_.Exception.Message)" -ForegroundColor Red
-                        $script:fail++
-                    }
-                }
-                if ($script:fail -gt $before) {
-                    $allOk = $false
-                    break
-                }
+            $secOk = Restore-RegistryBackupRecords -Records $sec.Records -SectionLabel $sec.Label
+            if (-not $secOk) {
+                $allOk = $false
+                break
             }
-            if (-not $allOk) { break }
         }
         if ($allOk) { Write-Host '[OK] 核心/系统优化已按修改前快照恢复；Memory Compression 与 TRIM 不在本快照范围内。' -ForegroundColor Green }
         else { Write-Host '[WARN] 注册表恢复未完全成功，请复查输出中的 FAIL 项。' -ForegroundColor Yellow }

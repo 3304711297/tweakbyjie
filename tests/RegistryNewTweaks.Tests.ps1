@@ -53,4 +53,61 @@ Describe "Registry new system tweaks contract" {
 
         Remove-Item -Path 'HKCU:\Software\TweakByjieTest' -Recurse -Force -ErrorAction SilentlyContinue
     }
+
+    It "prunes empty parent key on restore when key originally did not exist" {
+        $parentKey = 'HKCU:\Software\TweakByjieTest\AbsentParent'
+        if (Test-Path $parentKey) { Remove-Item -Path $parentKey -Recurse -Force | Out-Null }
+        (Test-Path $parentKey) | Should -Be $false
+
+        $customCoreDefs = @()
+        $customSysDefs = @(
+            @{ Path = $parentKey; Name = 'TestVal'; Desc = 'test' }
+        )
+
+        # 建立快照时父键不存在
+        $backupObj = [pscustomobject]@{
+            Version   = 1
+            Binding   = (Get-BackupMachineId)
+            CreatedAt = (Get-Date).ToString('o')
+            Core      = @()
+            System    = @(
+                [pscustomobject]@{ Path = $parentKey; Name = 'TestVal'; Exists = $false; Kind = $null; Data = $null; KeyExists = $false }
+            )
+        }
+
+        # 模拟 Apply：创建了父键并写入了值
+        New-Item -Path $parentKey -Force | Out-Null
+        Set-ItemProperty -Path $parentKey -Name 'TestVal' -Value 1 -Type DWord -Force | Out-Null
+        (Test-Path $parentKey) | Should -Be $true
+
+        # 执行 Restore，父键应因属于新增且恢复后为空而被干净移除
+        Restore-RegistryBackupRecords @($backupObj.System) '系统行为优化' | Out-Null
+        (Test-Path $parentKey) | Should -Be $false
+    }
+
+    It "preserves parent key on restore when key originally existed" {
+        $parentKey = 'HKCU:\Software\TweakByjieTest\ExistedParent'
+        if (-not (Test-Path $parentKey)) { New-Item -Path $parentKey -Force | Out-Null }
+        (Test-Path $parentKey) | Should -Be $true
+
+        $backupObj = [pscustomobject]@{
+            Version   = 1
+            Binding   = (Get-BackupMachineId)
+            CreatedAt = (Get-Date).ToString('o')
+            Core      = @()
+            System    = @(
+                [pscustomobject]@{ Path = $parentKey; Name = 'TestVal'; Exists = $false; Kind = $null; Data = $null; KeyExists = $true }
+            )
+        }
+
+        # 模拟 Apply 写入值
+        Set-ItemProperty -Path $parentKey -Name 'TestVal' -Value 1 -Type DWord -Force | Out-Null
+
+        # 执行 Restore：删除值，但保留原本就存在的父键
+        Restore-RegistryBackupRecords @($backupObj.System) '系统行为优化' | Out-Null
+        (Test-Path $parentKey) | Should -Be $true
+        ((Get-Item $parentKey).GetValueNames() -contains 'TestVal') | Should -Be $false
+
+        Remove-Item -Path 'HKCU:\Software\TweakByjieTest' -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
