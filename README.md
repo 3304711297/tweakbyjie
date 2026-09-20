@@ -198,6 +198,7 @@ Invoke-Pester -Path .\tests\
 | **Atom-Tool-Box** (0.1.5) | [ProjectAtomOS/Atom-Tool-Box](https://github.com/ProjectAtomOS/Atom-Tool-Box) | WPBT 固件注入防御（`DisableWpbtExecution`）、任务栏右键直接结束任务（`TaskbarEndTask`）、PowerShell Core 遥测关闭 → 菜单 1 核心优化注册表策略（`Modules/Registry.ps1`） |
 | **MPO-GPU-FIX**（社区排障经验） | [RedDot-3ND7355/MPO-GPU-FIX](https://github.com/RedDot-3ND7355/MPO-GPU-FIX) | MPO 防掉帧/防闪烁排障注册表方案参考 → 菜单 11「MPO 管理」（详见 [优化详情文档](docs/reference/OPTIMIZATION-DETAILS.md)） |
 | **defendnot** (v1.6.0) | [es3n1n/defendnot](https://github.com/es3n1n/defendnot) | WSC 安全中心与驱动驻留检测启示 → 菜单 5「关闭安全中心」（`Modules/Defender.ps1`，CIM 驱动多维运行态探测、Server SKU 识别与 Restore 范围闭环） |
+| **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
 
 外部工具依赖：
 

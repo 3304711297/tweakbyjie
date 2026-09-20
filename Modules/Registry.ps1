@@ -144,7 +144,11 @@ function Invoke-RegistryModule {
             { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" "DisableWpbtExecution" 1 "DisableWpbtExecution (阻止 WPBT 固件自动注入)" },
             { Set-RegDword "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings" "TaskbarEndTask" 1 "TaskbarEndTask (任务栏右键直接结束任务)" },
             { Set-RegDword "HKLM:\Software\Policies\Microsoft\PowerShellCore" "EnableTelemetry" 0 "PowerShellCore EnableTelemetry (关闭遥测)" },
-            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet" "EnableActiveProbing" 0 "EnableActiveProbing (关闭 NCSI 主动探测防流氓弹窗)" }
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet" "EnableActiveProbing" 0 "EnableActiveProbing (关闭 NCSI 主动探测防流氓弹窗)" },
+            { Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\MRT" "DontOfferThroughWUAU" 1 "DontOfferThroughWUAU (禁止 WUAU 推送恶删工具 MRT)" },
+            { Set-RegDword "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1 "DisableSearchBoxSuggestions (禁用文件资源管理器搜索建议)" },
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\EventLog-System\{b675ec37-bdb6-4648-bc92-f3fdc74d3ca2}" "Enabled" 0 "EventLog-System Kernel-EventTracing Enabled = 0 (抑制 0xC0000035 错误)" },
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate" "0x80000001" "NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)" }
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {

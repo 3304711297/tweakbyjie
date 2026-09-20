@@ -56,6 +56,17 @@
       "last_synced_commits": {
         "master": "525176a"
       }
+    },
+    "Win11Tuned": {
+      "repo": "Kaciras/Win11Tuned",
+      "last_synced_release": "v1.4.0",
+      "description": "Win11Tuned v1.4.0 (Windows 11 调优参考，菜单 1 MRT推送阻断/Explorer搜索建议/PerfDiag日志/NTFS访问时间优化)",
+      "branches": [
+        "master"
+      ],
+      "last_synced_commits": {
+        "master": "af76b2c"
+      }
     }
   }
 }

@@ -47,7 +47,11 @@ $script:registrySystemValues = @(
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'; Name = 'DisableWpbtExecution'; Desc = 'DisableWpbtExecution (阻止 WPBT 固件自动注入)' },
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'; Name = 'TaskbarEndTask'; Desc = 'TaskbarEndTask (任务栏右键直接结束任务)' },
     @{ Path = 'HKLM:\Software\Policies\Microsoft\PowerShellCore'; Name = 'EnableTelemetry'; Desc = 'PowerShellCore EnableTelemetry (关闭遥测)' },
-    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet'; Name = 'EnableActiveProbing'; Desc = 'EnableActiveProbing (关闭 NCSI 主动探测)' }
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet'; Name = 'EnableActiveProbing'; Desc = 'EnableActiveProbing (关闭 NCSI 主动探测)' },
+    @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\MRT'; Name = 'DontOfferThroughWUAU'; Desc = 'DontOfferThroughWUAU (禁止 WUAU 推送恶删工具 MRT)' },
+    @{ Path = 'HKCU:\Software\Policies\Microsoft\Windows\Explorer'; Name = 'DisableSearchBoxSuggestions'; Desc = 'DisableSearchBoxSuggestions (禁用文件资源管理器搜索建议)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\EventLog-System\{b675ec37-bdb6-4648-bc92-f3fdc74d3ca2}'; Name = 'Enabled'; Desc = 'EventLog-System Kernel-EventTracing Enabled = 0 (抑制 0xC0000035 错误)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'; Name = 'NtfsDisableLastAccessUpdate'; Desc = 'NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)' }
 )
 
 function Test-RegistryBackupSchema {
@@ -80,6 +84,39 @@ function Test-RegistryBackupSchema {
     } catch { return $false }
 }
 
+function Migrate-RegistryBackupIfNeeded {
+    param(
+        [object]$Backup,
+        [object[]]$CoreDefinitions = $script:registryCoreValues,
+        [object[]]$SystemDefinitions = $script:registrySystemValues
+    )
+    if ($null -eq $Backup) { return $null }
+    $migrated = $false
+
+    foreach ($pair in @(
+        @{ Section = 'Core'; Definitions = $CoreDefinitions }
+        @{ Section = 'System'; Definitions = $SystemDefinitions }
+    )) {
+        $propName = $pair.Section
+        $currentRecords = [System.Collections.Generic.List[object]]::new()
+        if ($null -ne $Backup.$propName) {
+            foreach ($item in $Backup.$propName) { $currentRecords.Add($item) }
+        }
+        $existingKeys = @($currentRecords | ForEach-Object { "$($_.Path)|$($_.Name)" })
+        foreach ($def in $pair.Definitions) {
+            $key = "$($def.Path)|$($def.Name)"
+            if ($existingKeys -notcontains $key) {
+                $snapshot = Get-MpoValueSnapshot $def
+                $currentRecords.Add($snapshot)
+                $migrated = $true
+            }
+        }
+        $Backup.$propName = @($currentRecords)
+    }
+
+    return $Backup
+}
+
 function Ensure-RegistryBackup {
     # 清单可注入（测试用 HKCU 临时键做往返验证）；默认用内置清单。一次快照同时覆盖子项 1 与 2。
     param([object[]]$CoreDefinitions = $script:registryCoreValues,
@@ -87,7 +124,17 @@ function Ensure-RegistryBackup {
     try {
         if (Test-Path $script:registryBackupFile) {
             $backup = Get-Content $script:registryBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) { throw 'registry-backup.json 结构不正确或与当前清单不匹配' }
+            if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) {
+                $upgraded = Migrate-RegistryBackupIfNeeded $backup $CoreDefinitions $SystemDefinitions
+                if ($null -ne $upgraded -and (Test-RegistryBackupSchema $upgraded $CoreDefinitions $SystemDefinitions)) {
+                    $json = ConvertTo-Json -InputObject $upgraded -Depth 6
+                    Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json
+                    $backup = $upgraded
+                    Write-Host "[INFO] 已按新清单平滑迁移增量注册表快照：$script:registryBackupFile" -ForegroundColor Yellow
+                } else {
+                    throw 'registry-backup.json 结构不正确或与当前清单不匹配'
+                }
+            }
             Write-Host "[OK] 已存在有效的核心/系统优化快照：$script:registryBackupFile" -ForegroundColor Green
             return $true
         }
@@ -119,7 +166,14 @@ function Restore-RegistryBackup {
     if (-not (Test-Path $script:registryBackupFile)) { Write-Host '[FAIL] 未找到 registry-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:registryBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) { throw 'registry-backup.json 结构不正确或与当前清单不匹配' }
+        if (-not (Test-RegistryBackupSchema $backup $CoreDefinitions $SystemDefinitions)) {
+            $upgraded = Migrate-RegistryBackupIfNeeded $backup $CoreDefinitions $SystemDefinitions
+            if ($null -ne $upgraded -and (Test-RegistryBackupSchema $upgraded $CoreDefinitions $SystemDefinitions)) {
+                $backup = $upgraded
+            } else {
+                throw 'registry-backup.json 结构不正确或与当前清单不匹配'
+            }
+        }
         $sections = switch ($Section) {
             'Core'   { @(@{ Records = @($backup.Core); Label = '核心游戏优化' }) }
             'System' { @(@{ Records = @($backup.System); Label = '系统行为优化' }) }
