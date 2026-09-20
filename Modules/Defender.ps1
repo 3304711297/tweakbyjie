@@ -470,10 +470,19 @@ function Invoke-DefenderModule {
                 $deletionOk = $false
             } else {
                 try {
-                    $secApp = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction SilentlyContinue)
+                    $secApp = @()
+                    try {
+                        $secApp = @(Get-AppxPackage -Name "Microsoft.SecHealthUI" -AllUsers -ErrorAction Stop)
+                    } catch {
+                        throw "SecHealthUI pre-removal Get-AppxPackage failed: $($_.Exception.Message)"
+                    }
                     $provApp = @()
                     if (Get-Command Get-AppxProvisionedPackage -ErrorAction SilentlyContinue) {
-                        $provApp = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                        try {
+                            $provApp = @(Get-AppxProvisionedPackage -Online -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Microsoft.SecHealthUI' -or $_.PackageName -like '*SecHealthUI*' })
+                        } catch {
+                            throw "SecHealthUI pre-removal Get-AppxProvisionedPackage failed: $($_.Exception.Message)"
+                        }
                     }
                     if ($secApp.Count -gt 0 -or $provApp.Count -gt 0) {
                         # 尝试通过 DISM 解除不可移除策略锁定（显式判断退出码）

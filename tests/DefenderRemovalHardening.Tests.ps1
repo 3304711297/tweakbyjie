@@ -43,5 +43,6 @@ Describe "Defender removal safety and hardening contract" {
         $defModuleText | Should -Match 'Remove-AppxProvisionedPackage[\s\S]*?-ErrorAction Stop'
         $defModuleText | Should -Match 'Get-AppxPackage[\s\S]*?-AllUsers\s+-ErrorAction Stop'
         $defModuleText | Should -Match 'Deprovisioned marker creation verification failed'
+        $defModuleText | Should -Match 'pre-removal Get-AppxPackage failed'
     }
 }
