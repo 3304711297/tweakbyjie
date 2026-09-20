@@ -54,6 +54,13 @@ Describe "Defender driver residency detection via CIM" {
         $residency.MsSecCoreState | Should -Be 'Unknown'
         $residency.IsDriverPresent | Should -Be $false
     }
+
+    It "returns Unknown when Get-CimInstance throws rather than falling back to Absent" {
+        Mock Get-CimInstance { throw "CIM provider failure" } -ParameterFilter { $ClassName -eq 'Win32_SystemDriver' }
+        $residency = Get-DefenderDriverResidency
+        $residency.WdFilterState | Should -Be 'Unknown'
+        $residency.MsSecCoreState | Should -Be 'Unknown'
+    }
 }
 
 Describe "Defender multi-dimensional status evaluation" {
@@ -82,10 +89,31 @@ Describe "Defender multi-dimensional status evaluation" {
         $status = Get-DefenderMultiDimensionalStatus `
             -PolicyState 'Unknown' `
             -WinDefendState 'Stopped' `
-            -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Unknown' } `
+            -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Unknown'; MsSecCoreState = 'Absent' } `
             -TamperProtection 'Disabled'
         
         $status.Overall | Should -Be 'Unknown'
         $status.EffectiveVerdict | Should -Match '无法得出确切收敛结论'
+    }
+
+    It "evaluates to Unknown when MsSecCore is Unknown even if WdFilter is Absent" {
+        $status = Get-DefenderMultiDimensionalStatus `
+            -PolicyState 'Modified' `
+            -WinDefendState 'Disabled' `
+            -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Absent'; MsSecCoreState = 'Unknown' } `
+            -TamperProtection 'Disabled'
+        
+        $status.Overall | Should -Be 'Unknown'
+    }
+
+    It "does not evaluate to Converged when TamperProtection is Enabled with Modified policy" {
+        $status = Get-DefenderMultiDimensionalStatus `
+            -PolicyState 'Modified' `
+            -WinDefendState 'Disabled' `
+            -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Absent'; MsSecCoreState = 'Absent' } `
+            -TamperProtection 'Enabled'
+        
+        $status.Overall | Should -Not -Be 'Converged'
+        $status.EffectiveVerdict | Should -Match '篡改防护'
     }
 }

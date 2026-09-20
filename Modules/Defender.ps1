@@ -106,7 +106,7 @@ function Get-DefenderDriverResidency {
         }
     } else {
         try {
-            $wDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='WdFilter'" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $wDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='WdFilter'" -ErrorAction Stop | Select-Object -First 1
             if ($null -eq $wDrv) { $wdFilter = 'Absent' }
             elseif ($wDrv.State -eq 'Running') { $wdFilter = 'DriverRunning' }
             else { $wdFilter = 'DriverStopped' }
@@ -115,7 +115,7 @@ function Get-DefenderDriverResidency {
         }
 
         try {
-            $mDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='MsSecCore'" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $mDrv = Get-CimInstance -ClassName Win32_SystemDriver -Filter "Name='MsSecCore'" -ErrorAction Stop | Select-Object -First 1
             if ($null -eq $mDrv) { $msSecCore = 'Absent' }
             elseif ($mDrv.State -eq 'Running') { $msSecCore = 'DriverRunning' }
             else { $msSecCore = 'DriverStopped' }
@@ -134,22 +134,73 @@ function Get-DefenderDriverResidency {
 
 function Get-DefenderMultiDimensionalStatus {
     param(
-        [string]$PolicyState = 'Unknown',
-        [string]$WinDefendState = 'Unknown',
+        [string]$PolicyState = 'USE_LIVE',
+        [string]$WinDefendState = 'USE_LIVE',
         [object]$DriverResidency = $null,
-        [string]$TamperProtection = 'Unknown'
+        [string]$TamperProtection = 'USE_LIVE'
     )
+
+    # 1. 真实 Policy 回读
+    if ($PolicyState -eq 'USE_LIVE') {
+        try {
+            $regKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'
+            if (Test-Path -LiteralPath $regKey) {
+                $p = Get-ItemProperty -LiteralPath $regKey -ErrorAction SilentlyContinue
+                if ($null -ne $p -and $p.DisableRealtimeMonitoring -eq 1) {
+                    $PolicyState = 'Modified'
+                } else {
+                    $PolicyState = 'Original'
+                }
+            } else {
+                $PolicyState = 'Original'
+            }
+        } catch {
+            $PolicyState = 'Unknown'
+        }
+    }
+
+    # 2. 真实 WinDefend 服务回读
+    if ($WinDefendState -eq 'USE_LIVE') {
+        try {
+            $svc = Get-DefenderServiceRecord -Name 'WinDefend'
+            if ($null -eq $svc) {
+                $WinDefendState = 'Absent'
+            } elseif ($svc.StartMode -eq 'Disabled' -or $svc.State -eq 'Stopped') {
+                $WinDefendState = 'Disabled'
+            } else {
+                $WinDefendState = 'Running'
+            }
+        } catch {
+            $WinDefendState = 'Unknown'
+        }
+    }
+
+    # 3. 真实 DriverResidency 回读
+    if ($null -eq $DriverResidency) {
+        $DriverResidency = Get-DefenderDriverResidency
+    }
+
+    # 4. 真实 TamperProtection 回读
+    if ($TamperProtection -eq 'USE_LIVE') {
+        $TamperProtection = Get-DefenderTamperProtectionState
+    }
+
     $driverPresent = $false
     if ($DriverResidency -and $DriverResidency.IsDriverPresent) {
         $driverPresent = $true
     }
 
+    $driverUnknown = ($DriverResidency -and ($DriverResidency.WdFilterState -eq 'Unknown' -or $DriverResidency.MsSecCoreState -eq 'Unknown'))
+
     $overall = 'Unknown'
     $verdict = ''
 
-    if ($PolicyState -eq 'Unknown' -or ($DriverResidency -and $DriverResidency.WdFilterState -eq 'Unknown')) {
+    if ($PolicyState -eq 'Unknown' -or $WinDefendState -eq 'Unknown' -or $driverUnknown) {
         $overall = 'Unknown'
         $verdict = '部分 Defender 状态或驱动探针查询失败，无法得出确切收敛结论。'
+    } elseif ($PolicyState -eq 'Modified' -and $TamperProtection -eq 'Enabled') {
+        $overall = 'PartiallyApplied'
+        $verdict = '策略已写入，但检测到篡改防护 (Tamper Protection) 处于启用状态，策略变更可能被内核旁路。'
     } elseif ($PolicyState -eq 'Modified' -or $WinDefendState -eq 'Disabled' -or $WinDefendState -eq 'Stopped') {
         if ($driverPresent) {
             $overall = 'PendingReboot'
@@ -455,14 +506,13 @@ function Invoke-DefenderModule {
     Write-Host "策略值和删除类启动项可经 5 -> 2 按 defender-policy-backup.json 快照恢复；" -ForegroundColor Yellow
     Write-Host "计划任务、服务和 SecHealthUI 不在该 JSON 快照内，删除类操作仍需人工复核。" -ForegroundColor Yellow
 
-    $residency = Get-DefenderDriverResidency
-    $tamper = Get-DefenderTamperProtectionState
-    $multiStatus = Get-DefenderMultiDimensionalStatus -PolicyState 'Modified' -WinDefendState 'Disabled' -DriverResidency $residency -TamperProtection $tamper
+    $multiStatus = Get-DefenderMultiDimensionalStatus
     Write-Host ""
     Write-Host "--- [Defender 多维运行态诊断] ---" -ForegroundColor Cyan
     Write-Host ("  策略配置层   : {0}" -f $multiStatus.PolicyStore) -ForegroundColor Gray
     Write-Host ("  篡改防护     : {0}" -f $multiStatus.TamperProtection) -ForegroundColor Gray
-    Write-Host ("  驱动内存驻留 : {0} (WdFilter={1}, MsSecCore={2})" -f $(if ($residency.IsDriverPresent) { '驻留中' } else { '已释放/未挂载' }), $residency.WdFilterState, $residency.MsSecCoreState) -ForegroundColor Gray
+    Write-Host ("  服务运行态   : {0}" -f $multiStatus.WinDefendService) -ForegroundColor Gray
+    Write-Host ("  驱动内存驻留 : {0} (WdFilter={1}, MsSecCore={2})" -f $(if ($multiStatus.DriverResidency.IsDriverPresent) { '驻留中' } else { '已释放/未挂载' }), $multiStatus.DriverResidency.WdFilterState, $multiStatus.DriverResidency.MsSecCoreState) -ForegroundColor Gray
     Write-Host ("  综合运行状态 : {0} -> {1}" -f $multiStatus.Overall, $multiStatus.EffectiveVerdict) -ForegroundColor Yellow
     Request-Restart
     return ($script:fail -eq 0 -and (-not $runDeletion -or $deletionOk))
