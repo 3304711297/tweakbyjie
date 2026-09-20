@@ -144,8 +144,8 @@ function Get-DefenderMultiDimensionalStatus {
     if ($PolicyState -eq 'USE_LIVE') {
         try {
             $regKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection'
-            if (Test-Path -LiteralPath $regKey) {
-                $p = Get-ItemProperty -LiteralPath $regKey -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $regKey -ErrorAction Stop) {
+                $p = Get-ItemProperty -LiteralPath $regKey -ErrorAction Stop
                 if ($null -ne $p -and $p.DisableRealtimeMonitoring -eq 1) {
                     $PolicyState = 'Modified'
                 } else {
@@ -195,9 +195,9 @@ function Get-DefenderMultiDimensionalStatus {
     $overall = 'Unknown'
     $verdict = ''
 
-    if ($PolicyState -eq 'Unknown' -or $WinDefendState -eq 'Unknown' -or $driverUnknown) {
+    if ($PolicyState -eq 'Unknown' -or $WinDefendState -eq 'Unknown' -or $driverUnknown -or $TamperProtection -eq 'Unknown') {
         $overall = 'Unknown'
-        $verdict = '部分 Defender 状态或驱动探针查询失败，无法得出确切收敛结论。'
+        $verdict = '部分 Defender 状态、篡改防护或驱动探针查询失败，无法得出确切收敛结论。'
     } elseif ($PolicyState -eq 'Modified' -and $TamperProtection -eq 'Enabled') {
         $overall = 'PartiallyApplied'
         $verdict = '策略已写入，但检测到篡改防护 (Tamper Protection) 处于启用状态，策略变更可能被内核旁路。'
@@ -207,7 +207,7 @@ function Get-DefenderMultiDimensionalStatus {
             $verdict = '策略/服务已变更，但内核过滤驱动仍在内存驻留；需重启系统以完全生效。'
         } else {
             $overall = 'Converged'
-            $verdict = 'Defender 策略及运行态已完整停用。'
+            $verdict = '核心策略已变更且服务已停用，未检测到活跃过滤驱动。'
         }
     } elseif ($PolicyState -eq 'Original' -and $WinDefendState -eq 'Running') {
         $overall = 'Converged'

@@ -116,4 +116,23 @@ Describe "Defender multi-dimensional status evaluation" {
         $status.Overall | Should -Not -Be 'Converged'
         $status.EffectiveVerdict | Should -Match '篡改防护'
     }
+
+    It "evaluates to Unknown when TamperProtection is Unknown even if other states appear disabled" {
+        $status = Get-DefenderMultiDimensionalStatus `
+            -PolicyState 'Modified' `
+            -WinDefendState 'Disabled' `
+            -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Absent'; MsSecCoreState = 'Absent' } `
+            -TamperProtection 'Unknown'
+        
+        $status.Overall | Should -Be 'Unknown'
+        $status.EffectiveVerdict | Should -Match '无法得出确切收敛结论'
+    }
+
+    It "returns Unknown when policy registry read throws an exception" {
+        Mock Test-Path { $true } -ParameterFilter { $LiteralPath -like '*Real-Time Protection*' }
+        Mock Get-ItemProperty { throw "Registry access denied" } -ParameterFilter { $LiteralPath -like '*Real-Time Protection*' }
+        $status = Get-DefenderMultiDimensionalStatus -WinDefendState 'Disabled' -DriverResidency @{ IsDriverPresent = $false; WdFilterState = 'Absent'; MsSecCoreState = 'Absent' } -TamperProtection 'Disabled'
+        $status.PolicyStore | Should -Be 'Unknown'
+        $status.Overall | Should -Be 'Unknown'
+    }
 }
