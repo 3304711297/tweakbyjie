@@ -45,6 +45,17 @@
       "last_synced_commits": {
         "master": "3f8c6a3"
       }
+    },
+    "defendnot": {
+      "repo": "es3n1n/defendnot",
+      "last_synced_release": "v1.6.0",
+      "description": "defendnot v1.6.0 (WSC 杀软伪装与安全中心状态对抗方案，菜单 5 Defender 多维状态机与驱动驻留检测参考来源)",
+      "branches": [
+        "master"
+      ],
+      "last_synced_commits": {
+        "master": "525176a"
+      }
     }
   }
 }

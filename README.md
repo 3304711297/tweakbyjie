@@ -197,6 +197,7 @@ Invoke-Pester -Path .\tests\
 | **Kiwi-Tweaks** (v2.0) | [contactkiwitweaks-stack/Kiwi-Tweaks](https://github.com/contactkiwitweaks-stack/Kiwi-Tweaks) | 竞技游戏网络 QoS 优化思路 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，DSCP 46 数据包优先） |
 | **Atom-Tool-Box** (0.1.5) | [ProjectAtomOS/Atom-Tool-Box](https://github.com/ProjectAtomOS/Atom-Tool-Box) | WPBT 固件注入防御（`DisableWpbtExecution`）、任务栏右键直接结束任务（`TaskbarEndTask`）、PowerShell Core 遥测关闭 → 菜单 1 核心优化注册表策略（`Modules/Registry.ps1`） |
 | **MPO-GPU-FIX**（社区排障经验） | [RedDot-3ND7355/MPO-GPU-FIX](https://github.com/RedDot-3ND7355/MPO-GPU-FIX) | MPO 防掉帧/防闪烁排障注册表方案参考 → 菜单 11「MPO 管理」（详见 [优化详情文档](docs/reference/OPTIMIZATION-DETAILS.md)） |
+| **defendnot** (v1.6.0) | [es3n1n/defendnot](https://github.com/es3n1n/defendnot) | WSC 安全中心与驱动驻留检测启示 → 菜单 5「关闭安全中心」（`Modules/Defender.ps1`，CIM 驱动多维运行态探测、Server SKU 识别与 Restore 范围闭环） |
 
 外部工具依赖：
 
