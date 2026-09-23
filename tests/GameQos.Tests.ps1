@@ -2,6 +2,18 @@
     . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
 }
 
+Describe "GameQoS competitive profiles integrity" {
+    It "contains valid profiles including Minecraft Java and Bedrock" {
+        $names = Get-GameQosManagedNames
+        $names | Should -Contain "MinecraftJava"
+        $names | Should -Contain "MinecraftBedrock"
+
+        foreach ($p in $script:CompetitiveGameProfiles) {
+            (Test-GameQosProfileInput $p.Name $p.Exe) | Should -Be $true
+        }
+    }
+}
+
 Describe "GameQoS backup schema validation" {
     It "rejects null and malformed snapshots" {
         Test-GameQosBackupSchema $null | Should -Be $false

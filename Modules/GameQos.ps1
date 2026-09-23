@@ -12,7 +12,9 @@ $script:CompetitiveGameProfiles = @(
     @{ Name = "CrossFire"; Exe = "crossfire.exe" },
     @{ Name = "NarakaBladepoint"; Exe = "NarakaBladepoint.exe" },
     @{ Name = "PUBG"; Exe = "TslGame.exe" },
-    @{ Name = "CallOfDuty"; Exe = "cod.exe" }
+    @{ Name = "CallOfDuty"; Exe = "cod.exe" },
+    @{ Name = "MinecraftJava"; Exe = "javaw.exe" },
+    @{ Name = "MinecraftBedrock"; Exe = "Minecraft.Windows.exe" }
 )
 
 function Get-GameQosManagedNames {
