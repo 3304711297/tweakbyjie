@@ -80,6 +80,21 @@
         "main": "6126092",
         "17-windows-11-quality-update-failed-0x800f081f": "58c0da1"
       }
+    },
+    "ALit-NetworkOptimizer": {
+      "repo": "xiaoX-bgs11/ALit-NetworkOptimizer",
+      "last_synced_release": "",
+      "description": "ALit-NetworkOptimizer (Minecraft PvP 网络优化器，菜单 12 吸收其 Minecraft Java/Bedrock DSCP 46 QoS 策略画像；拒绝其 WinDivert 内核驱动改包)",
+      "branches": [
+        "master",
+        "codex/remove-auth-obfuscation",
+        "codex/update-v3-release"
+      ],
+      "last_synced_commits": {
+        "master": "aa34b8e",
+        "codex/remove-auth-obfuscation": "530f1a9",
+        "codex/update-v3-release": "7ed7a73"
+      }
     }
   }
 }

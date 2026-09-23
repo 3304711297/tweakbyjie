@@ -72,7 +72,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **9** | **清除 EFI 锁定 (Device Guard)** | 执行 SecConfig.efi 解锁流程，内置 BitLocker 状态强制检测 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，按首次快照恢复（无快照时失败关闭） | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
-| **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks），操作前自动落盘策略快照 | — |
+| **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks 与 ALit-NetworkOptimizer），操作前自动落盘策略快照 | [Windows 游戏网络 QoS 策略与 DSCP 原理](https://3304711297.github.io/youshouldknow/网络通信/Windows游戏网络QoS策略与DSCP原理/) |
 
 ---
 
@@ -200,6 +200,7 @@ Invoke-Pester -Path .\tests\
 | **defendnot** (v1.6.0) | [es3n1n/defendnot](https://github.com/es3n1n/defendnot) | WSC 安全中心与驱动驻留检测启示 → 菜单 5「关闭安全中心」（`Modules/Defender.ps1`，CIM 驱动多维运行态探测、Server SKU 识别与 Restore 范围闭环） |
 | **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
 | **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
+| **ALit-NetworkOptimizer** (master) | [xiaoX-bgs11/ALit-NetworkOptimizer](https://github.com/xiaoX-bgs11/ALit-NetworkOptimizer) | Minecraft Java（`javaw.exe`）与基岩版（`Minecraft.Windows.exe`）QoS 策略画像 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，纯组策略注册表落地，坚决排除其 WinDivert 内核劫持与单向发包轰炸） |
 
 外部工具依赖：
 
