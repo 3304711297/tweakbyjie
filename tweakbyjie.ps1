@@ -35,7 +35,7 @@ $__tweakUnattendedRequested = [bool](($RunModule -and $RunModule.Trim()) -or $No
 # 版本号：与最新已发布 v* tag 对应（菜单标题会显示）。
 # 约定：源码常量 = 最近一次 Release 的版本；CI 打包时会把"下一个"版本注入 ZIP 内副本，
 # 因此源码常量在发布后天然落后一位属正常，但不得与最新 tag 脱钩（tests/VersionConsistency.Tests.ps1 校验）。
-$script:TweakVersion = '0.2.22'
+$script:TweakVersion = '0.2.23'
 $ok = 0
 $fail = 0
 $skip = 0
@@ -199,9 +199,15 @@ if ($__isScript) {
     $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
-        Write-Host "[ERROR] -RunModule 不能为空；交互模式请不要传入 -NonInteractive。" -ForegroundColor Red
+        try {
+            Show-TweakMenu
+        } catch {
+            Write-Host "[ERROR] 未预期的终止错误：$($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "[ERROR] 会话已中断；请核对日志确认已完成的修改与失败项。" -ForegroundColor Red
+            $script:fail++
+        }
         try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
-        exit (Get-TweakExitCode -InvalidInput)
+        exit (Get-TweakExitCode -SuccessCount $script:ok -FailureCount $script:fail)
     }
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {

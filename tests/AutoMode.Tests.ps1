@@ -36,6 +36,12 @@ Describe "Non-interactive action contract" {
         }
     }
 
+    It "allows starting without -RunModule or -NonInteractive in interactive loader mode" {
+        $scriptPath = "$PSScriptRoot/../tweakbyjie.ps1"
+        $scriptContent = Get-Content -LiteralPath $scriptPath -Raw -Encoding UTF8
+        $scriptContent | Should -Match 'if\s*\(\$__requested\.Count\s+-eq\s+0\)\s*\{\s*try\s*\{\s*Show-TweakMenu'
+    }
+
     It "stops an unattended module queue after a module failure" {
         $beforeFail = $script:fail
         Mock Get-TweakPreflight {
