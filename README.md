@@ -61,7 +61,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 
 | 选项 | 模块名称 | 核心调优内容与实现 | 原理解析 (YouShouldKnow) |
 | :---: | :--- | :--- | :--- |
-| **1** | **核心游戏/系统性能优化** | GameDVR、MMCSS 调度、HAGS 硬件加速、Memory Compression、NTFS 8.3、TRIM、CPU 安全缓解与易受攻击驱动黑名单（子项 5） | [CPU 优化对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/) · [GPU 调度管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) · [驱动黑名单机制与代价](https://3304711297.github.io/youshouldknow/系统调优与安全/易受攻击驱动黑名单机制与关闭代价/) |
+| **1** | **核心游戏/系统性能优化** | GameDVR、MMCSS 调度、HAGS 硬件加速、Memory Compression、NTFS 8.3、TRIM、CPU 安全缓解（子项 3）与易受攻击驱动黑名单（子项 5） | [CPU 优化对应说明](https://3304711297.github.io/youshouldknow/项目导航/CPU优化与tweakbyjie对应说明/) · [GPU 调度管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) · [驱动黑名单机制与代价](https://3304711297.github.io/youshouldknow/系统调优与安全/易受攻击驱动黑名单机制与关闭代价/) |
 | **2** | **高级 BCD / 计时器与启动** | 高精度计时器、`nx` 执行保护、TPM Boot Entropy、驱动签名检查（内置 BCD 快照回滚） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
 | **3** | **开启测试模式** | 开启 `testsigning`、系统调试与 `nointegritychecks`（适用于驱动开发/无签名驱动测试） | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
 | **4** | **关闭测试模式** | 恢复关闭 `testsigning` 与 `debug`，按设计保留 `nointegritychecks` 基础配置 | [Windows 启动配置解析](https://3304711297.github.io/youshouldknow/系统知识/Windows启动配置与tweakbyjie对应说明/) |
@@ -83,7 +83,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 - **Secure Boot 开启或状态未知时** ── 自动灰掉 **菜单 3 / 4（测试模式）**；
 - **检测到第三方杀毒软件或无法确认杀软状态时** ── 自动灰掉 **菜单 5（安全中心）**；
 - **未检测到或无法确认 ViVeTool 时** ── 自动灰掉 **菜单 8（原生 NVMe）**；
-- **BitLocker 开启或状态未知时** ── 自动灰掉 **菜单 9（清除 EFI 锁）**，防止改变 TPM 度量导致锁盘；
+- **BitLocker 开启时** ── 自动灰掉 **菜单 9（清除 EFI 锁）**，防止改变 TPM 度量导致锁盘；全部预检项均无法读取时同样阻止（模块内部另有 BitLocker 强制预检，查询失败时直接拒绝执行）；
 - **无法读取 Windows 构建号时** ── 自动灰掉 **菜单 10（VBS / Hyper-V）**。
 
 ### 2. 高风险双重短语确认
