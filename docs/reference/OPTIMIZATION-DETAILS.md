@@ -806,6 +806,37 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 14：系统休眠与快速启动管理（选项 14）
+
+该模块提供 Windows 系统底层休眠机制与快速启动特性的安全管理与空间释放。
+
+**优化原理与收益**：
+- **释放数十 GB 空间**：执行 `powercfg -h off` 会从内核层面彻底删除系统根目录下的 `C:\hiberfil.sys`，立即释放与物理内存等大（如 16GB~64GB）的高速 NVMe 磁盘空间；
+- **杜绝硬件脏缓存**：关闭休眠会连带关闭 Windows 快速启动（Fast Startup），避免关机时将内核硬件状态写入镜像而导致下次开机硬件驱动出现诡异冷/热状态不一致；
+- **状态快照与回滚**：首次关闭前自动将 `HibernateEnabled` 与 `HiberbootEnabled` 状态落盘至 `hibernate-backup.json`，支持一键 `powercfg -h on` 精确恢复。
+
+**操作与恢复**：
+- **子选项 0**：只读查看当前系统休眠状态、快速启动状态、`C:\hiberfil.sys` 物理文件占用及备份就绪状态；
+- **子选项 1**：执行 `Ensure-HibernateBackup` 快照备份，调用 `powercfg -h off` 关闭休眠并清理残留文件，同步设置 `HiberbootEnabled = 0`，请求重启生效；
+- **子选项 2**：按 `hibernate-backup.json` 快照调用 `Restore-HibernateBackup` 精确恢复原始休眠状态。
+
+---
+
+### Part 15：虚拟内存诊断与调优建议指引（选项 15）
+
+该模块严格遵循**只读诊断与个性化配置建议指引**原则，绝不自动化修改系统虚拟内存/页面文件，尊重不同机型硬件配置、内存容量与个人分区习惯。
+
+**核心功能**：
+- **多维度状态采集**：读取当前物理 RAM 总容量、`Win32_ComputerSystem.AutomaticManagedPagefile` 全局托管状态、各盘符 `pagefile.sys` 初始/最大/当前分配大小与磁盘剩余空间；
+- **阶梯式科学推荐算法**：
+  * **RAM <= 16GB**：推荐初始 1.5x RAM，最大 2.0x~3.0x RAM；防碎片建议初始与最大均固定为 1.5x RAM；
+  * **RAM 24GB~32GB**：推荐初始 1.0x~1.5x RAM，最大 1.5x~2.0x RAM；防碎片建议初始与最大固定为 32GB~48GB；
+  * **RAM >= 64GB**：推荐初始固定 16GB~24GB，最大 32GB~48GB，兼顾防崩溃与崩溃转储（Dump）空间需求；
+  * **盘符与防碎片策略**：识别高速 SSD/NVMe 非系统盘（如 `D:`）并在空间充足时推荐迁移，建议初始大小等于最大大小以彻底消除磁盘碎片；
+- **操作指南输出**：提供直观的 Windows 图形化向导（`sysdm.cpl` ➔ 高级 ➔ 性能设置 ➔ 虚拟内存）及供高级用户参考的手动 PowerShell 脚本。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。
