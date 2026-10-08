@@ -790,6 +790,22 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 13：PCIe 设备 MSI 中断模式管理（选项 13）
+
+该模块管理核心 PCIe 硬件设备的消息信号中断（MSI）模式，消除传统行中断（Line-based IRQ）跨设备共享导致的排队与抢占冲突。
+
+**安全白名单与排除准则**：
+- **纳管白名单**：显卡（Display）、网络适配器（Net）、存储控制器（SCSIAdapter / NVMe）；
+- **严格排除黑名单**：声卡（MEDIA / Audio，规避移动端 Intel SST 声卡在开启 MSI 时的 Code 10 驱动崩溃与爆音故障）、PCI 根端口与主板桥接芯片（System / Bridge，规避系统死锁与引导异常）；
+- **仅修改已声明支持的设备**：仅在设备驱动已存在 `MessageSignaledInterruptProperties` 子键时才予优化，绝不盲目注入。
+
+**操作与恢复**：
+- **子选项 0**：只读查看当前白名单设备的 MSI 状态与消息上限；
+- **子选项 1**：确保快照后，对受支持的 GPU、网卡、NVMe 设备启用 `MSISupported = 1`，GPU 与网卡规范化消息数为 1，NVMe 保持其多队列原生上限；回读逐项验证，失败自动回滚；
+- **子选项 2**：按 `msi-backup.json` 精准还原每个设备的原始 `MSISupported` 与 `MessageNumberLimit`。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。

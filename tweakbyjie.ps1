@@ -15,10 +15,11 @@
 #   输入 10 回车 = 虚拟化 / VBS / Hyper-V 管理（关闭前自动快照 vbs-backup.json；可按快照恢复）
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
 #   输入 12 回车 = 竞技游戏网络 QoS 策略管理（DSCP 46 优先标记，修改前备份，可恢复）
+#   输入 13 回车 = PCIe 设备 MSI 中断模式管理（GPU/网卡/NVMe 消息信号中断，修改前备份，可恢复）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
-    # 非交互执行指定模块：编号 0-12，支持逗号分隔；需要子操作的模块必须同时提供 -Action。
+    # 非交互执行指定模块：编号 0-13，支持逗号分隔；需要子操作的模块必须同时提供 -Action。
     [string]$RunModule = '',
     # 动作映射，格式为 <模块编号>=<子操作>，多个映射用逗号分隔，例如：12=1,8=0。
     [string]$Action = '',
@@ -112,6 +113,7 @@ $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-back
 $script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
 $script:driverBlocklistBackupFile = Join-Path $PSScriptRoot 'driver-blocklist-backup.json'
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
+$script:msiBackupFile = Join-Path $PSScriptRoot 'msi-backup.json'
 # EFI 清理状态：记录原始 bootsequence 与脚本实际创建的 EFI 文件，避免盲删用户数据。
 $script:deviceGuardBackupFile = Join-Path $PSScriptRoot 'deviceguard-efi-backup.json'
 
@@ -133,6 +135,7 @@ $__tweakModules = @(
     'Modules/Backup.Nvme.ps1',
     'Modules/Backup.Defender.ps1',
     'Modules/Backup.Vbs.ps1',
+    'Modules/Backup.Msi.ps1',
     'Modules/Bcd.ps1',
     'Modules/Defender.ps1',
     'Modules/GameQos.ps1',
@@ -142,6 +145,7 @@ $__tweakModules = @(
     'Modules/Registry.ps1',
     'Modules/Service.ps1',
     'Modules/Virtualization.ps1',
+    'Modules/Msi.ps1',
     'scripts/preflight.ps1',
     'Modules/Menu.ps1'
 )
@@ -170,7 +174,7 @@ function ConvertTo-TweakActionMap {
     if ([string]::IsNullOrWhiteSpace($ActionText)) { return $map }
     foreach ($token in ($ActionText -split '[,;，；\s]+')) {
         if ([string]::IsNullOrWhiteSpace($token)) { continue }
-        if ($token -notmatch '^(?<module>0|[1-9]|1[0-2])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
+        if ($token -notmatch '^(?<module>0|[1-9]|1[0-3])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
             throw "无效 -Action 项 '$token'；格式应为 <模块编号>=<子操作>，例如 12=1"
         }
         $module = $Matches['module']
@@ -184,7 +188,7 @@ function ConvertTo-TweakActionMap {
 function Get-TweakActionRequiredModules {
     # 这些入口内部还有 Read-Host 子菜单；CLI 必须明确给出动作，否则直接失败而不是挂起。
     # 3/4 虽然只有单一路径，也要求显式动作，防止无人值守队列误触发 BCD 安全修改。
-    return @('1','2','3','4','5','6','7','8','9','10','11','12')
+    return @('1','2','3','4','5','6','7','8','9','10','11','12','13')
 }
 
 if ($__isScript) {
@@ -196,7 +200,7 @@ if ($__isScript) {
     }
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
     $script:TweakNonInteractive = [bool]($NonInteractive -or ($RunModule -and $RunModule.Trim()))
-    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12')
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
         try {
@@ -211,7 +215,7 @@ if ($__isScript) {
     }
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {
-        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-12）" -ForegroundColor Red
+        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-13）" -ForegroundColor Red
         try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
         exit (Get-TweakExitCode -InvalidInput)
     }

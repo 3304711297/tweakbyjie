@@ -73,6 +73,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，按首次快照恢复（无快照时失败关闭） | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
 | **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks 与 ALit-NetworkOptimizer），操作前自动落盘策略快照 | [Windows 游戏网络 QoS 策略与 DSCP 原理](https://3304711297.github.io/youshouldknow/网络通信/Windows游戏网络QoS策略与DSCP原理/) |
+| **13** | **PCIe 设备 MSI 中断管理** | 为 GPU、网卡、NVMe 存储启用消息信号中断（MSI）模式，消除传统 IRQ 冲突，内置白名单安全隔离 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 
 ---
 
@@ -114,7 +115,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
 2. **硬件与系统标识绑定（Machine Binding）**：带 `Binding` 字段的 JSON 快照通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证；电源 `.pow` 与游戏 QoS 快照使用各自的格式/名称校验，不能把任意快照跨机器当作精确恢复依据。
 3. **Fail-Closed 闭环恢复**：找不到快照、文件损坏或结构校验未通过时，立即拒绝并阻断操作，绝不伪造成功假象。
 
-仓库已内置 10 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
+仓库已内置 11 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
 
 | 备份恢复模块 | 快照存储文件 | 备份与回滚覆盖范围 | 核心导出函数 |
 | :--- | :--- | :--- | :--- |
@@ -128,6 +129,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
 | **Backup.Vbs.ps1** | `vbs-backup.json` | 虚拟化 / VBS / Hyper-V 配置（Device Guard 注册表、BCD `hypervisorlaunchtype` 与可选功能） | `Ensure-VbsBackup`<br>`Restore-VbsBackup` |
 | **Backup.Mpo.ps1** | `mpo-backup.json` | 多平面叠加 (MPO) 显示管线排障状态（DWM `OverlayTestMode`、`OverlayMinFPS` 等配置） | `Ensure-MpoBackup`<br>`Restore-MpoBackup` |
 | **Backup.GameQos.ps1** | `$env:TEMP\gameqos-backup.json` | 竞技游戏 QoS 策略（DSCP 46）；首次快照不覆盖、严格名称校验、写入后回读与失败回滚 | `Ensure-GameQosBackup`<br>`Restore-GameQosBackup` |
+| **Backup.Msi.ps1** | `msi-backup.json` | 核心硬件 PCIe 设备 MSI 中断配置与消息上限（白名单排除声卡与桥芯片） | `Ensure-MsiBackup`<br>`Restore-MsiBackup` |
 
 *(注：电源计划模块 `Modules/Power.ps1` 亦内置原生 `power-backup.pow` 方案导出与精准回滚机制)*
 
@@ -146,6 +148,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
   Restore-VbsBackup                     # 恢复虚拟化与 VBS 配置
   Restore-MpoBackup                     # 按首次快照恢复 MPO 显示管线（无快照时失败关闭）
   Restore-GameQosBackup                 # 恢复网络 QoS 策略
+  Restore-MsiBackup                     # 恢复 PCIe 设备 MSI 中断配置
   ```
 
 ---
@@ -159,7 +162,7 @@ tweakbyjie/
 ├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
 │   ├── Common.ps1           # 日志、退出码与基础通用工具库
 │   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
-│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 10 个
+│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 11 个
 │   ├── Registry.ps1         # 模块 1: 核心优化
 │   ├── Bcd.ps1              # 模块 2/3/4: BCD 启动与测试模式
 │   ├── Defender.ps1         # 模块 5: 安全中心策略
@@ -169,6 +172,7 @@ tweakbyjie/
 │   ├── Virtualization.ps1   # 模块 9/10: EFI 锁清除与虚拟化 / VBS
 │   ├── Mpo.ps1              # 模块 11: MPO 管理
 │   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
+│   ├── Msi.ps1              # 模块 13: PCIe 设备 MSI 中断模式管理
 │   └── Menu.ps1             # 90 行高内聚纯菜单调度链
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
 └── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
@@ -201,7 +205,7 @@ Invoke-Pester -Path .\tests\
 | **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
 | **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
 | **ALit-NetworkOptimizer** (master) | [xiaoX-bgs11/ALit-NetworkOptimizer](https://github.com/xiaoX-bgs11/ALit-NetworkOptimizer) | Minecraft Java（`javaw.exe`）与基岩版（`Minecraft.Windows.exe`）QoS 策略画像 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，纯组策略注册表落地，坚决排除其 WinDivert 内核劫持与单向发包轰炸） |
-| **XOS** (main) | [imribiy/XOS](https://github.com/imribiy/XOS) | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩与 DWM 滚轮零延迟微调 → 菜单 1「系统行为与核心优化」（`Modules/Registry.ps1`） |
+| **XOS** (main) | [imribiy/XOS](https://github.com/imribiy/XOS) | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩、DWM 滚轮零延迟微调与 PCIe 设备 MSI 中断模式管理思路 → 菜单 1 / 菜单 13（`Modules/Registry.ps1` 与 `Modules/Msi.ps1`） |
 
 外部工具依赖：
 

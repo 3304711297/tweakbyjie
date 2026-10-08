@@ -99,7 +99,7 @@
     "XOS": {
       "repo": "imribiy/XOS",
       "last_synced_release": "",
-      "description": "XOS Playbook (Windows 游戏与系统优化 Playbook，菜单 1 吸收其 TimerCoalescing 防合并/PageCombining 禁用/GPU TdrDelay/DWM 滚轮即时响应微调)",
+      "description": "XOS Playbook (Windows 游戏与系统优化 Playbook，菜单 1 / 菜单 13 吸收其 TimerCoalescing 防合并/PageCombining 禁用/GPU TdrDelay/DWM 滚轮即时响应微调与 PCIe 设备 MSI 中断模式管理思路)",
       "branches": [
         "main"
       ],

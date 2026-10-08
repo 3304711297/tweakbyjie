@@ -16,6 +16,7 @@ nvme-backup.json
 defender-policy-backup.json
 vbs-backup.json
 registry-backup.json
+msi-backup.json
 
 # Python tooling side effects (coverage audit scripts)
 __pycache__/

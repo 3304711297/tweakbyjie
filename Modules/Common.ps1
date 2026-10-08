@@ -3,10 +3,8 @@
 
 function Convert-RegExePath {
     param([string]$Path)
-    if ($Path -match '^HKLM:\\(.*)$') { return "HKLM\$($Matches[1])" }
-    if ($Path -match '^HKCU:\\(.*)$') { return "HKCU\$($Matches[1])" }
-    if ($Path -match '^HKEY_LOCAL_MACHINE:\\(.*)$') { return "HKLM\$($Matches[1])" }
-    if ($Path -match '^HKEY_CURRENT_USER:\\(.*)$') { return "HKCU\$($Matches[1])" }
+    if ($Path -match '(?:.*Registry::)?(?:HKLM:|HKEY_LOCAL_MACHINE:?)\\(.*)$') { return "HKLM\$($Matches[1])" }
+    if ($Path -match '(?:.*Registry::)?(?:HKCU:|HKEY_CURRENT_USER:?)\\(.*)$') { return "HKCU\$($Matches[1])" }
     return $Path
 }
 
