@@ -1,4 +1,4 @@
-# Backup.Msi.ps1 - PCIe 设备 MSI 中断模式快照与恢复
+﻿# Backup.Msi.ps1 - PCIe 设备 MSI 中断模式快照与恢复
 # 被 tweakbyjie.ps1 点源加载，共享 $script:ok/$fail/$skip/$rebootRequired
 
 function Test-MsiDeviceEligible {

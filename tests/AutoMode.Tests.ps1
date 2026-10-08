@@ -14,7 +14,7 @@ Describe "Non-interactive module execution" {
 
 Describe "Non-interactive action contract" {
     It "requires explicit actions for every menu with a sub-operation" {
-        @((Get-TweakActionRequiredModules)) | Should -Be @('1','2','3','4','5','6','7','8','9','10','11','12')
+        @((Get-TweakActionRequiredModules)) | Should -Be @('1','2','3','4','5','6','7','8','9','10','11','12','13')
     }
 
     It "parses module actions without allowing duplicates or out-of-range modules" {
@@ -22,7 +22,7 @@ Describe "Non-interactive action contract" {
         $map['1'] | Should -Be '3-2'
         $map['12'] | Should -Be '1'
         { ConvertTo-TweakActionMap '1=1,1=2' } | Should -Throw
-        { ConvertTo-TweakActionMap '13=1' } | Should -Throw
+        { ConvertTo-TweakActionMap '14=1' } | Should -Throw
     }
 
     It "does not ask for a module action in non-interactive menu mode" {

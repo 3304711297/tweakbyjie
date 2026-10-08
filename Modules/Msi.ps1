@@ -1,4 +1,4 @@
-# Msi.ps1 - Part 13 PCIe 设备 MSI 中断模式管理
+﻿# Msi.ps1 - Part 13 PCIe 设备 MSI 中断模式管理
 # 被 tweakbyjie.ps1 点源加载，共享 $script:ok/$fail/$skip/$rebootRequired
 
 function Invoke-MsiModule {

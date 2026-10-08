@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $env:TWEAK_SKIP_ADMIN_CHECK = '1'
     . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
 }
