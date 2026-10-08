@@ -55,14 +55,14 @@ function Invoke-MsiModule {
             foreach ($d in $devices) {
                 try {
                     # 1. 确保 MSISupported = 1
-                    Set-RegDword $d.RegPath 'MSISupported' 1 "$($d.DeviceDesc) MSISupported = 1"
+                    $null = Set-RegDword $d.RegPath 'MSISupported' 1 "$($d.DeviceDesc) MSISupported = 1"
                     if (-not (Verify-RegDword $d.RegPath 'MSISupported' 1 "$($d.DeviceDesc) MSISupported")) {
                         throw "回读验证未达到 MSISupported = 1"
                     }
 
                     # 2. 针对 GPU / 网卡规范消息限制（若原本未设置，规范化为 1；NVMe 保持其多队列原生限制）
                     if ($d.Class -in @('Display', 'Net') -and ($null -eq $d.MessageLimit -or $d.MessageLimit -eq 0)) {
-                        Set-RegDword $d.RegPath 'MessageNumberLimit' 1 "$($d.DeviceDesc) MessageNumberLimit = 1"
+                        $null = Set-RegDword $d.RegPath 'MessageNumberLimit' 1 "$($d.DeviceDesc) MessageNumberLimit = 1"
                     }
                 } catch {
                     Write-Host "[FAIL] 配置 $($d.DeviceDesc) MSI 异常：$($_.Exception.Message)" -ForegroundColor Red

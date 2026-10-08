@@ -153,7 +153,7 @@ Describe "PCIe MSI Module Contract" {
                     }
                 )
             }
-            Mock Set-RegDword { return $true }
+            Mock Set-RegDword { }
             Mock Verify-RegDword { return $true }
             Mock Request-Restart { }
 
@@ -174,7 +174,7 @@ Describe "PCIe MSI Module Contract" {
                     }
                 )
             }
-            Mock Set-RegDword { return $true }
+            Mock Set-RegDword { }
             Mock Verify-RegDword { return $false }
             Mock Restore-MsiBackup { return $true }
 

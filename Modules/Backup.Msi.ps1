@@ -143,15 +143,15 @@ function Restore-MsiBackup {
 
             $before = $script:fail
             if ($null -eq $d.MSISupported) {
-                Remove-RegDwordValue $regBase 'MSISupported' ("还原 $($d.DeviceDesc) MSISupported（删除）")
+                $null = Remove-RegDwordValue $regBase 'MSISupported' ("还原 $($d.DeviceDesc) MSISupported（删除）")
             } else {
-                Set-RegDword $regBase 'MSISupported' ([uint32]$d.MSISupported) ("恢复 $($d.DeviceDesc) MSISupported = $($d.MSISupported)")
+                $null = Set-RegDword $regBase 'MSISupported' ([uint32]$d.MSISupported) ("恢复 $($d.DeviceDesc) MSISupported = $($d.MSISupported)")
             }
 
             if ($null -eq $d.MessageLimit) {
-                Remove-RegDwordValue $regBase 'MessageNumberLimit' ("还原 $($d.DeviceDesc) MessageNumberLimit（删除）")
+                $null = Remove-RegDwordValue $regBase 'MessageNumberLimit' ("还原 $($d.DeviceDesc) MessageNumberLimit（删除）")
             } else {
-                Set-RegDword $regBase 'MessageNumberLimit' ([uint32]$d.MessageLimit) ("恢复 $($d.DeviceDesc) MessageNumberLimit = $($d.MessageLimit)")
+                $null = Set-RegDword $regBase 'MessageNumberLimit' ([uint32]$d.MessageLimit) ("恢复 $($d.DeviceDesc) MessageNumberLimit = $($d.MessageLimit)")
             }
 
             if ($script:fail -gt $before) { $allOk = $false; break }
