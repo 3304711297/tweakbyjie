@@ -75,7 +75,14 @@ function Test-RegistryBackupSchema {
                 if ([bool]$r.Exists) {
                     if ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data) { return $false }
                     try { $null = Convert-RegKindForExe ([string]$r.Kind) } catch { return $false }
-                    if ($r.Kind -eq 'DWord') { try { $null = [uint32]$r.Data } catch { return $false } }
+                    if ($r.Kind -eq 'DWord') {
+                        try {
+                            if ([int64]$r.Data -lt 0) {
+                                $r.Data = [uint32]([int64]$r.Data -band 0xFFFFFFFFL)
+                            }
+                            $null = [uint32]$r.Data
+                        } catch { return $false }
+                    }
                     if ($r.Kind -eq 'Binary' -and ([string]$r.Data -notmatch '^(?:[0-9A-Fa-f]{2})*$')) { return $false }
                 } elseif ($null -ne $r.Kind -or $null -ne $r.Data) { return $false }
             }
@@ -139,7 +146,8 @@ function Restore-RegistryBackupRecords {
             }
         } else {
             try {
-                & reg.exe ADD (Convert-RegExePath $r.Path) /v $r.Name /t (Convert-RegKindForExe ([string]$r.Kind)) /d ([string]$r.Data) /f *> $null
+                $regData = if ($r.Kind -eq 'DWord') { [string][uint32]([int64]$r.Data -band 0xFFFFFFFFL) } else { [string]$r.Data }
+                & reg.exe ADD (Convert-RegExePath $r.Path) /v $r.Name /t (Convert-RegKindForExe ([string]$r.Kind)) /d $regData /f *> $null
                 if ($LASTEXITCODE -ne 0) { throw "reg.exe exit code $LASTEXITCODE" }
                 Write-Host ("[OK] 已恢复 {0} {1} 原始值 {2}" -f $SectionLabel, $r.Name, $r.Data)
                 $script:ok++

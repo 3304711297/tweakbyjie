@@ -189,7 +189,7 @@ function Verify-MemoryCompressionDisabled {
     catch { Write-Host "[VERIFY FAIL] Memory Compression：$($_.Exception.Message)" -ForegroundColor Red;$script:fail++;return $false }
 }
 function Verify-TrimEnabled {
-    try { $out=(& fsutil.exe behavior query DisableDeleteNotify 2>&1)-join "`n"; if($LASTEXITCODE -ne 0){throw 'fsutil 查询失败'}; if($out -match '=\s*0\s*$'){Write-Host "[VERIFY OK] NTFS TRIM = Enabled (DisableDeleteNotify = 0)" -ForegroundColor Green;return $true}; Write-Host "[VERIFY FAIL] 无法确认 TRIM = Enabled" -ForegroundColor Red;$script:fail++;return $false }
+    try { $out=(& fsutil.exe behavior query DisableDeleteNotify 2>&1)-join "`n"; if($LASTEXITCODE -ne 0){throw 'fsutil 查询失败'}; if($out -match 'DisableDeleteNotify\s*=\s*0'){Write-Host "[VERIFY OK] NTFS TRIM = Enabled (DisableDeleteNotify = 0)" -ForegroundColor Green;return $true}; Write-Host "[VERIFY FAIL] 无法确认 TRIM = Enabled" -ForegroundColor Red;$script:fail++;return $false }
     catch { Write-Host "[VERIFY FAIL] TRIM：$($_.Exception.Message)" -ForegroundColor Red;$script:fail++;return $false }
 }
 function Verify-HypervisorRuntime {

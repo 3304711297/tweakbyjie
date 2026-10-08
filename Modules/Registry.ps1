@@ -115,7 +115,15 @@ function Invoke-RegistryModule {
             { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisable8dot3NameCreation" 1 "NtfsDisable8dot3NameCreation" },
             {
                 Write-Host ""; Write-Host "[Memory Compression]" -ForegroundColor Cyan
-                try { Disable-MMAgent -mc -ErrorAction Stop; Write-Host "[OK] Memory Compression disabled"; $script:ok++; $script:rebootRequired = $true }
+                try {
+                    $mmAgent = Get-MMAgent -ErrorAction SilentlyContinue
+                    if ($null -ne $mmAgent -and $mmAgent.MemoryCompression -eq $false) {
+                        Write-Host "[OK] Memory Compression already disabled"; $script:ok++
+                    } else {
+                        Disable-MMAgent -mc -ErrorAction Stop
+                        Write-Host "[OK] Memory Compression disabled"; $script:ok++; $script:rebootRequired = $true
+                    }
+                }
                 catch { throw "Memory Compression : $($_.Exception.Message)" }
             },
             {

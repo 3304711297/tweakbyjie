@@ -49,6 +49,11 @@ function Invoke-ServiceModule {
     foreach ($svc in $disableServices) {
         $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if ($svcObj) {
+            if ($svcObj.StartType -eq 'Disabled') {
+                Write-Host "[OK] Service $svc already disabled"
+                $script:ok++
+                continue
+            }
             try {
                 Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
                 Set-Service -Name $svc -StartupType Disabled -ErrorAction Stop
@@ -90,6 +95,11 @@ function Invoke-ServiceModule {
     if ($operationOk) { foreach ($svc in $manualServices) {
         $svcObj = Get-Service -Name $svc -ErrorAction SilentlyContinue
         if ($svcObj) {
+            if ($svcObj.StartType -eq 'Manual') {
+                Write-Host "[OK] Service $svc already Manual"
+                $script:ok++
+                continue
+            }
             try {
                 Set-Service -Name $svc -StartupType Manual -ErrorAction Stop
                 if (-not (Verify-ServiceStartupType $svc 'Manual' $svc)) { throw "Service $svc 启动类型回读未达到 Manual" }

@@ -11,7 +11,9 @@
     }
     $kind = $item.GetValueKind($Definition.Name).ToString()
     $value = $item.GetValue($Definition.Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-    if ($kind -eq 'Binary') {
+    if ($kind -eq 'DWord') {
+        $value = [uint32]([int64]$value -band 0xFFFFFFFFL)
+    } elseif ($kind -eq 'Binary') {
         $value = ([byte[]]$value | ForEach-Object { '{0:X2}' -f $_ }) -join ''
     }
     [pscustomobject]@{ Path = $Definition.Path; Name = $Definition.Name; Exists = $true; Kind = $kind; Data = $value }
@@ -71,7 +73,14 @@ function Test-MpoBackupSchema {
         if ([bool]$r.Exists) {
             if ([string]::IsNullOrWhiteSpace([string]$r.Kind) -or $null -eq $r.Data) { return $false }
             try { $null = Convert-RegKindForExe ([string]$r.Kind) } catch { return $false }
-            if ($r.Kind -eq 'DWord') { try { $null = [uint32]$r.Data } catch { return $false } }
+            if ($r.Kind -eq 'DWord') {
+                try {
+                    if ([int64]$r.Data -lt 0) {
+                        $r.Data = [uint32]([int64]$r.Data -band 0xFFFFFFFFL)
+                    }
+                    $null = [uint32]$r.Data
+                } catch { return $false }
+            }
             if ($r.Kind -eq 'Binary' -and ([string]$r.Data -notmatch '^(?:[0-9A-Fa-f]{2})*$')) { return $false }
         } elseif ($null -ne $r.Kind -or $null -ne $r.Data) { return $false }
     }
@@ -96,7 +105,7 @@ function Restore-MpoBackup {
             } else {
                 $regPath = Convert-RegExePath $r.Path
                 $regType = Convert-RegKindForExe $r.Kind
-                $data = [string]$r.Data
+                $data = if ($r.Kind -eq 'DWord') { [string][uint32]([int64]$r.Data -band 0xFFFFFFFFL) } else { [string]$r.Data }
                 & reg.exe ADD $regPath /v $r.Name /t $regType /d $data /f *> $null
                 if ($LASTEXITCODE -ne 0) { $script:fail++; $allOk = $false }
                 else {

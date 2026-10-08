@@ -107,6 +107,12 @@ function Restore-ServiceBackup {
                 continue
             }
             $isDelayed = ([string]$r.StartMode -eq 'Auto' -and $r.DelayedAutostart -eq $true)
+            $curObj = Get-Service -Name $r.Name -ErrorAction SilentlyContinue
+            if ($curObj -and -not $isDelayed -and (Verify-ServiceStartupType $r.Name ([string]$r.StartMode) "恢复预检 $($r.Name)")) {
+                Write-Host "[OK] $($r.Name) 启动类型已符合快照 ($($r.StartMode))"
+                $script:ok++
+                continue
+            }
             try {
                 if ($isDelayed) {
                     # Set-Service 不支持延迟启动，直接用 sc.exe 还原 delayed-auto
