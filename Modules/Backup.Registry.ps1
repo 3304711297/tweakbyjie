@@ -20,7 +20,8 @@ $script:registryCoreValues = @(
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'; Name = 'Scheduling Category'; Desc = 'Games Scheduling Category' },
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'; Name = 'SFIO Priority'; Desc = 'Games SFIO Priority' },
     @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AutoGameModeEnabled'; Desc = 'AutoGameModeEnabled' },
-    @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AllowAutoGameMode'; Desc = 'AllowAutoGameMode' }
+    @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AllowAutoGameMode'; Desc = 'AllowAutoGameMode' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'TdrDelay'; Desc = 'GPU TdrDelay (放宽 TDR 超时阈值至 10 秒防崩溃)' }
 )
 
 $script:registrySystemValues = @(
@@ -51,7 +52,12 @@ $script:registrySystemValues = @(
     @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\MRT'; Name = 'DontOfferThroughWUAU'; Desc = 'DontOfferThroughWUAU (禁止 WUAU 推送恶删工具 MRT)' },
     @{ Path = 'HKCU:\Software\Policies\Microsoft\Windows\Explorer'; Name = 'DisableSearchBoxSuggestions'; Desc = 'DisableSearchBoxSuggestions (禁用文件资源管理器搜索建议)' },
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\EventLog-System\{b675ec37-bdb6-4648-bc92-f3fdc74d3ca2}'; Name = 'Enabled'; Desc = 'EventLog-System Kernel-EventTracing Enabled = 0 (抑制 0xC0000035 错误)' },
-    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'; Name = 'NtfsDisableLastAccessUpdate'; Desc = 'NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)' }
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'; Name = 'NtfsDisableLastAccessUpdate'; Desc = 'NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)' },
+    @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows'; Name = 'TimerCoalescing'; Desc = 'TimerCoalescing (禁用定时器合并)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'; Name = 'CoalescingTimerInterval'; Desc = 'CoalescingTimerInterval (定时器合并间隔归零)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\BrokerInfrastructure\Parameters'; Name = 'DisableTriggerCoalescing'; Desc = 'DisableTriggerCoalescing (禁用触发器合并)' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'DisablePageCombining'; Desc = 'DisablePageCombining (禁用内存页合并去重)' },
+    @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm'; Name = 'MousewheelAnimationDurationMs'; Desc = 'MousewheelAnimationDurationMs (DWM 鼠标滚轮零延迟即时响应)' }
 )
 
 function Test-RegistryBackupSchema {
@@ -176,7 +182,7 @@ function Ensure-RegistryBackup {
                 $upgraded = Migrate-RegistryBackupIfNeeded $backup $CoreDefinitions $SystemDefinitions
                 if ($null -ne $upgraded -and (Test-RegistryBackupSchema $upgraded $CoreDefinitions $SystemDefinitions)) {
                     $json = ConvertTo-Json -InputObject $upgraded -Depth 6
-                    Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json
+                    Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json -Overwrite
                     $backup = $upgraded
                     Write-Host "[INFO] 已按新清单平滑迁移增量注册表快照：$script:registryBackupFile" -ForegroundColor Yellow
                 } else {
@@ -227,7 +233,7 @@ function Restore-RegistryBackup {
             if ($null -ne $upgraded -and (Test-RegistryBackupSchema $upgraded $CoreDefinitions $SystemDefinitions)) {
                 $backup = $upgraded
                 $json = ConvertTo-Json -InputObject $upgraded -Depth 6
-                Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json
+                Write-TweakAtomicTextFile -Path $script:registryBackupFile -Content $json -Overwrite
             } else {
                 throw 'registry-backup.json 结构不正确或与当前清单不匹配'
             }

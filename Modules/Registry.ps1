@@ -94,7 +94,8 @@ function Invoke-RegistryModule {
             { Set-RegString $games "Scheduling Category" "High" "Games Scheduling Category" },
             { Set-RegString $games "SFIO Priority" "High" "Games SFIO Priority" },
             { Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled" 0 "AutoGameModeEnabled" },
-            { Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode" }
+            { Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode" },
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10 "TdrDelay = 10 (GPU 驱动超时容限 10 秒防崩溃)" }
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {
@@ -102,6 +103,9 @@ function Invoke-RegistryModule {
         }
         if ($operationOk) {
             $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
+        }
+        if ($operationOk) {
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10 "TdrDelay"
         }
         if (-not $operationOk) { Write-Host '[FAIL] 核心游戏优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }
 
@@ -156,7 +160,25 @@ function Invoke-RegistryModule {
             { Set-RegDword "HKLM:\SOFTWARE\Policies\Microsoft\MRT" "DontOfferThroughWUAU" 1 "DontOfferThroughWUAU (禁止 WUAU 推送恶删工具 MRT)" },
             { Set-RegDword "HKCU:\Software\Policies\Microsoft\Windows\Explorer" "DisableSearchBoxSuggestions" 1 "DisableSearchBoxSuggestions (禁用文件资源管理器搜索建议)" },
             { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\EventLog-System\{b675ec37-bdb6-4648-bc92-f3fdc74d3ca2}" "Enabled" 0 "EventLog-System Kernel-EventTracing Enabled = 0 (抑制 0xC0000035 错误)" },
-            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate" "0x80000001" "NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)" }
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" "NtfsDisableLastAccessUpdate" "0x80000001" "NtfsDisableLastAccessUpdate (禁用 NTFS 上次访问时间更新)" },
+            { Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows" "TimerCoalescing" 0 "TimerCoalescing = 0 (禁用系统定时器合并)" },
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" "CoalescingTimerInterval" 0 "CoalescingTimerInterval = 0 (合并时钟间隔归零)" },
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Services\BrokerInfrastructure\Parameters" "DisableTriggerCoalescing" 1 "DisableTriggerCoalescing = 1 (禁用后台触发器合并)" },
+            {
+                Write-Host ""; Write-Host "[Page Combining]" -ForegroundColor Cyan
+                try {
+                    $mmAgent = Get-MMAgent -ErrorAction SilentlyContinue
+                    if ($null -ne $mmAgent -and $mmAgent.PageCombining -eq $false) {
+                        Write-Host "[OK] Page Combining already disabled"; $script:ok++
+                    } else {
+                        Disable-MMAgent -PageCombining -ErrorAction Stop
+                        Write-Host "[OK] Page Combining disabled"; $script:ok++; $script:rebootRequired = $true
+                    }
+                } catch {
+                    Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "DisablePageCombining" 1 "DisablePageCombining"
+                }
+            },
+            { Set-RegDword "HKLM:\SOFTWARE\Microsoft\Windows\Dwm" "MousewheelAnimationDurationMs" 0 "MousewheelAnimationDurationMs = 0 (DWM 鼠标滚轮零延迟即时响应)" }
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {
@@ -164,6 +186,9 @@ function Invoke-RegistryModule {
         }
         if ($operationOk) {
             $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" "EnablePrefetcher" 0 "EnablePrefetcher"
+        }
+        if ($operationOk) {
+            $operationOk = Verify-RegDword "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows" "TimerCoalescing" 0 "TimerCoalescing"
         }
         if ($operationOk) {
             $operationOk = Verify-MemoryCompressionDisabled

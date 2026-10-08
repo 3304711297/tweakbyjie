@@ -205,7 +205,8 @@ function Write-TweakAtomicTextFile {
     #>
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$Content
+        [Parameter(Mandatory = $true)][string]$Content,
+        [switch]$Overwrite
     )
     $fullPath = [System.IO.Path]::GetFullPath($Path)
     $parent = [System.IO.Path]::GetDirectoryName($fullPath)
@@ -216,9 +217,15 @@ function Write-TweakAtomicTextFile {
     $tempPath = Join-Path $parent ('.{0}.{1}.tmp' -f ([System.IO.Path]::GetFileName($fullPath), [guid]::NewGuid().ToString('N')))
     try {
         [System.IO.File]::WriteAllText($tempPath, $Content, [System.Text.UTF8Encoding]::new($false))
-        # File.Move 在同一目录内是原子 rename，且目标已存在时以独占方式失败；
-        # 不使用 Test-Path + Move-Item，避免两个进程同时发布首个快照的竞态。
-        [System.IO.File]::Move($tempPath, $fullPath)
+        if ($Overwrite -and (Test-Path -LiteralPath $fullPath)) {
+            try {
+                [System.IO.File]::Replace($tempPath, $fullPath, $null)
+            } catch {
+                Move-Item -LiteralPath $tempPath -Destination $fullPath -Force
+            }
+        } else {
+            [System.IO.File]::Move($tempPath, $fullPath)
+        }
     } finally {
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue

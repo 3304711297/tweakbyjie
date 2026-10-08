@@ -11,6 +11,18 @@ Describe "Registry new system tweaks contract" {
         $keys | Should -Contain 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem|NtfsDisableLastAccessUpdate'
     }
 
+    It "contains XOS-adopted performance items in core and system definitions" {
+        $coreKeys = @($script:registryCoreValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+        $coreKeys | Should -Contain 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers|TdrDelay'
+
+        $sysKeys = @($script:registrySystemValues | ForEach-Object { "$($_.Path)|$($_.Name)" })
+        $sysKeys | Should -Contain 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows|TimerCoalescing'
+        $sysKeys | Should -Contain 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power|CoalescingTimerInterval'
+        $sysKeys | Should -Contain 'HKLM:\SYSTEM\CurrentControlSet\Services\BrokerInfrastructure\Parameters|DisableTriggerCoalescing'
+        $sysKeys | Should -Contain 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management|DisablePageCombining'
+        $sysKeys | Should -Contain 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm|MousewheelAnimationDurationMs'
+    }
+
     It "uses 0x80000001 for modern NtfsDisableLastAccessUpdate bitfield semantics" {
         # 验证 Registry.ps1 中针对 NtfsDisableLastAccessUpdate 的写入值是 0x80000001
         $scriptPath = Join-Path $PSScriptRoot '../Modules/Registry.ps1'
