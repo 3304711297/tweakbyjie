@@ -15,13 +15,13 @@
     },
     "Atom-Tool-Box": {
       "repo": "ProjectAtomOS/Atom-Tool-Box",
-      "last_synced_release": "0.1.5",
-      "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)",
+      "last_synced_release": "0.2.0",
+      "description": "Atom ToolBox (ProjectAtomOS / Windows Gaming & System Optimization Utility)；0.1.5 已吸收 WPBT 固件注入防御/TaskbarEndTask/PowerShell 遥测关闭；0.2.0（5826a03）评估后 0 项吸收：新增 AppX 批量卸载、Windows Update 策略、启动项/右键菜单/个性化管理器属新功能面，超出固定范围，且停用 wuauserv/UsoSvc/WaaSMedicSvc、关闭防火墙/Defender 与暂停更新至 2099 等破坏性开关按铁律排除",
       "branches": [
         "main"
       ],
       "last_synced_commits": {
-        "main": "ecf8368"
+        "main": "5826a03"
       }
     },
     "MPO-GPU-FIX": {
