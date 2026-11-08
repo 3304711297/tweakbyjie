@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "last_check": "2026-09-05T06:30:00Z",
   "sources": {
     "Kiwi-Tweaks": {
@@ -106,6 +106,21 @@
       "last_synced_commits": {
         "main": "50bb7f7"
       }
+    }
+  },
+  "blocked": {
+    "pc-game-fps-doctor": {
+      "repo": "Badgenyamultiplexer/pc-game-fps-doctor",
+      "blocked_at": "2026-11-08",
+      "verdict": "禁止下载、禁止运行、禁止吸收任何所谓调优项",
+      "reason": "冒名投放仓库：README 自称 Rust 1.85 + Tauri 的 VALORANT 一键卡顿诊断/修复工具，源码里没有任何触碰 Windows 的实现，UI 是定时器伪造结果的演示页；发布物与仓库同样对不上，一份是改名后的 Notepad++ 更新器（WinGup 5.31，带合法签名）+ libcurl 下载器，另一份是 vercel/pkg 打包的 Node 22 单文件，内含 4×14 MiB 不透明分块载荷。",
+      "evidence": [
+        "仓库创建于 2026-11-03T15:01:49Z，首个 release v1.2.3 发布于 15:05:11Z，但 6 条 commit 与 CHANGELOG 声称 2026-10-08 起的工作，历史为伪造",
+        "根 Cargo.toml 仅 members=[\"crates/pitstop-core\"]、依赖仅 serde+toml；无 src-tauri/、无 tauri.conf.json，README 的 cargo tauri build 无法构建，Windows 层全部缺席",
+        "app/ui/app.js 内无 invoke/fetch，check()/measure() 用 setTimeout 动画把 118 FPS 播成 231 FPS，属纯演示稿",
+        "v1.2.3 资产 pc-game-fps-doctor.zip = Main.exe（WinGup 5.31 for Notepad++，Don HO，含 DigiCert 签名链，被改名）+ gup.xml + libcurl.dll",
+        "v1.2.4 资产 Pitstop-1.2.3-portable-x64.exe（sha256 c1b4031b174486734495f0192b187d922ad94f541cd0ebbfaef42df9721b2f64，117 MB，无 Authenticode）：版本资源为 Node.js 22.23.1 / OriginalFilename node.exe，pkg.targets=node22-win-x64，载荷 index.js + a.js + b.js + ui/shell.js + ui/oppuqzbl/ 下 4 个各 14 MiB 加密 .bin，全文无 Pitstop/VALORANT/PresentMon 字样"
+      ]
     }
   }
 }

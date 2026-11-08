@@ -186,10 +186,18 @@ def main():
         data = json.load(f)
 
     sources = data.get("sources", {})
+    blocked = data.get("blocked") or {}
+    # 拉黑来源永不巡检：即使被误写进 sources，也在这里兜底跳过。
+    blocked_repos = {str((cfg or {}).get("repo", "")).lower() for cfg in blocked.values()} - {""}
     updated_sources = []
 
     print(f"=== 开始巡检 {len(sources)} 个上游优化项目 ===")
+    if blocked_repos:
+        print(f"  ⛔ 已拉黑 {len(blocked_repos)} 个仓库，巡检时跳过（理由见 tools/upstream-sources.json 的 blocked 字段）")
     for name, cfg in sources.items():
+        if str(cfg.get("repo", "")).lower() in blocked_repos:
+            print(f"  ⛔ [{name}] 已拉黑，跳过巡检")
+            continue
         updates, notes = check_source(name, cfg)
         for n in notes:
             print(f"  ✅ [{name}] {n}")

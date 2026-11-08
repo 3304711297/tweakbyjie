@@ -221,6 +221,14 @@ Invoke-Pester -Path .\tests\
 
 > 上游清单（含同步的 commit 与版本号）以机器可读格式维护在 `tools/upstream-sources.json`。新增采纳来源时需同步更新该文件并接入看门 CI，保持文档、清单与 CI 三方一致。
 
+### 🚫 已拉黑来源
+
+下列仓库经人工核验后**永久拒绝**：只登记在 `tools/upstream-sources.json` 的 `blocked` 字段（不进 `sources`），看门 CI 巡检时显式跳过并打印 `⛔` 提示，避免日后被"看起来像同类优化工具"骗进采纳清单。
+
+| 仓库 | 核验日期 | 拉黑理由 |
+| :--- | :--- | :--- |
+| [Badgenyamultiplexer/pc-game-fps-doctor](https://github.com/Badgenyamultiplexer/pc-game-fps-doctor) | 2026-11-08 | 冒名投放仓库：README 自称 Rust + Tauri 的 VALORANT 一键卡顿诊断/修复工具，仓库内既无 Tauri crate 也无任何触碰 Windows 的实现（`cargo tauri build` 无法构建），`app/ui/app.js` 是只用 `setTimeout` 把 118 FPS 播成 231 FPS 的演示稿；发布物同样对不上——v1.2.3 资产是改名后的 Notepad++ 更新器 WinGup 5.31（带合法 DigiCert 签名）+ `libcurl.dll` 下载器，v1.2.4 是 `vercel/pkg` 打包的 Node 22 单文件（无签名），内含 4×14 MiB 不透明分块载荷；提交与 CHANGELOG 日期早于仓库创建时间，历史为伪造。**禁止下载、禁止运行、禁止吸收任何所谓调优项** |
+
 ---
 
 ## ❓ 常见问题 (FAQ)
