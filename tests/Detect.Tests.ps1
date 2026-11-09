@@ -1,0 +1,67 @@
+﻿BeforeAll {
+    . "$PSScriptRoot/../tweakbyjie.ps1" 2>$null
+}
+
+Describe 'Detect report' {
+    BeforeAll {
+        $script:fakeHealth = [pscustomobject]@{
+            Results = @(
+                [pscustomobject]@{ Name = 'PCIe 链路'; Status = 'Info'; Summary = '上限 x8'; Detail = 'max=Gen4 x8' }
+                [pscustomobject]@{ Name = 'VC++ v14 运行库'; Status = 'Attention'; Summary = '缺少 x86'; Detail = '' }
+            )
+            AttentionCount = 1
+        }
+        $script:report = Get-TweakDetectReport `
+            -OSInfo ([pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0.26200'; BuildNumber = '26200' }) `
+            -CPUInfo ([pscustomobject]@{ Name = 'Test CPU'; NumberOfCores = 8; NumberOfLogicalProcessors = 16 }) `
+            -GpuInfo @([pscustomobject]@{ Name = 'Test GPU'; DriverVersion = '1.2.3' }) `
+            -MemoryModules @([pscustomobject]@{ Capacity = 17179869184; Speed = 6400; ConfiguredClockSpeed = 6400 }) `
+            -Health $script:fakeHealth
+    }
+
+    It 'exposes a stable schema and core fields' {
+        $script:report.schemaVersion | Should -Be 1
+        $script:report.os.caption | Should -Be 'Windows 11 Pro'
+        $script:report.os.build | Should -Be '26200'
+        $script:report.cpu.cores | Should -Be 8
+        $script:report.cpu.threads | Should -Be 16
+        @($script:report.gpu).Count | Should -Be 1
+        $script:report.gpu[0].name | Should -Be 'Test GPU'
+        $script:report.memory.totalGB | Should -Be 16
+        $script:report.health.attentionCount | Should -Be 1
+        @($script:report.health.results).Count | Should -Be 2
+    }
+
+    It 'serializes to JSON without losing fields' {
+        $json = $script:report | ConvertTo-Json -Depth 8
+        $round = $json | ConvertFrom-Json
+        $round.schemaVersion | Should -Be 1
+        $round.health.results[1].status | Should -Be 'Attention'
+    }
+}
+
+Describe 'Detect CLI contract' {
+    BeforeAll {
+        $script:pwshExe = (Get-Process -Id $PID).Path
+        $script:repoRoot = Split-Path $PSScriptRoot -Parent
+        $script:entry = Join-Path $script:repoRoot 'tweakbyjie.ps1'
+    }
+
+    It 'emits pure JSON for -Detect -Json' {
+        $out = & $script:pwshExe -NoProfile -File $script:entry -Detect -Json 2>$null
+        $report = ($out -join "`n") | ConvertFrom-Json
+        $report.schemaVersion | Should -Be 1
+        $report.os.build | Should -Not -BeNullOrEmpty
+        @($report.health.results).Count | Should -BeGreaterThan 0
+    }
+
+    It 'rejects -Json without -Detect with exit code 2' {
+        & $script:pwshExe -NoProfile -File $script:entry -Json 2>$null | Out-Null
+        $LASTEXITCODE | Should -Be 2
+    }
+
+    It 'rejects -Detect combined with -RunModule with exit code 2' {
+        & $script:pwshExe -NoProfile -File $script:entry -Detect -RunModule 15 2>$null | Out-Null
+        $LASTEXITCODE | Should -Be 2
+    }
+}

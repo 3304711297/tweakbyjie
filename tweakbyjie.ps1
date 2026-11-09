@@ -31,12 +31,16 @@ param(
     [switch]$NonInteractive,
     # 仅能与 -RunModule 组合使用：接受该模块定义的默认风险行为。
     # （退出时的重启维持默认"不重启"）。不等于"自动执行一切危险操作"。
-    [switch]$AcceptDefaults
+    [switch]$AcceptDefaults,
+    # 只读检测：输出系统/硬件/体检信息，不做任何修改；不需要管理员。
+    [switch]$Detect,
+    # 仅与 -Detect 组合：以 JSON 输出检测结果，便于 Agent 解析。
+    [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
 # 在管理员/模块完整性门禁之前识别无人值守请求；无人值守失败不得隐藏等待 Read-Host。
-$__tweakUnattendedRequested = [bool](($RunModule -and $RunModule.Trim()) -or $NonInteractive)
+$__tweakUnattendedRequested = [bool](($RunModule -and $RunModule.Trim()) -or $NonInteractive -or $Detect)
 # 版本号：与最新已发布 v* tag 对应（菜单标题会显示）。
 # 约定：源码常量 = 最近一次 Release 的版本；CI 打包时会把"下一个"版本注入 ZIP 内副本，
 # 因此源码常量在发布后天然落后一位属正常，但不得与最新 tag 脱钩（tests/VersionConsistency.Tests.ps1 校验）。
@@ -57,10 +61,21 @@ function Get-TweakExitCode {
     return 4
 }
 
+# --- Parameter combination guards (before admin check, so exit codes stay deterministic) ---
+if ($Detect -and ($RunModule -or $Action -or $NonInteractive -or $AcceptDefaults)) {
+    Write-Host '[ERROR] -Detect 不能与 -RunModule / -Action / -NonInteractive / -AcceptDefaults 组合。' -ForegroundColor Red
+    exit (Get-TweakExitCode -InvalidInput)
+}
+if ($Json -and -not $Detect) {
+    Write-Host '[ERROR] -Json 只能与 -Detect 组合使用。' -ForegroundColor Red
+    exit (Get-TweakExitCode -InvalidInput)
+}
+
 # --- Administrator check ---
 # 本地开发/CI 可设 TWEAK_SKIP_ADMIN_CHECK=1 跳过（仅跳过检查，不会获得管理员权限）
+# -Detect 是只读检测，不需要管理员；其余模式仍需提权。
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1') {
+if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1' -and -not $Detect) {
     Write-Host "[ERROR] 请以管理员身份运行此脚本 / Please run this script as Administrator." -ForegroundColor Red
     if (-not $__tweakUnattendedRequested) { Read-Host "Press Enter to exit" }
     exit 1
@@ -70,7 +85,7 @@ if (-not $isAdmin -and $env:TWEAK_SKIP_ADMIN_CHECK -ne '1') {
 # --- Session log ---
 # 仅在作为脚本执行时记录（点源加载不记录，避免测试污染）；日志位于 %LOCALAPPDATA%\tweakbyjie\logs
 $__isScript = ($MyInvocation.InvocationName -ne '.' -and $MyInvocation.CommandOrigin -ne 'DotSource')
-if ($__isScript) {
+if ($__isScript -and -not $Detect) {
     try {
         $__logDir = Join-Path $env:LOCALAPPDATA 'tweakbyjie\logs'
         New-Item -ItemType Directory -Path $__logDir -Force -ErrorAction Stop | Out-Null
@@ -205,6 +220,18 @@ function Get-TweakActionRequiredModules {
 }
 
 if ($__isScript) {
+    if ($Detect) {
+        # 只读检测：不启动 transcript、不写任何设置；JSON 模式必须只输出 JSON。
+        try {
+            $__detectReport = Get-TweakDetectReport
+            if ($Json) { $__detectReport | ConvertTo-Json -Depth 8 }
+            else { Write-TweakDetectReportText $__detectReport }
+            exit 0
+        } catch {
+            Write-Host ("[ERROR] 检测失败：{0}" -f $_.Exception.Message) -ForegroundColor Red
+            exit 1
+        }
+    }
     # -AcceptDefaults / -Action / -NonInteractive 的组合守卫
     if (($AcceptDefaults -or $NonInteractive -or ($Action -and $Action.Trim())) -and -not ($RunModule -and $RunModule.Trim())) {
         Write-Host "[ERROR] -AcceptDefaults、-NonInteractive、-Action 都必须与 -RunModule 组合使用。" -ForegroundColor Red

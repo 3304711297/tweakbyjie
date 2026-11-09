@@ -226,6 +226,7 @@ jobs:
             defender-removal.ps1 \
             ultimate-performance.pow \
             README.md \
+            SKILL.md \
             LICENSE \
             Modules \
             scripts

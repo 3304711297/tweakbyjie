@@ -265,3 +265,133 @@ function Invoke-SystemHealthReport {
     }
     return $report
 }
+
+function Get-TweakDetectReport {
+    <#
+    .SYNOPSIS
+        只读检测报告：系统、CPU、GPU、内存与四项体检，输出稳定 JSON 结构。
+    .DESCRIPTION
+        参数可注入（测试用）；默认全部走 CIM/注册表/nvidia-smi 只读查询。
+        不写注册表、不启动 transcript、不需要管理员。
+    #>
+    [CmdletBinding()]
+    param(
+        [object]$OSInfo = $null,
+        [object]$CPUInfo = $null,
+        [object[]]$GpuInfo = $null,
+        [object[]]$MemoryModules = $null,
+        [object]$Health = $null
+    )
+
+    if ($null -eq $OSInfo) {
+        try { $OSInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop } catch { $OSInfo = $null }
+    }
+    if ($null -eq $CPUInfo) {
+        try { $CPUInfo = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1 } catch { $CPUInfo = $null }
+    }
+    if ($null -eq $GpuInfo) {
+        try { $GpuInfo = @(Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop) } catch { $GpuInfo = @() }
+    }
+    if ($null -eq $MemoryModules) {
+        try { $MemoryModules = @(Get-CimInstance -ClassName Win32_PhysicalMemory -ErrorAction Stop) } catch { $MemoryModules = @() }
+    }
+    if ($null -eq $Health) { $Health = Get-SystemHealthReport }
+
+    $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    $totalBytes = 0L
+    $memoryRows = @()
+    foreach ($module in @($MemoryModules)) {
+        if ($null -eq $module) { continue }
+        $capacity = if ($null -ne $module.Capacity) { [int64]$module.Capacity } else { 0 }
+        $totalBytes += $capacity
+        $memoryRows += [pscustomobject][ordered]@{
+            capacityGB    = [math]::Round($capacity / 1GB, 2)
+            ratedMTs      = if ($null -ne $module.Speed) { [int]$module.Speed } else { 0 }
+            configuredMTs = if ($null -ne $module.ConfiguredClockSpeed) { [int]$module.ConfiguredClockSpeed } else { 0 }
+            manufacturer  = "$($module.Manufacturer)"
+            partNumber    = "$($module.PartNumber)"
+        }
+    }
+
+    $healthRows = @()
+    if ($null -ne $Health) {
+        foreach ($result in @($Health.Results)) {
+            if ($null -eq $result) { continue }
+            $healthRows += [pscustomobject][ordered]@{
+                name    = "$($result.Name)"
+                status  = "$($result.Status)"
+                summary = "$($result.Summary)"
+                detail  = "$($result.Detail)"
+            }
+        }
+    }
+
+    [pscustomobject][ordered]@{
+        schemaVersion = 1
+        generatedAt   = (Get-Date).ToString('o')
+        appVersion    = "$script:TweakVersion"
+        isAdmin       = [bool]$admin
+        os            = [pscustomobject][ordered]@{
+            caption = "$($OSInfo.Caption)"
+            version = "$($OSInfo.Version)"
+            build   = "$($OSInfo.BuildNumber)"
+        }
+        cpu           = [pscustomobject][ordered]@{
+            name    = "$($CPUInfo.Name)"
+            cores   = if ($null -ne $CPUInfo.NumberOfCores) { [int]$CPUInfo.NumberOfCores } else { 0 }
+            threads = if ($null -ne $CPUInfo.NumberOfLogicalProcessors) { [int]$CPUInfo.NumberOfLogicalProcessors } else { 0 }
+        }
+        gpu           = @($GpuInfo | Where-Object { $_ } | ForEach-Object {
+            [pscustomobject][ordered]@{ name = "$($_.Name)"; driverVersion = "$($_.DriverVersion)" }
+        })
+        memory        = [pscustomobject][ordered]@{
+            totalGB = [math]::Round($totalBytes / 1GB, 2)
+            modules = @($memoryRows)
+        }
+        health        = [pscustomobject][ordered]@{
+            attentionCount = if ($null -ne $Health) { [int]$Health.AttentionCount } else { 0 }
+            results        = @($healthRows)
+        }
+    }
+}
+
+function Write-TweakDetectReportText {
+    <#
+    .SYNOPSIS
+        -Detect 非 JSON 模式下的人类可读摘要。
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][object]$Report)
+
+    Write-Host ("tweakbyjie {0} | {1}" -f $Report.appVersion, $Report.generatedAt) -ForegroundColor Cyan
+    Write-Host ("OS   : {0} (build {1})" -f $Report.os.caption, $Report.os.build)
+    Write-Host ("CPU  : {0}  {1}C/{2}T" -f $Report.cpu.name, $Report.cpu.cores, $Report.cpu.threads)
+    $gpuNames = @($Report.gpu | ForEach-Object { $_.name }) -join ' / '
+    Write-Host ("GPU  : {0}" -f $(if ($gpuNames) { $gpuNames } else { '<未检测到>' }))
+    Write-Host ("RAM  : {0} GB" -f $Report.memory.totalGB)
+    Write-Host ("权限 : {0}" -f $(if ($Report.isAdmin) { '管理员' } else { '普通用户（检测无需提权）' }))
+    Write-Host ''
+    Write-Host '--- [硬件与运行库体检（只读）] ---' -ForegroundColor White
+    foreach ($result in @($Report.health.results)) {
+        $color = switch ($result.status) {
+            'OK' { 'Green' }
+            'Attention' { 'Red' }
+            'Info' { 'Yellow' }
+            default { 'DarkGray' }
+        }
+        $tag = switch ($result.status) {
+            'OK' { '[OK]' }
+            'Attention' { '[!]' }
+            'Info' { '[INFO]' }
+            default { '[N/A]' }
+        }
+        Write-Host ("{0} {1}：{2}" -f $tag, $result.name, $result.summary) -ForegroundColor $color
+        if ($result.detail) { Write-Host ("       {0}" -f $result.detail) -ForegroundColor DarkGray }
+    }
+    if ($Report.health.attentionCount -gt 0) {
+        Write-Host ("[!] 体检发现 {0} 项需要处理；本次检测未修改任何设置。" -f $Report.health.attentionCount) -ForegroundColor Yellow
+    } else {
+        Write-Host '[OK] 体检未发现需要处理的硬件/运行库问题。' -ForegroundColor Green
+    }
+}

@@ -112,6 +112,19 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
 * **会话日志自动落盘**：所有命令行及交互输出均自动写入 `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log`。
 * **标准退出码规范**：`0` 成功/无失败，`2` 参数错误，`4` 全项失败，`5` 部分失败。
 
+### 3.1 Agent 调用：只读检测 JSON
+
+Agent 应先用只读检测获取机器状态，再决定是否修改：
+
+```powershell
+pwsh -NoProfile -File .\tweakbyjie.ps1 -Detect -Json
+```
+
+- `-Detect` 只读、不需要管理员、不启动会话日志；`-Json` 只输出一个 JSON 对象到 stdout，便于解析；
+- 返回 `schemaVersion` / `os` / `cpu` / `gpu` / `memory` / `health`，其中 `health.results[].status` 为 `OK` / `Attention` / `Info` / `N/A`；
+- `-Detect` 不能与 `-RunModule` / `-Action` / `-NonInteractive` / `-AcceptDefaults` 组合；`-Json` 只能与 `-Detect` 组合；
+- 面向 Agent 的完整操作契约（模块动作、红线、退出码）见仓库根 [`SKILL.md`](./SKILL.md)。
+
 ### 4. 状态快照与全模块回滚机制 (Rollback & Backup)
 
 针对底层系统调整的不确定性，本项目构建了严密的**状态快照（Snapshot）与回滚（Rollback）防御闭环**，遵循三大安全设计原则：
@@ -165,6 +178,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1 `
 tweakbyjie/
 ├── tweakbyjie.cmd           # 双运行时智能启动器 (pwsh / powershell 5.1)
 ├── tweakbyjie.ps1           # 核心加载器 Loader (带版本注入与全局会话管理)
+├── SKILL.md                 # Agent 操作契约（检测/执行/还原红线与模块动作）
 ├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
 │   ├── Common.ps1           # 日志、退出码与基础通用工具库
 │   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
