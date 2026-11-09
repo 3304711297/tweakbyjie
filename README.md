@@ -76,8 +76,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **13** | **PCIe 设备 MSI 中断管理** | 为 GPU、网卡、NVMe 存储启用消息信号中断（MSI）模式，消除传统 IRQ 冲突，内置白名单安全隔离 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 | **14** | **系统休眠与快速启动管理** | 安全关闭休眠（powercfg -h off 并删除 C:\hiberfil.sys 释放数十 GB 磁盘空间），规避快速启动硬件热重启脏缓存，支持一键恢复与快照 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 | **15** | **系统体检与虚拟内存建议** | 只读体检 PCIe 链路（x4/x8/x16）、VC++ v14 运行库缺失、内存当前/标称频率与 NVIDIA App 自动优化；另含虚拟内存分配建议与手动向导，全程只读不代改 | [Windows 虚拟内存设置指南](https://3304711297.github.io/youshouldknow/系统知识/Windows虚拟内存设置指南/) |
-| **16** | **着色器缓存扫描与清理** | 扫描 DirectX / NVIDIA / AMD / Intel 缓存目录，逐文件删除（不跟随目录联接、保留目录）；缓存可再生，不产生备份、不可还原 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
-| **17** | **游戏 exe 配置** | 为指定游戏写入禁用全屏优化、高性能 GPU 首选项与 IFEO CPU 高优先级；只设 CPU（IFEO 的 IoPriority 只支持 Normal 及以下），写入前保存三项原值、可还原 | [Windows 进程优先级持久化：IFEO PerfOptions](https://3304711297.github.io/youshouldknow/系统调优与安全/Windows进程优先级持久化IFEO-PerfOptions/) |
+| **16** | **着色器缓存扫描与清理** | 扫描 DirectX / NVIDIA / AMD / Intel 缓存目录，逐文件删除（不跟随目录联接、保留目录）；缓存可再生，不产生备份、不可还原 | [着色器缓存与清理边界](https://3304711297.github.io/youshouldknow/显卡优化/着色器缓存与清理边界/) |
+| **17** | **游戏 exe 配置** | 为指定游戏写入禁用全屏优化、高性能 GPU 首选项与 IFEO CPU 高优先级；只设 CPU（IFEO 的 IoPriority 只支持 Normal 及以下），写入前保存三项原值、可还原 | [全屏优化、窗口化游戏优化与 GPU 首选项](https://3304711297.github.io/youshouldknow/显卡优化/全屏优化与窗口化游戏优化/) |
 
 ---
 
