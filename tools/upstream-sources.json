@@ -106,6 +106,17 @@
       "last_synced_commits": {
         "main": "50bb7f7"
       }
+    },
+    "Delta-Force-Graphics-Optimizer": {
+      "repo": "Leonard8818/-Delta-Force-Graphics-Optimizer",
+      "last_synced_release": "v0.23.0.13",
+      "description": "三角洲行动画面优化助手（公开源码停在 v0.23.0.13，Release 已到 v0.23.0.52；只按公开源码吸收机制，不运行其二进制）。吸收：选择性还原的冲突检测设计（记录工具写入值→还原前比对→检测到后续修改则拒绝覆盖）→ Modules/Backup.Registry.ps1；只读体检四项的实现思路（PCIe 链路/VC++ v14/内存频率/NVIDIA App 自动优化）→ Modules/Diagnostics.ps1（模块 15）。未采纳：显卡型号伪装、隐藏电源项、自动调优状态机、遥测与 PawnIO 内核驱动",
+      "branches": [
+        "main"
+      ],
+      "last_synced_commits": {
+        "main": "9fab79d"
+      }
     }
   },
   "blocked": {

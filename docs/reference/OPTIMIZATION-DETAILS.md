@@ -835,6 +835,14 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
   * **盘符与防碎片策略**：识别高速 SSD/NVMe 非系统盘（如 `D:`）并在空间充足时推荐迁移，建议初始大小等于最大大小以彻底消除磁盘碎片；
 - **操作指南输出**：提供直观的 Windows 图形化向导（`sysdm.cpl` ➔ 高级 ➔ 性能设置 ➔ 虚拟内存）及供高级用户参考的手动 PowerShell 脚本。
 
+**硬件与运行库体检（只读，`Modules/Diagnostics.ps1`）**：
+- **PCIe 链路**：用 `nvidia-smi` 读取最大/当前 Gen 与宽度；x4 及以下提示检查插槽/延长线，x8 标记为笔记本/中端卡正常，空闲降档只作说明；
+- **VC++ v14**：只有缺失某个架构才算问题；x64/x86 版本不同步仅中性提示，不引导卸载；
+- **内存频率**：`Win32_PhysicalMemory` 的 `ConfiguredClockSpeed` 对比 `Speed`，低于标称时提示可能未开启 XMP/EXPO/DOCP；
+- **NVIDIA App**：只读 `NvBackend\config.xml` 的 `EnableAutomaticApplyOPS`，发现开启时提示在 App 内手动关闭，不写用户配置。
+
+四项均为只读并返回结构化 `Health` 对象；不产生备份，也不修改任何设置。
+
 ---
 
 ## 二、defender-removal.ps1

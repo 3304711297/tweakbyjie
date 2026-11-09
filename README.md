@@ -75,7 +75,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks 与 ALit-NetworkOptimizer），操作前自动落盘策略快照 | [Windows 游戏网络 QoS 策略与 DSCP 原理](https://3304711297.github.io/youshouldknow/网络通信/Windows游戏网络QoS策略与DSCP原理/) |
 | **13** | **PCIe 设备 MSI 中断管理** | 为 GPU、网卡、NVMe 存储启用消息信号中断（MSI）模式，消除传统 IRQ 冲突，内置白名单安全隔离 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 | **14** | **系统休眠与快速启动管理** | 安全关闭休眠（powercfg -h off 并删除 C:\hiberfil.sys 释放数十 GB 磁盘空间），规避快速启动硬件热重启脏缓存，支持一键恢复与快照 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
-| **15** | **虚拟内存诊断与调优建议** | 探测物理内存大小与各磁盘 pagefile 分配，提供个性化数值建议、防碎片策略与手动向导，严格遵循只读不代改原则 | [Windows 虚拟内存设置指南](https://3304711297.github.io/youshouldknow/系统知识/Windows虚拟内存设置指南/) |
+| **15** | **系统体检与虚拟内存建议** | 只读体检 PCIe 链路（x4/x8/x16）、VC++ v14 运行库缺失、内存当前/标称频率与 NVIDIA App 自动优化；另含虚拟内存分配建议与手动向导，全程只读不代改 | [Windows 虚拟内存设置指南](https://3304711297.github.io/youshouldknow/系统知识/Windows虚拟内存设置指南/) |
 
 ---
 
@@ -178,6 +178,7 @@ tweakbyjie/
 │   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
 │   ├── Msi.ps1              # 模块 13: PCIe 设备 MSI 中断模式管理
 │   ├── Hibernate.ps1        # 模块 14: 系统休眠与快速启动管理
+│   ├── Diagnostics.ps1      # 模块 15 只读体检: PCIe / VC++ v14 / 内存频率 / NVIDIA App 自动优化
 │   ├── Pagefile.ps1         # 模块 15: 虚拟内存只读诊断与调优建议指引
 │   └── Menu.ps1             # 104 行高内聚纯菜单调度链
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
@@ -212,6 +213,7 @@ Invoke-Pester -Path .\tests\
 | **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
 | **ALit-NetworkOptimizer** (master) | [xiaoX-bgs11/ALit-NetworkOptimizer](https://github.com/xiaoX-bgs11/ALit-NetworkOptimizer) | Minecraft Java（`javaw.exe`）与基岩版（`Minecraft.Windows.exe`）QoS 策略画像 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，纯组策略注册表落地，坚决排除其 WinDivert 内核劫持与单向发包轰炸） |
 | **XOS** (main) | [imribiy/XOS](https://github.com/imribiy/XOS) | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩、DWM 滚轮零延迟微调与 PCIe 设备 MSI 中断模式管理思路 → 菜单 1 / 菜单 13（`Modules/Registry.ps1` 与 `Modules/Msi.ps1`） |
+| **Delta Force Graphics Optimizer** (v0.23.0.13) | [Leonard8818/-Delta-Force-Graphics-Optimizer](https://github.com/Leonard8818/-Delta-Force-Graphics-Optimizer) | 选择性还原的冲突检测设计（记录工具写入值，还原前比对，检测到后续修改则拒绝覆盖）→ `Modules/Backup.Registry.ps1`；四项只读体检的实现思路（PCIe 链路 / VC++ v14 / 内存频率 / NVIDIA App 自动优化）→ `Modules/Diagnostics.ps1`（模块 15）。未采纳显卡型号伪装、隐藏电源项与自动调优状态机；公开源码停在 v0.23.0.13，Release 已到 v0.23.0.52，只按公开源码吸收机制，不运行其二进制 |
 
 外部工具依赖：
 

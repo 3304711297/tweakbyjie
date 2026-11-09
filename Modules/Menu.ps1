@@ -38,7 +38,7 @@ Write-Host ("  11. MPO 设置管理（独立排障）{0}" -f (Format-MenuAvailab
 Write-Host ("  12. 竞技游戏网络 QoS 策略管理（DSCP 46 数据包优先）{0}" -f (Format-MenuAvailabilitySuffix '12' $__avail)) -ForegroundColor White
 Write-Host ("  13. PCIe 设备 MSI 中断模式管理（GPU/网卡/NVMe 消息信号中断）{0}" -f (Format-MenuAvailabilitySuffix '13' $__avail)) -ForegroundColor White
 Write-Host ("  14. 系统休眠与快速启动管理（关闭释放空间 / 恢复）{0}" -f (Format-MenuAvailabilitySuffix '14' $__avail)) -ForegroundColor White
-Write-Host ("  15. 虚拟内存诊断与调优建议（只读指引）{0}" -f (Format-MenuAvailabilitySuffix '15' $__avail)) -ForegroundColor White
+Write-Host ("  15. 系统体检与虚拟内存建议（只读：PCIe / VC++ / 内存频率 / NVIDIA App）{0}" -f (Format-MenuAvailabilitySuffix '15' $__avail)) -ForegroundColor White
 Write-Host ""
 Write-Host "提示：一次运行可以连续执行多个模块；修改完成后统一选择是否重启。" -ForegroundColor Yellow
 Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow

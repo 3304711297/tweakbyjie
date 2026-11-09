@@ -60,6 +60,9 @@ $script:registrySystemValues = @(
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm'; Name = 'MousewheelAnimationDurationMs'; Desc = 'MousewheelAnimationDurationMs (DWM 鼠标滚轮零延迟即时响应)' }
 )
 
+# 还原统计：Restore-RegistryBackup 会重置；直接调用 Records 的测试/工具也必须有可写对象
+$script:registryRestoreStats = [ordered]@{ Restored = 0; AlreadyOriginal = 0; Conflict = 0; Forced = 0; Legacy = 0; Failed = 0 }
+
 function Test-RegistryBackupSchema {
     # CoreDefinitions/SystemDefinitions 可注入自定义清单（测试用 HKCU 临时键做往返验证）；默认用内置清单
     param([object]$Backup, [object[]]$CoreDefinitions = $script:registryCoreValues,
@@ -132,11 +135,173 @@ function Migrate-RegistryBackupIfNeeded {
     return $Backup
 }
 
+function Test-RegistryValueDataEqual {
+    # 比较快照/账本里的值数据；DWord 走数值，Binary 走十六进制串，MultiString 逐项比较。
+    param([string]$Kind, $Left, $Right)
+    switch ($Kind) {
+        'DWord' {
+            try { return ([uint32]$Left) -eq ([uint32]$Right) } catch { return $false }
+        }
+        'QWord' {
+            try { return ([uint64]$Left) -eq ([uint64]$Right) } catch { return $false }
+        }
+        'Binary' {
+            return (([string]$Left -replace '\s', '') -ieq ([string]$Right -replace '\s', ''))
+        }
+        'MultiString' {
+            $leftItems = @($Left)
+            $rightItems = @($Right)
+            if ($leftItems.Count -ne $rightItems.Count) { return $false }
+            for ($i = 0; $i -lt $leftItems.Count; $i++) {
+                if ("$($leftItems[$i])" -cne "$($rightItems[$i])") { return $false }
+            }
+            return $true
+        }
+        default { return ("$Left" -ceq "$Right") }
+    }
+}
+
+function Test-RegistrySnapshotEqualsOriginal {
+    param([object]$Current, [object]$Original)
+    if ([bool]$Current.Exists -ne [bool]$Original.Exists) { return $false }
+    if (-not [bool]$Original.Exists) { return $true }
+    if ("$($Current.Kind)" -ne "$($Original.Kind)") { return $false }
+    return (Test-RegistryValueDataEqual $Current.Kind $Current.Data $Original.Data)
+}
+
+function Test-RegistrySnapshotMatchesApplied {
+    param([object]$Current, [object]$Applied)
+    if (-not [bool]$Current.Exists) { return $false }
+    if ("$($Current.Kind)" -ne "$($Applied.Kind)") { return $false }
+    return (Test-RegistryValueDataEqual $Current.Kind $Current.Data $Applied.Data)
+}
+
+function Test-RegistryAppliedSchema {
+    # registry-applied.json 只记录“本工具最后一次写入的值”，用于还原前检测后续修改。
+    param([object]$Ledger)
+    try {
+        if ($null -eq $Ledger -or [int]$Ledger.Version -ne 1) { return $false }
+        if ([string]$Ledger.Binding -ine (Get-BackupMachineId)) { return $false }
+        if ($null -eq $Ledger.Entries) { return $false }
+        $seen = @{}
+        foreach ($entry in @($Ledger.Entries)) {
+            if ($null -eq $entry) { return $false }
+            foreach ($field in @('Path', 'Name', 'Kind', 'Data', 'Section', 'AppliedAt')) {
+                if (-not $entry.PSObject.Properties[$field]) { return $false }
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$entry.Path) -or [string]::IsNullOrWhiteSpace([string]$entry.Name)) { return $false }
+            if ([string]::IsNullOrWhiteSpace([string]$entry.Kind)) { return $false }
+            try { $null = Convert-RegKindForExe ([string]$entry.Kind) } catch { return $false }
+            if ([string]$entry.Section -notin @('Core', 'System')) { return $false }
+            $key = "$($entry.Path)|$($entry.Name)"
+            if ($seen.ContainsKey($key)) { return $false }
+            $seen[$key] = $true
+        }
+        return $true
+    } catch { return $false }
+}
+
+function Read-RegistryAppliedLedger {
+    # 账本缺失或损坏时退回旧版行为（按快照盲恢复），并明确告知无法检测后续修改。
+    if (-not (Test-Path -LiteralPath $script:registryAppliedFile -PathType Leaf)) { return $null }
+    try {
+        $ledger = Get-Content -LiteralPath $script:registryAppliedFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-RegistryAppliedSchema $ledger)) {
+            Write-Host "[WARN] registry-applied.json 结构或机器绑定校验失败；本次按快照恢复，无法检测优化后的后续修改。" -ForegroundColor Yellow
+            return $null
+        }
+        return $ledger
+    } catch {
+        Write-Host "[WARN] registry-applied.json 读取失败：$($_.Exception.Message)；本次按快照恢复。" -ForegroundColor Yellow
+        return $null
+    }
+}
+
+function Get-RegistryAppliedEntryMap {
+    param([object]$Ledger)
+    $map = @{}
+    if ($null -eq $Ledger) { return $map }
+    foreach ($entry in @($Ledger.Entries)) { $map["$($entry.Path)|$($entry.Name)"] = $entry }
+    return $map
+}
+
+function Save-RegistryAppliedState {
+    # 在一节（Core/System）全部写入并验证成功后调用：把当前值记成“工具写入值”。
+    # 只记实际存在的值；原本不存在的值由“删除”动作处理，不需要账本。
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('Core', 'System')][string]$Section,
+        [Parameter(Mandatory = $true)][object[]]$Definitions
+    )
+    try {
+        $existing = @()
+        if (Test-Path -LiteralPath $script:registryAppliedFile -PathType Leaf) {
+            try {
+                $current = Get-Content -LiteralPath $script:registryAppliedFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+                if (Test-RegistryAppliedSchema $current) { $existing = @($current.Entries) }
+            } catch { $existing = @() }
+        }
+        $map = @{}
+        foreach ($entry in $existing) { $map["$($entry.Path)|$($entry.Name)"] = $entry }
+        $now = (Get-Date).ToString('o')
+        foreach ($def in $Definitions) {
+            $snapshot = Get-MpoValueSnapshot $def
+            if (-not [bool]$snapshot.Exists) { continue }
+            $key = "$($snapshot.Path)|$($snapshot.Name)"
+            $data = if ($snapshot.Kind -eq 'DWord') { [string][uint32]$snapshot.Data } else { [string]$snapshot.Data }
+            $map[$key] = [pscustomobject][ordered]@{
+                Path      = $snapshot.Path
+                Name      = $snapshot.Name
+                Kind      = $snapshot.Kind
+                Data      = $data
+                Section   = $Section
+                Label     = "$($def.Desc)"
+                AppliedAt = $now
+            }
+        }
+        $ledger = [pscustomobject][ordered]@{
+            Version   = 1
+            Binding   = (Get-BackupMachineId)
+            UpdatedAt = $now
+            Entries   = @($map.Values | Sort-Object Path, Name)
+        }
+        if (-not (Test-RegistryAppliedSchema $ledger)) { throw '生成的写入账本未通过结构校验' }
+        Write-TweakAtomicTextFile -Path $script:registryAppliedFile -Content ($ledger | ConvertTo-Json -Depth 6) -Overwrite
+        return $true
+    } catch {
+        Write-Host "[WARN] 记录本次写入值失败：$($_.Exception.Message)；下次还原将退回快照盲恢复。" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 function Restore-RegistryBackupRecords {
-    param([object[]]$Records, [string]$SectionLabel = '注册表')
+    param([object[]]$Records, [string]$SectionLabel = '注册表', [hashtable]$AppliedMap = @{}, [switch]$Force)
+    if ($null -eq $script:registryRestoreStats) {
+        $script:registryRestoreStats = [ordered]@{ Restored = 0; AlreadyOriginal = 0; Conflict = 0; Forced = 0; Legacy = 0; Failed = 0 }
+    }
     $allOk = $true
     foreach ($r in $Records) {
         $before = $script:fail
+        $key = "$($r.Path)|$($r.Name)"
+        $current = Get-MpoValueSnapshot @{ Path = $r.Path; Name = $r.Name }
+        if (Test-RegistrySnapshotEqualsOriginal $current $r) {
+            Write-Host ("[SKIP] {0} {1} 已处于原始值，无需恢复。" -f $SectionLabel, $r.Name) -ForegroundColor DarkGray
+            $script:skip++
+            $script:registryRestoreStats.AlreadyOriginal++
+            continue
+        }
+        $hasApplied = $AppliedMap.ContainsKey($key)
+        if ($hasApplied -and -not $Force) {
+            $applied = $AppliedMap[$key]
+            if (-not (Test-RegistrySnapshotMatchesApplied $current $applied)) {
+                Write-Host ("[SKIP] {0} {1}：优化后又被用户或其他程序修改（当前 {2}，工具写入 {3}）；为不覆盖后续修改，本次不还原。需要强制覆盖请加 -Force。" -f `
+                    $SectionLabel, $r.Name, $current.Data, $applied.Data) -ForegroundColor Yellow
+                $script:skip++
+                $script:registryRestoreStats.Conflict++
+                continue
+            }
+        }
+        if ($hasApplied -and $Force) { $script:registryRestoreStats.Forced++ }
+        if (-not $hasApplied) { $script:registryRestoreStats.Legacy++ }
         if (-not [bool]$r.Exists) {
             Remove-RegDwordValue $r.Path $r.Name ("还原 $SectionLabel " + $r.Name + "（删除恢复系统默认）")
             # P1-4: 若父键原本不存在，且删除该值后父键变为空键（无值且无子键），安全清理该空键
@@ -165,8 +330,10 @@ function Restore-RegistryBackupRecords {
         }
         if ($script:fail -gt $before) {
             $allOk = $false
+            $script:registryRestoreStats.Failed++
             break
         }
+        $script:registryRestoreStats.Restored++
     }
     return $allOk
 }
@@ -223,8 +390,10 @@ function Ensure-RegistryBackup {
 
 function Restore-RegistryBackup {
     # Section：Core=子项1 的值，System=子项2 的值，All=两者
+    # Force：忽略“优化后被其他程序修改”的冲突，强制写回首次快照
     param([string]$Section = 'All', [object[]]$CoreDefinitions = $script:registryCoreValues,
-        [object[]]$SystemDefinitions = $script:registrySystemValues)
+        [object[]]$SystemDefinitions = $script:registrySystemValues, [switch]$Force)
+    $script:registryRestoreStats = [ordered]@{ Restored = 0; AlreadyOriginal = 0; Conflict = 0; Forced = 0; Legacy = 0; Failed = 0 }
     if (-not (Test-Path $script:registryBackupFile)) { Write-Host '[FAIL] 未找到 registry-backup.json，拒绝声称已恢复。' -ForegroundColor Red; $script:fail++; return $false }
     try {
         $backup = Get-Content $script:registryBackupFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
@@ -246,13 +415,21 @@ function Restore-RegistryBackup {
                     @{ Records = @($backup.System); Label = '系统行为优化' }
                 ) }
         }
+        $ledger = Read-RegistryAppliedLedger
+        $appliedMap = Get-RegistryAppliedEntryMap $ledger
         $allOk = $true
         foreach ($sec in $sections) {
-            $secOk = Restore-RegistryBackupRecords -Records $sec.Records -SectionLabel $sec.Label
+            $secOk = Restore-RegistryBackupRecords -Records $sec.Records -SectionLabel $sec.Label -AppliedMap $appliedMap -Force:$Force
             if (-not $secOk) {
                 $allOk = $false
                 break
             }
+        }
+        $stats = $script:registryRestoreStats
+        Write-Host ("[INFO] 注册表还原统计：恢复 {0} 项，已为原值 {1} 项，冲突跳过 {2} 项，强制覆盖 {3} 项，旧版无账本 {4} 项。" -f `
+            $stats.Restored, $stats.AlreadyOriginal, $stats.Conflict, $stats.Forced, $stats.Legacy) -ForegroundColor Cyan
+        if ($stats.Conflict -gt 0) {
+            Write-Host ("[WARN] 有 {0} 项在优化后被用户或其他程序修改，已保留当前值；确认要覆盖时请用 -Force 重新执行。" -f $stats.Conflict) -ForegroundColor Yellow
         }
         if ($allOk) { Write-Host '[OK] 核心/系统优化已按修改前快照恢复；Memory Compression 与 TRIM 不在本快照范围内。' -ForegroundColor Green }
         else { Write-Host '[WARN] 注册表恢复未完全成功，请复查输出中的 FAIL 项。' -ForegroundColor Yellow }

@@ -107,6 +107,7 @@ function Invoke-RegistryModule {
         if ($operationOk) {
             $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10 "TdrDelay"
         }
+        if ($operationOk) { $null = Save-RegistryAppliedState -Section Core -Definitions $script:registryCoreValues }
         if (-not $operationOk) { Write-Host '[FAIL] 核心游戏优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }
 
     } elseif ($coreChoice -eq '2') {
@@ -196,6 +197,7 @@ function Invoke-RegistryModule {
         if ($operationOk) {
             $operationOk = Verify-TrimEnabled
         }
+        if ($operationOk) { $null = Save-RegistryAppliedState -Section System -Definitions $script:registrySystemValues }
         if (-not $operationOk) { Write-Host '[FAIL] 系统行为优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }
 
     } elseif ($coreChoice -eq '3') {

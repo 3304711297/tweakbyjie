@@ -16,6 +16,7 @@ nvme-backup.json
 defender-policy-backup.json
 vbs-backup.json
 registry-backup.json
+registry-applied.json
 msi-backup.json
 hibernate-backup.json
 

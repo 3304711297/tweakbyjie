@@ -113,6 +113,7 @@ $script:defenderPolicyBackupFile = Join-Path $PSScriptRoot 'defender-policy-back
 $script:vbsBackupFile = Join-Path $PSScriptRoot 'vbs-backup.json'
 $script:driverBlocklistBackupFile = Join-Path $PSScriptRoot 'driver-blocklist-backup.json'
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
+$script:registryAppliedFile = Join-Path $PSScriptRoot 'registry-applied.json'
 $script:msiBackupFile = Join-Path $PSScriptRoot 'msi-backup.json'
 $script:hibernateBackupFile = Join-Path $PSScriptRoot 'hibernate-backup.json'
 # EFI 清理状态：记录原始 bootsequence 与脚本实际创建的 EFI 文件，避免盲删用户数据。
@@ -149,6 +150,7 @@ $__tweakModules = @(
     'Modules/Virtualization.ps1',
     'Modules/Msi.ps1',
     'Modules/Hibernate.ps1',
+    'Modules/Diagnostics.ps1',
     'Modules/Pagefile.ps1',
     'scripts/preflight.ps1',
     'Modules/Menu.ps1'

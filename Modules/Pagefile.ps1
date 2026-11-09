@@ -368,9 +368,9 @@ function Invoke-PagefileModule {
     }
 
     Write-Host ""
-    Write-Host "============ [虚拟内存] 只读诊断与个性化配置建议指引 ============" -ForegroundColor Cyan
+    Write-Host "============ [虚拟内存 / 系统体检] 只读诊断与个性化配置建议指引 ============" -ForegroundColor Cyan
     Write-Host "【重要声明】本模块严格遵循只读原则，绝不自动化修改系统虚拟内存/页面文件！" -ForegroundColor Yellow
-    Write-Host "            尊重不同机型硬件配置与个人分区习惯，提供权威指引与手动参考。" -ForegroundColor Gray
+    Write-Host "            同时执行 PCIe 链路、VC++ 运行库、内存频率与 NVIDIA App 自动优化体检。" -ForegroundColor Gray
     Write-Host ""
 
     # 1. 采集状态
@@ -428,8 +428,12 @@ function Invoke-PagefileModule {
     Write-Host ""
     Write-Host "[OK] 只读诊断与配置建议完成；未对系统做任何变更。" -ForegroundColor Green
 
+    # 6. 硬件与运行库体检（只读）：PCIe 链路 / VC++ v14 / 内存频率 / NVIDIA App 自动优化
+    $health = Invoke-SystemHealthReport
+
     return [pscustomobject]@{
         Status          = $status
         Recommendations = $rec
+        Health          = $health
     }
 }
