@@ -16,6 +16,9 @@
 #   输入 11 回车 = MPO 设置管理（三方案互斥，修改前备份，可恢复）
 #   输入 12 回车 = 竞技游戏网络 QoS 策略管理（DSCP 46 优先标记，修改前备份，可恢复）
 #   输入 13 回车 = PCIe 设备 MSI 中断模式管理（GPU/网卡/NVMe 消息信号中断，修改前备份，可恢复）
+#   输入 14 回车 = 系统休眠与快速启动管理（关闭/恢复，修改前快照）
+#   输入 15 回车 = 系统体检与虚拟内存建议（只读：PCIe/VC++/内存频率/NVIDIA App）
+#   输入 16 回车 = 着色器缓存扫描与清理（维护项，缓存可再生，不产生备份）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
@@ -152,6 +155,7 @@ $__tweakModules = @(
     'Modules/Hibernate.ps1',
     'Modules/Diagnostics.ps1',
     'Modules/Pagefile.ps1',
+    'Modules/ShaderCache.ps1',
     'scripts/preflight.ps1',
     'Modules/Menu.ps1'
 )
@@ -180,7 +184,7 @@ function ConvertTo-TweakActionMap {
     if ([string]::IsNullOrWhiteSpace($ActionText)) { return $map }
     foreach ($token in ($ActionText -split '[,;，；\s]+')) {
         if ([string]::IsNullOrWhiteSpace($token)) { continue }
-        if ($token -notmatch '^(?<module>0|[1-9]|1[0-5])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
+        if ($token -notmatch '^(?<module>0|[1-9]|1[0-6])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
             throw "无效 -Action 项 '$token'；格式应为 <模块编号>=<子操作>，例如 12=1"
         }
         $module = $Matches['module']
@@ -194,7 +198,7 @@ function ConvertTo-TweakActionMap {
 function Get-TweakActionRequiredModules {
     # 这些入口内部还有 Read-Host 子菜单；CLI 必须明确给出动作，否则直接失败而不是挂起。
     # 3/4 虽然只有单一路径，也要求显式动作，防止无人值守队列误触发 BCD 安全修改。
-    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14')
+    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16')
 }
 
 if ($__isScript) {
@@ -206,7 +210,7 @@ if ($__isScript) {
     }
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
     $script:TweakNonInteractive = [bool]($NonInteractive -or ($RunModule -and $RunModule.Trim()))
-    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15')
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
         try {

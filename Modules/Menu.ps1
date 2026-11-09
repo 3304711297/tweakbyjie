@@ -39,6 +39,7 @@ Write-Host ("  12. 竞技游戏网络 QoS 策略管理（DSCP 46 数据包优先
 Write-Host ("  13. PCIe 设备 MSI 中断模式管理（GPU/网卡/NVMe 消息信号中断）{0}" -f (Format-MenuAvailabilitySuffix '13' $__avail)) -ForegroundColor White
 Write-Host ("  14. 系统休眠与快速启动管理（关闭释放空间 / 恢复）{0}" -f (Format-MenuAvailabilitySuffix '14' $__avail)) -ForegroundColor White
 Write-Host ("  15. 系统体检与虚拟内存建议（只读：PCIe / VC++ / 内存频率 / NVIDIA App）{0}" -f (Format-MenuAvailabilitySuffix '15' $__avail)) -ForegroundColor White
+Write-Host ("  16. 着色器缓存扫描与清理（维护项，不可还原）{0}" -f (Format-MenuAvailabilitySuffix '16' $__avail)) -ForegroundColor White
 Write-Host ""
 Write-Host "提示：一次运行可以连续执行多个模块；修改完成后统一选择是否重启。" -ForegroundColor Yellow
 Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow
@@ -53,14 +54,14 @@ if ($__autoMode -and $__queue.Count -eq 0) {
     Write-Host ""
     Write-Host ("[AUTO] 自动执行模块 " + $choice) -ForegroundColor Cyan
 } else {
-    $choice = Read-Host "请输入 0-15 并回车 (Enter 0-15)"
+    $choice = Read-Host "请输入 0-16 并回车 (Enter 0-16)"
 }
 
 if ($choice -eq "0") {
     Invoke-FinalRestartPrompt
     break
 
-    } elseif ($choice -match '^[1-9]$|^1[0-5]$') {
+    } elseif ($choice -match '^[1-9]$|^1[0-6]$') {
         # 按模块前置条件灰掉：不可用模块在选择/队列执行时统一拒绝，不进入执行函数
         $entry = $__avail[$choice]
         if ($entry -and -not $entry.Available) {
@@ -94,13 +95,14 @@ if ($choice -eq "0") {
             '13' { Invoke-MsiModule -Action $__action }
             '14' { Invoke-HibernateModule -Action $__action }
             '15' { Invoke-PagefileModule -Action $__action }
+            '16' { Invoke-ShaderCacheModule -Action $__action }
         }
         if ($__autoMode -and ($script:fail -gt $__beforeModuleFail -or @($__moduleResult | Where-Object { $_ -is [bool] -and -not $_ }).Count -gt 0)) {
             Write-Host '[AUTO] 模块执行失败，已停止后续队列，避免在失败状态下继续写入。' -ForegroundColor Red
             break
         }
     } else {
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-15 / Invalid input. Enter 0-15." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-16 / Invalid input. Enter 0-16." -ForegroundColor Red
 }
 }
 }

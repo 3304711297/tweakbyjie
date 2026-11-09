@@ -845,6 +845,25 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 16：着色器缓存扫描与清理（选项 16）
+
+维护项，**不产生快照**。缓存是可再生数据：清理后由驱动/游戏自动重建，因此不提供“还原”，也不应把它当成可回滚的优化项。
+
+**扫描范围**（仅系统与显卡驱动目录，不触碰游戏安装目录）：
+- `%LOCALAPPDATA%\D3DSCache`
+- `%LOCALAPPDATA%\NVIDIA\DXCache`、`%LOCALAPPDATA%\NVIDIA\GLCache`、`%ProgramData%\NVIDIA Corporation\NV_Cache`
+- `%LOCALAPPDATA%\AMD\DxCache`、`%LOCALAPPDATA%\AMD\DxcCache`
+- `%LOCALAPPDATA%\Intel\ShaderCache`
+
+**安全边界**：
+- 逐个删除文件而不是删除目录（目录可能被驱动持有，删掉要重启才重建）；
+- 枚举时拒绝重解析点（目录联接/符号链接），避免越界删除；
+- 单个文件被占用只计入失败数，不中断其余删除。
+
+**适用症状**：游戏大版本更新后「每隔十几秒卡 2~3 秒」这类社区普遍指向缓存错位的问题。清理后首次进游戏会重新编译着色器，头一两局可能更卡；若掉帧不是从更新后才开始的，本项大概率无效。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。
