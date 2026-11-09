@@ -20,6 +20,7 @@
 #   输入 15 回车 = 系统体检与虚拟内存建议（只读：PCIe/VC++/内存频率/NVIDIA App）
 #   输入 16 回车 = 着色器缓存扫描与清理（维护项，缓存可再生，不产生备份）
 #   输入 17 回车 = 游戏 exe 配置（禁用全屏优化 / 高性能 GPU / CPU 高优先级，修改前快照）
+#   输入 18 回车 = 帧率测量（PresentMon 基线/变更后/对比；缺失时可自动下载）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
@@ -134,6 +135,10 @@ $script:driverBlocklistBackupFile = Join-Path $PSScriptRoot 'driver-blocklist-ba
 $script:registryBackupFile = Join-Path $PSScriptRoot 'registry-backup.json'
 $script:registryAppliedFile = Join-Path $PSScriptRoot 'registry-applied.json'
 $script:gameExeBackupFile = Join-Path $PSScriptRoot 'game-exe-backup.json'
+$script:presentMonDir = Join-Path $PSScriptRoot 'tools\PresentMon'
+$script:measureConfigFile = Join-Path $PSScriptRoot 'measure-config.json'
+$script:measureBaselineFile = Join-Path $PSScriptRoot 'measure-baseline.json'
+$script:measureAfterFile = Join-Path $PSScriptRoot 'measure-after.json'
 $script:msiBackupFile = Join-Path $PSScriptRoot 'msi-backup.json'
 $script:hibernateBackupFile = Join-Path $PSScriptRoot 'hibernate-backup.json'
 # EFI 清理状态：记录原始 bootsequence 与脚本实际创建的 EFI 文件，避免盲删用户数据。
@@ -174,6 +179,7 @@ $__tweakModules = @(
     'Modules/Pagefile.ps1',
     'Modules/ShaderCache.ps1',
     'Modules/GameExe.ps1',
+    'Modules/PresentMon.ps1',
     'scripts/preflight.ps1',
     'Modules/Menu.ps1'
 )
@@ -202,7 +208,7 @@ function ConvertTo-TweakActionMap {
     if ([string]::IsNullOrWhiteSpace($ActionText)) { return $map }
     foreach ($token in ($ActionText -split '[,;，；\s]+')) {
         if ([string]::IsNullOrWhiteSpace($token)) { continue }
-        if ($token -notmatch '^(?<module>0|[1-9]|1[0-7])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
+        if ($token -notmatch '^(?<module>0|[1-9]|1[0-8])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
             throw "无效 -Action 项 '$token'；格式应为 <模块编号>=<子操作>，例如 12=1"
         }
         $module = $Matches['module']
@@ -216,7 +222,7 @@ function ConvertTo-TweakActionMap {
 function Get-TweakActionRequiredModules {
     # 这些入口内部还有 Read-Host 子菜单；CLI 必须明确给出动作，否则直接失败而不是挂起。
     # 3/4 虽然只有单一路径，也要求显式动作，防止无人值守队列误触发 BCD 安全修改。
-    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17')
+    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17','18')
 }
 
 if ($__isScript) {
@@ -248,7 +254,7 @@ if ($__isScript) {
     }
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
     $script:TweakNonInteractive = [bool]($NonInteractive -or ($RunModule -and $RunModule.Trim()))
-    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17')
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
         try {

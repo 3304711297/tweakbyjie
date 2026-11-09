@@ -117,6 +117,17 @@
       "last_synced_commits": {
         "main": "9fab79d"
       }
+    },
+    "PresentMon": {
+      "repo": "GameTechDev/PresentMon",
+      "last_synced_release": "v2.6.0",
+      "description": "PresentMon 控制台采集器（模块 18 的帧时间数据源；随仓库分发 v2.6.0 x64 exe，Intel 签名，SHA256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af；不自动下载。看门只跟踪上游 release/commit，升级时手动替换二进制并更新 tools/PresentMon/presentmon.json）",
+      "branches": [
+        "main"
+      ],
+      "last_synced_commits": {
+        "main": "362f2d9"
+      }
     }
   },
   "blocked": {

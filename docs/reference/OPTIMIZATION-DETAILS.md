@@ -880,6 +880,24 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 18：帧率测量（选项 18）
+
+用仓库内置的 PresentMon v2.6.0 采集同一场景的帧时间，做基线/变更后对比。**不下载任何二进制**；`tools\PresentMon\PresentMon.exe` 随仓库分发（Intel 签名，MIT）。
+
+**流程**：
+1. **基线（1）**：输入进程名（如 `game.exe`）与秒数（默认 120），PresentMon 采集到 `measure-baseline.csv`；
+2. **变更后（2）**：同场景、同画质、同路线再采一次，保存 `measure-after.csv`；
+3. **对比（3）**：计算平均 FPS、1% Low（1000 / P99 帧时间）、P99 帧时间、中位帧时间、卡顿次数（>2× 中位）与每分钟卡顿。
+
+**判定（单轮 MVP）**：1% Low 提升 ≥5% 且平均 FPS 不低于 -2% 且卡顿不增加 >20% → `improved`；平均 FPS ≤-4% 或 1% Low ≤-5% → `regressed`；其余 `inconclusive`。单轮受场景、温度与后台影响，建议重复 3 次。
+
+**边界**：
+- 只采集，不改任何设置；`measure-*.json/csv` 不进入备份快照；
+- 需要完整仓库 ZIP；单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon`；
+- PresentMon 需要“Performance Log Users”权限；若提示 access denied，按官方 README 把当前用户加入该组后重新登录。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。

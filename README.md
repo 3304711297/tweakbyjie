@@ -78,6 +78,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **15** | **系统体检与虚拟内存建议** | 只读体检 PCIe 链路（x4/x8/x16）、VC++ v14 运行库缺失、内存当前/标称频率与 NVIDIA App 自动优化；另含虚拟内存分配建议与手动向导，全程只读不代改 | [Windows 虚拟内存设置指南](https://3304711297.github.io/youshouldknow/系统知识/Windows虚拟内存设置指南/) |
 | **16** | **着色器缓存扫描与清理** | 扫描 DirectX / NVIDIA / AMD / Intel 缓存目录，逐文件删除（不跟随目录联接、保留目录）；缓存可再生，不产生备份、不可还原 | [着色器缓存与清理边界](https://3304711297.github.io/youshouldknow/显卡优化/着色器缓存与清理边界/) |
 | **17** | **游戏 exe 配置** | 为指定游戏写入禁用全屏优化、高性能 GPU 首选项与 IFEO CPU 高优先级；只设 CPU（IFEO 的 IoPriority 只支持 Normal 及以下），写入前保存三项原值、可还原 | [全屏优化、窗口化游戏优化与 GPU 首选项](https://3304711297.github.io/youshouldknow/显卡优化/全屏优化与窗口化游戏优化/) |
+| **18** | **帧率测量（PresentMon）** | 仓库内置 PresentMon v2.6.0（Intel 签名，MIT），采集同一场景的基线/变更后帧时间，比较平均 FPS、1% Low、P99 与卡顿；单轮 MVP 明确提示噪声 | [游戏性能验证流程](https://3304711297.github.io/youshouldknow/项目导航/游戏性能验证流程/) |
 
 ---
 
@@ -198,7 +199,10 @@ tweakbyjie/
 │   ├── Pagefile.ps1         # 模块 15: 虚拟内存只读诊断与调优建议指引
 │   ├── ShaderCache.ps1      # 模块 16: 着色器缓存扫描与清理（维护项，不可还原）
 │   ├── GameExe.ps1          # 模块 17: 游戏 exe 配置（FSO / GPU 首选项 / IFEO CPU 优先级）
+│   ├── PresentMon.ps1       # 模块 18: 帧率测量（PresentMon 采集 / 基线对比）
 │   └── Menu.ps1             # 104 行高内聚纯菜单调度链
+├── tools/
+│   └── PresentMon/          # 模块 18 内置 PresentMon v2.6.0（Intel 签名，MIT）
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
 └── ultimate-performance.pow # 超性能电源计划源文件 (SHA256 校验保障)
 ```
@@ -238,6 +242,7 @@ Invoke-Pester -Path .\tests\
 | 工具 | 仓库 | 用途 |
 | :--- | :--- | :--- |
 | **ViVeTool** | [thebookisclosed/ViVe](https://github.com/thebookisclosed/ViVe) | 菜单 8「原生 NVMe 驱动」依赖其 A/B 特性开关能力（特性 ID 60786016 + 48433719）；未检测到时该菜单项自动灰掉 |
+| **PresentMon** (v2.6.0) | [GameTechDev/PresentMon](https://github.com/GameTechDev/PresentMon) | 模块 18 的帧时间采集器；随仓库分发 `tools/PresentMon/PresentMon.exe`（SHA256 `b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af`，Intel 签名，MIT），不自动下载 |
 
 > 上游清单（含同步的 commit 与版本号）以机器可读格式维护在 `tools/upstream-sources.json`。新增采纳来源时需同步更新该文件并接入看门 CI，保持文档、清单与 CI 三方一致。
 

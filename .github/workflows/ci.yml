@@ -229,7 +229,8 @@ jobs:
             SKILL.md \
             LICENSE \
             Modules \
-            scripts
+            scripts \
+            tools/PresentMon
           sha256sum "tweakbyjie-${V}.zip" > SHA256SUMS.txt
       - name: Create GitHub Release with generated notes
         env:

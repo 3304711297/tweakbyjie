@@ -58,6 +58,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 日志 | `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log` |
 | 检测 JSON | 单个对象：`schemaVersion`、`os`、`cpu`、`gpu`、`memory`、`health` |
 | 输出编码 | `-Detect -Json` 输出纯 ASCII（非 ASCII 转 `\uXXXX`），任何代码页都能解析 |
+| PresentMon | `tools\PresentMon\PresentMon.exe`（v2.6.0，Intel 签名，随仓库分发） |
 | 健康项 | `health.results[].status` 为 `OK` / `Attention` / `Info` / `N/A` |
 | 高风险放行 | 仅 `-AcceptDefaults`，且必须有用户对该项风险的明确同意 |
 
@@ -92,6 +93,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 15 | 系统体检 + 虚拟内存建议 | 否 | 纯只读；`-RunModule 15` 直接运行 |
 | 16 | 着色器缓存扫描 / 清理 | 是 | 维护项；缓存可再生，不产生快照 |
 | 17 | 游戏 exe 配置（FSO/GPU/CPU） | 是 | 保存三项原值；不写无效的 IFEO IoPriority |
+| 18 | 帧率测量（PresentMon） | 是 | 1=基线 2=变更后 3=对比 4=状态；PresentMon 随仓库分发，不下载 |
 
 ## Red Lines
 
@@ -109,6 +111,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 - 快照与 `MachineGuid` 绑定，跨机器复制会被拒绝。
 - 模块 1 的还原会跳过“优化后又被其他程序修改”的项并保留当前值；`-Force` 只应在用户明确要求覆盖时使用（菜单未开放）。
 - 模块 1 的 Memory Compression 与 TRIM 不在注册表快照范围内；模块 16 按设计没有快照。
+- 模块 18 需要完整仓库 ZIP：单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon\PresentMon.exe`；测量为单轮 MVP，必须在同场景、同画质、同路线下重复 3 次再下结论。
 - 退出码 `5` 是部分失败：逐项读输出，不要盲目重试。
 
 ## Verification

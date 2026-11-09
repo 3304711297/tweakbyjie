@@ -95,7 +95,7 @@ function Get-TweakModuleAvailability {
 
     $p = if ($Preflight) { $Preflight } else { Get-TweakPreflight }
     $avail = @{}
-    for ($i = 1; $i -le 17; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
+    for ($i = 1; $i -le 18; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
 
     if ($p.SecureBoot -eq $true) {
         foreach ($n in @('3', '4')) {

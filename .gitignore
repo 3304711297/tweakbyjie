@@ -18,6 +18,10 @@ vbs-backup.json
 registry-backup.json
 registry-applied.json
 game-exe-backup.json
+measure-config.json
+measure-baseline.json
+measure-after.json
+measure-*.csv
 msi-backup.json
 hibernate-backup.json
 
