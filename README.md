@@ -120,7 +120,7 @@ Agent 应先用只读检测获取机器状态，再决定是否修改：
 pwsh -NoProfile -File .\tweakbyjie.ps1 -Detect -Json
 ```
 
-- `-Detect` 只读、不需要管理员、不启动会话日志；`-Json` 只输出一个 JSON 对象到 stdout，便于解析；
+- `-Detect` 只读、不需要管理员、不启动会话日志；`-Json` 只输出一个 JSON 对象到 stdout（纯 ASCII，非 ASCII 转 `\uXXXX`，避免代码页截断），便于解析；
 - 返回 `schemaVersion` / `os` / `cpu` / `gpu` / `memory` / `health`，其中 `health.results[].status` 为 `OK` / `Attention` / `Info` / `N/A`；
 - `-Detect` 不能与 `-RunModule` / `-Action` / `-NonInteractive` / `-AcceptDefaults` 组合；`-Json` 只能与 `-Detect` 组合；
 - 面向 Agent 的完整操作契约（模块动作、红线、退出码）见仓库根 [`SKILL.md`](./SKILL.md)。

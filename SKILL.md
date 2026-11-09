@@ -57,6 +57,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 退出码 | `0` 成功/无失败；`2` 参数错误；`4` 全项失败；`5` 部分失败 |
 | 日志 | `%LOCALAPPDATA%\tweakbyjie\logs\session-*.log` |
 | 检测 JSON | 单个对象：`schemaVersion`、`os`、`cpu`、`gpu`、`memory`、`health` |
+| 输出编码 | `-Detect -Json` 输出纯 ASCII（非 ASCII 转 `\uXXXX`），任何代码页都能解析 |
 | 健康项 | `health.results[].status` 为 `OK` / `Attention` / `Info` / `N/A` |
 | 高风险放行 | 仅 `-AcceptDefaults`，且必须有用户对该项风险的明确同意 |
 

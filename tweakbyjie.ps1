@@ -224,8 +224,16 @@ if ($__isScript) {
         # 只读检测：不启动 transcript、不写任何设置；JSON 模式必须只输出 JSON。
         try {
             $__detectReport = Get-TweakDetectReport
-            if ($Json) { $__detectReport | ConvertTo-Json -Depth 8 }
-            else { Write-TweakDetectReportText $__detectReport }
+            if ($Json) {
+                # 纯 ASCII JSON：Windows PowerShell 5.1 的默认重定向/管道编码是 ANSI，
+                # 含中文的 JSON 交给外部 Agent 解析会坏掉；非 ASCII 统一转 \uXXXX。
+                [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+                $__json = ConvertTo-TweakJsonAscii $__detectReport
+                [Console]::Out.Write($__json)
+                [Console]::Out.Write("`n")
+            } else {
+                Write-TweakDetectReportText $__detectReport
+            }
             exit 0
         } catch {
             Write-Host ("[ERROR] 检测失败：{0}" -f $_.Exception.Message) -ForegroundColor Red

@@ -266,6 +266,30 @@ function Invoke-SystemHealthReport {
     return $report
 }
 
+function ConvertTo-TweakJsonAscii {
+    <#
+    .SYNOPSIS
+        把对象序列化成纯 ASCII 的 JSON（非 ASCII 字符转 \uXXXX）。
+    .DESCRIPTION
+        Agent 通过管道/重定向捕获 stdout 时，控制台代码页可能截断多字节字符；
+        纯 ASCII 输出在任何代码页下都能被完整捕获并解析。
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][object]$InputObject)
+
+    $json = $InputObject | ConvertTo-Json -Depth 8
+    $builder = [System.Text.StringBuilder]::new($json.Length + 64)
+    foreach ($ch in $json.ToCharArray()) {
+        $code = [int]$ch
+        if ($code -lt 0x80) {
+            [void]$builder.Append($ch)
+        } else {
+            [void]$builder.Append(('\u{0:X4}' -f $code))
+        }
+    }
+    return $builder.ToString()
+}
+
 function Get-TweakDetectReport {
     <#
     .SYNOPSIS
