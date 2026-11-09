@@ -109,8 +109,8 @@
     },
     "Delta-Force-Graphics-Optimizer": {
       "repo": "Leonard8818/-Delta-Force-Graphics-Optimizer",
-      "last_synced_release": "v0.23.0.13",
-      "description": "三角洲行动画面优化助手（公开源码停在 v0.23.0.13，Release 已到 v0.23.0.52；只按公开源码吸收机制，不运行其二进制）。吸收：选择性还原的冲突检测设计（记录工具写入值→还原前比对→检测到后续修改则拒绝覆盖）→ Modules/Backup.Registry.ps1；只读体检四项的实现思路（PCIe 链路/VC++ v14/内存频率/NVIDIA App 自动优化）→ Modules/Diagnostics.ps1（模块 15）。未采纳：显卡型号伪装、隐藏电源项、自动调优状态机、遥测与 PawnIO 内核驱动",
+      "last_synced_release": "v0.23.0.52",
+      "description": "三角洲行动画面优化助手（已评估 Release v0.23.0.52；公开源码仍停在 v0.23.0.13，二进制不与源码同步。只按公开源码吸收机制，不运行其二进制）。吸收：选择性还原的冲突检测设计（记录工具写入值→还原前比对→检测到后续修改则拒绝覆盖）→ Modules/Backup.Registry.ps1；只读体检四项的实现思路（PCIe 链路/VC++ v14/内存频率/NVIDIA App 自动优化）→ Modules/Diagnostics.ps1（模块 15）。未采纳：显卡型号伪装、隐藏电源项、自动调优状态机、遥测与 PawnIO 内核驱动",
       "branches": [
         "main"
       ],
@@ -121,7 +121,8 @@
     "PresentMon": {
       "repo": "GameTechDev/PresentMon",
       "last_synced_release": "v2.6.0",
-      "description": "PresentMon 控制台采集器（模块 18 的帧时间数据源；随仓库分发 v2.6.0 x64 exe，Intel 签名，SHA256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af；不自动下载。看门只跟踪上游 release/commit，升级时手动替换二进制并更新 tools/PresentMon/presentmon.json）",
+      "track_new_branches": false,
+      "description": "PresentMon 控制台采集器（模块 18 的帧时间数据源；随仓库分发 v2.6.0 x64 exe，Intel 签名，SHA256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af；不自动下载。看门只跟踪 main 与 release，不跟踪上游开发分支；升级时手动替换二进制并更新 tools/PresentMon/presentmon.json）",
       "branches": [
         "main"
       ],

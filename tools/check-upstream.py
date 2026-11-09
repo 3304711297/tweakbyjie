@@ -145,11 +145,12 @@ def check_source(name, cfg):
         updates.append({"type": "branch-update", "branch": branch, "base": base,
                         "commits": commits, "detail": f"{len(commits)} 个新提交"})
 
-    for branch, head_sha in remote_map.items():
-        if branch and branch not in branches:
-            updates.append({"type": "branch-new", "branch": branch, "base": "",
-                            "commits": [head_commit_info(repo, head_sha)],
-                            "detail": "远端新出现的分支（尚未纳入基线）"})
+    if cfg.get("track_new_branches", True):
+        for branch, head_sha in remote_map.items():
+            if branch and branch not in branches:
+                updates.append({"type": "branch-new", "branch": branch, "base": "",
+                                "commits": [head_commit_info(repo, head_sha)],
+                                "detail": "远端新出现的分支（尚未纳入基线）"})
 
     release_data = api_get(f"https://api.github.com/repos/{repo}/releases/latest")
     latest_release = release_data.get("tag_name", "") if release_data else ""
