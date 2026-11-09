@@ -864,6 +864,22 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 17：游戏 exe 配置（选项 17）
+
+为单个游戏写入三项，写入前分别保存原值，可逐项还原：
+
+- **禁用全屏优化**：`HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers`，值名 = 游戏 exe 完整路径，数据 `~ DISABLEDXMAXIMIZEDWINDOWEDMODE`；
+- **高性能 GPU 首选项**：`HKCU\Software\Microsoft\DirectX\UserGpuPreferences`，值名 = exe 路径，数据 `GpuPreference=2;`；
+- **CPU 高优先级**：`HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\<exe>\PerfOptions` 的 `CpuPriorityClass=3`。
+
+**边界**：
+- **不写 `IoPriority`**：IFEO 的 IoPriority 只支持 Normal 及以下，写 3 会被回落为 Normal，属于无效写入；
+- 只接受真实存在的 `.exe`，拒绝 Windows 目录与重解析点；
+- 还原时原本不存在的值删除，工具创建的空键一并清理；
+- 优先级在进程启动时读取，应用/还原后需重启游戏。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。
