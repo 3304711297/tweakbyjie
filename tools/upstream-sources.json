@@ -60,13 +60,14 @@
     "Win11Tuned": {
       "repo": "Kaciras/Win11Tuned",
       "last_synced_release": "v1.4.0",
-      "description": "Win11Tuned v1.4.0 (Windows 11 调优参考，菜单 1 MRT推送阻断/Explorer搜索建议/PerfDiag日志/NTFS访问时间优化)",
+      "description": "Win11Tuned v1.4.0 (Windows 11 调优参考，菜单 1 MRT推送阻断/Explorer搜索建议/PerfDiag日志/NTFS访问时间优化)；af76b2c→859676c 区间 7 项提交（issue #13）评估后 0 项吸收，逐条判据与原因见 note",
       "branches": [
         "master"
       ],
       "last_synced_commits": {
-        "master": "af76b2c"
-      }
+        "master": "859676c"
+      },
+      "note": "2026-11-11 评估 Kaciras/Win11Tuned af76b2c→859676c 共 7 项提交（issue #13）。① d6ce323 migrate to MSTest v4：仅改 Test/*.cs 断言 API（ThrowsException→Throws、[ExpectedException]/[DataTestMethod]→[TestMethod]），属上游单元测试框架迁移；② bda538d update deps：仅升级 NuGet 版本（10.0.9→10.0.12、MSTest 4.2.3→4.4.0 等）并重构 AppxRuleSet.cs 异步调用，属上游测试/项目基建；以上 2 项与本仓 PowerShell 模块化脚本无关，不采纳。③ 83fc7ce：ServiceRules.txt 将 Ndu（网络数据用量监控驱动）设为 Disabled；④ 8046b01：将 CldFlt（OneDrive 按需文件云过滤驱动）设为 Disabled，上游注释自承 rdyboost 驱动禁用会导致无法启动；⑤ ab75947：新增 NetworkComponentRule.cs 用 Get-NetAdapterBinding 从全部网卡解绑 ms_pacer（QoS Packet Scheduler），与菜单 12 DSCP 46 游戏 QoS 策略直接冲突；⑥ 859676c：GroupPolicyRules.txt 关闭 LLMNR（EnableMulticast=0）与 OneSettings 连接（DisableOneSettingsDownloads=1）；⑦ fe216be：TaskSchdulerRules.txt 禁用 FeatureConfig/UsageData 三个遥测计划任务。③—⑦ 均属粗暴停用核心系统服务/驱动/协议/计划任务，破坏系统功能且无本仓快照回滚保障，按 issue 处理建议第 3 条『排除破坏性/玄学修改』铁律一律不吸收进模块化脚本。本轮 7 项全部不采纳、0 项吸收；仅将 master 分支基线由 af76b2c 推进至 859676c。"
     },
     "windows-defender-remover": {
       "repo": "ionuttbara/windows-defender-remover",
