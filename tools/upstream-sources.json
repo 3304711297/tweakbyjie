@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "last_check": "2026-09-05T06:30:00Z",
+  "last_check": "2026-11-13",
   "sources": {
     "Kiwi-Tweaks": {
       "repo": "contactkiwitweaks-stack/Kiwi-Tweaks",
@@ -78,9 +78,10 @@
         "17-windows-11-quality-update-failed-0x800f081f"
       ],
       "last_synced_commits": {
-        "main": "6126092",
+        "main": "014363c",
         "17-windows-11-quality-update-failed-0x800f081f": "58c0da1"
-      }
+      },
+      "note": "2026-11-13 评估 ionuttbara/windows-defender-remover 6126092→014363c 共 2 项提交（13.1 / 13.1v2，issue #14）。实质增量：新增 script/DefenderBackupRestore.ps1（1109 行）与 Restore-Defender.ps1、新增 script/VBS 目录（Disable/Enable VBS.bat + Run-VBSAction.ps1）、Script_Run.ps1 +194/−44、powerrun 二进制替换。**不采纳**：① 本仓 Defender 备份还原（Ensure/Restore-DefenderPolicyBackup + 95 项 policy 架构校验）与 Part 10 虚拟化/VBS 模块已覆盖同等能力，且带快照回滚；② **合规红线**——本次 diff 显示上游删除了 LICENSE（同批还删掉 .github 模板与 ISO_Maker），授权状态不明，按「未明确许可不得复制代码」纪律，后续任何代码借鉴须先重新评估许可证，不得直接搬用。仅推进 main 基线。"
     },
     "ALit-NetworkOptimizer": {
       "repo": "xiaoX-bgs11/ALit-NetworkOptimizer",
@@ -128,8 +129,9 @@
         "main"
       ],
       "last_synced_commits": {
-        "main": "362f2d9"
-      }
+        "main": "007f1cf"
+      },
+      "note": "2026-11-13 评估 GameTechDev/PresentMon 362f2d9→007f1cf 共 3 项提交（issue #14）。5b706f1 新增 AMD FSR FG 帧类型、e4071c9 更新 ULT 文件、007f1cf 为 GUI 日志配置 UI（AppCef/Vue 的 LoggingConfigView、ApplyUiLoggingPolicy 等）。**不采纳**：三项全部落在 IntelPresentMon GUI 应用层与 SDK 枚举，本仓只用 console 采集器 exe 解析 CSV；上游最新 Release 仍为 v2.6.0（本仓内置同一版本，Intel 签名 SHA256 已登记），无新发布二进制可升级。待上游发布 v2.7.0+ 时再按既有流程替换 tools/PresentMon 二进制并更新 presentmon.json。仅推进 main 基线。"
     }
   },
   "blocked": {
