@@ -111,8 +111,8 @@
     },
     "Delta-Force-Graphics-Optimizer": {
       "repo": "Leonard8818/-Delta-Force-Graphics-Optimizer",
-      "last_synced_release": "v0.23.0.52",
-      "description": "三角洲行动画面优化助手（已评估 Release v0.23.0.52；公开源码仍停在 v0.23.0.13，二进制不与源码同步。只按公开源码吸收机制，不运行其二进制）。吸收：选择性还原的冲突检测设计（记录工具写入值→还原前比对→检测到后续修改则拒绝覆盖）→ Modules/Backup.Registry.ps1；只读体检四项的实现思路（PCIe 链路/VC++ v14/内存频率/NVIDIA App 自动优化）→ Modules/Diagnostics.ps1（模块 15）。未采纳：显卡型号伪装、隐藏电源项、自动调优状态机、遥测与 PawnIO 内核驱动",
+      "last_synced_release": "v0.23.0.53",
+      "description": "三角洲行动画面优化助手（已评估 Release v0.23.0.53；该 tag 与 v0.23.0.52 指向同一提交 9fab79d，唯一改动是 README 里网址由 df.ltz88.cn 换为 fpsbang.com，0 项可吸收；公开源码仍停在 v0.23.0.13，二进制不与源码同步。只按公开源码吸收机制，不运行其二进制）。吸收：选择性还原的冲突检测设计（记录工具写入值→还原前比对→检测到后续修改则拒绝覆盖）→ Modules/Backup.Registry.ps1；只读体检四项的实现思路（PCIe 链路/VC++ v14/内存频率/NVIDIA App 自动优化）→ Modules/Diagnostics.ps1（模块 15）。未采纳：显卡型号伪装、隐藏电源项、自动调优状态机、遥测与 PawnIO 内核驱动",
       "branches": [
         "main"
       ],
@@ -129,9 +129,9 @@
         "main"
       ],
       "last_synced_commits": {
-        "main": "007f1cf"
+        "main": "f50c407"
       },
-      "note": "2026-11-13 评估 GameTechDev/PresentMon 362f2d9→007f1cf 共 3 项提交（issue #14）。5b706f1 新增 AMD FSR FG 帧类型、e4071c9 更新 ULT 文件、007f1cf 为 GUI 日志配置 UI（AppCef/Vue 的 LoggingConfigView、ApplyUiLoggingPolicy 等）。**不采纳**：三项全部落在 IntelPresentMon GUI 应用层与 SDK 枚举，本仓只用 console 采集器 exe 解析 CSV；上游最新 Release 仍为 v2.6.0（本仓内置同一版本，Intel 签名 SHA256 已登记），无新发布二进制可升级。待上游发布 v2.7.0+ 时再按既有流程替换 tools/PresentMon 二进制并更新 presentmon.json。仅推进 main 基线。\n\n【升级触发条件（2026-11-13 记录）】仅当上游出现带 `PresentMon-x.y.z-x64.exe` 资产的**正式 Release**、且内容包含 `AMD_FSR_FG`（FrameType 101，影响开启 FSR 帧生成时的应用帧归属判定）时才替换二进制。证据：仓库存在 v2.6.1 标签（95d0312），但 `releases/tags/v2.6.1` 返回 404（无 release、无签名资产），且该标签的 8 个提交不含这 3 项修正 —— 换 2.6.1 也拿不到 FSR-FG 修正。替换后须核对 Intel 签名并把新 SHA256 写入 tools/PresentMon/presentmon.json。本轮另确认：模块 18 只解析 MsBetweenPresents 列，帧类型字符串变化不破坏解析，但开 FSR FG 采集时旧版口径不可信（升级动机而非兼容缺陷）。"
+      "note": "2026-11-13 评估 GameTechDev/PresentMon 362f2d9→007f1cf 共 3 项提交（issue #14）。5b706f1 新增 AMD FSR FG 帧类型、e4071c9 更新 ULT 文件、007f1cf 为 GUI 日志配置 UI（AppCef/Vue 的 LoggingConfigView、ApplyUiLoggingPolicy 等）。**不采纳**：三项全部落在 IntelPresentMon GUI 应用层与 SDK 枚举，本仓只用 console 采集器 exe 解析 CSV；上游最新 Release 仍为 v2.6.0（本仓内置同一版本，Intel 签名 SHA256 已登记），无新发布二进制可升级。待上游发布 v2.7.0+ 时再按既有流程替换 tools/PresentMon 二进制并更新 presentmon.json。仅推进 main 基线。\n\n【升级触发条件（2026-11-13 记录）】仅当上游出现带 `PresentMon-x.y.z-x64.exe` 资产的**正式 Release**、且内容包含 `AMD_FSR_FG`（FrameType 101，影响开启 FSR 帧生成时的应用帧归属判定）时才替换二进制。证据：仓库存在 v2.6.1 标签（95d0312），但 `releases/tags/v2.6.1` 返回 404（无 release、无签名资产），且该标签的 8 个提交不含这 3 项修正 —— 换 2.6.1 也拿不到 FSR-FG 修正。替换后须核对 Intel 签名并把新 SHA256 写入 tools/PresentMon/presentmon.json。本轮另确认：模块 18 只解析 MsBetweenPresents 列，帧类型字符串变化不破坏解析，但开 FSR FG 采集时旧版口径不可信（升级动机而非兼容缺陷）。\n\n【2026-11-20 评估 007f1cf→f50c407（issue #15）】1 提交 / 7 文件，全部为诊断日志与测试隔离：PresentMonTraceSession.cpp 为每个 provider 的 EnableTraceEx2 结果逐条记日志（此前 12 次调用共用一个 status 变量，失败被覆盖后静默）、RealtimePresentMonSession.cpp 在 Debug 级打印 tracked pid 与 ETW buffer/events lost、StartTracking/StopTracking 仅 debug 日志、TestProcess.h 让测试子进程用非生产 ETW 会话名以免顶掉已安装服务的 PMService 会话。无注册表/电源/调度/延迟参数变化，无 CSV 列语义变化（模块 18 只解析 MsBetweenPresents）；上游最新 Release 仍为 v2.6.0，升级触发条件未满足。0 项吸收，仅推进 main 基线。"
     }
   },
   "blocked": {
