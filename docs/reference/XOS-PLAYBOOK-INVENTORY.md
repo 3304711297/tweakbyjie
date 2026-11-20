@@ -2,7 +2,7 @@
 
 - **审计对象**：`imribiy/xos-playbook`，基准分支 **dev @ 0ed60c3**（不是 main ca69d82）
 - **基准文件**：`Configuration/custom.yml`（1750 行）、`Executables/`（13 个脚本，含 dev 新增 `ReservedStorage.ps1`）、`playbook.conf`（v0.816）
-- **本地对照**：`D:/ai coding/GitRepos/tweakbyjie`（PowerShell 调优工具）
+- **本地对照**：本仓库（PowerShell 调优工具）
 - **性质**：只读审计。未修改任何仓库、未 comment/close、未 push
 - **日期**：2026-11-20
 
@@ -11,7 +11,7 @@
 > 行号口径：`custom.yml:行号` 指动作**起始行**；多行块（`!powerShell`/`!cmd` 的 `command: >-`）内引用的具体语句可能相差数行，按值名/命令名检索为准。
 
 <!-- XOS-INVENTORY:DELTA:START -->
-## 上游变动（自动维护，勿手改）
+## 上游变动（由 `-Apply` 生成，勿手改）
 
 > 本节由 `tools/check-xos-inventory.ps1 -Apply` 在人工确认后刷新：对比 `tools/xos-playbook-inventory.json` 基线与上游 `dev` 当前 `Configuration/custom.yml`。CI 只核查、不写文件；人工结论请写在区块之外的章节。
 
