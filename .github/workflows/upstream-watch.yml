@@ -6,6 +6,7 @@ on:
     - cron: '0 1,7 * * *'
   workflow_dispatch:
 
+# 看门只读：只开 issue，不改仓库文件、不 push（是否更新清单由人决定）
 permissions:
   contents: read
   issues: write
@@ -29,12 +30,50 @@ jobs:
         run: |
           python tools/check-upstream.py --report
 
+      # 只读核查：把「人工清单是否仍与上游一致」的结论算出来，交给 issue。
+      # 退出码 0=清单仍准确、10=需要更新（都不算 CI 失败），20=核查自身异常（拉取失败/基线损坏）。
+      - name: Verify XOS playbook inventory
+        id: inventory
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          pwsh -NoProfile -File tools/check-xos-inventory.ps1
+          code=$?
+          set -e
+          case "$code" in
+            0)
+              echo "::notice title=xos 清单核查::清单仍与上游一致，无需改动"
+              ;;
+            10)
+              echo "::warning title=xos 清单核查::清单需要更新，详见 issue 中的核查结论（本步骤不写文件）"
+              ;;
+            *)
+              echo "::error title=xos 清单核查::核查异常（退出码 $code），未给出结论"
+              exit "$code"
+              ;;
+          esac
+
+      # 标题/正文只由本仓库脚本产物（步骤输出与 upstream-report.md）拼装，不接受外部输入，无注入面
       - name: Create or update Issue
-        if: steps.check.outputs.has_updates == 'true'
+        if: steps.check.outputs.has_updates == 'true' || steps.inventory.outputs.needs_update == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_COUNT: ${{ steps.check.outputs.update_count }}
+          INVENTORY_NEEDS_UPDATE: ${{ steps.inventory.outputs.needs_update }}
         run: |
-          TITLE="🔔 [Upstream] 检测到上游优化项目有新更新 (${{ steps.check.outputs.update_count }} 项)"
+          if [ ! -f upstream-report.md ]; then
+            # 仅清单变动、上游看门没写报告时，补一个最小报告头，保证 --body-file 可用
+            printf '# 🔔 上游项目更新通知 (Upstream Updates Detected)\n\n本轮由 xos-playbook 清单核查触发。\n' > upstream-report.md
+          fi
+          if [ "$INVENTORY_NEEDS_UPDATE" = "true" ] && [ -f xos-inventory-check.md ]; then
+            printf '\n\n' >> upstream-report.md
+            cat xos-inventory-check.md >> upstream-report.md
+          fi
+
+          COUNT="${UPDATE_COUNT:-0}"
+          if [ -z "$COUNT" ] || [ "$COUNT" = "false" ] || [ "$COUNT" = "0" ]; then COUNT=1; fi
+          TITLE="🔔 [Upstream] 检测到上游优化项目有新更新 ($COUNT 项)"
           EXISTING_ISSUE=$(gh issue list --state open --label "upstream-watch" --json number --jq '.[0].number')
           if [ -n "$EXISTING_ISSUE" ]; then
             echo "发现未关闭 Issue #$EXISTING_ISSUE，追加状态..."

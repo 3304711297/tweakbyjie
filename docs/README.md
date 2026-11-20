@@ -10,6 +10,7 @@
 ## 给开发者
 
 - [设计文档](./design/)：模块接口、检测、日志、备份、命名和路线图
+- [XOS playbook 清单](./reference/XOS-PLAYBOOK-INVENTORY.md)：上游 `dev` 808 条动作的人工审查结论（A-E 分组、候选、自检），顶部「上游变动」区块由 `tools/check-xos-inventory.ps1 -Apply` 人工刷新
 - 设计文档描述当前规划或实现边界，不是用户运行入口。
 
 ## 运行目录约定
