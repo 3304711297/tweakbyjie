@@ -143,7 +143,9 @@
     "XOS": {
       "repo": "imribiy/XOS",
       "retired_at": "2026-11-20",
-      "reason": "用户要求移出上游看门，不再跟踪其后续提交。上游仓库仍活跃（最后推送 2026-11-18），移除属看门范围收窄，不是上游停更，也不按 blocked 处理。",
+      "migrated_to": "imribiy/xos-playbook",
+      "migration_note": "作者已把项目拆分迁移：优化规则与发布物由 imribiy/xos-playbook（AME Wizard playbook + Releases）承载，另设 imribiy/xos-beta（开发者预览构建）与 imribiy/xos-toolkit（逐项应用/撤销的桌面工具）；imribiy/XOS 保留为说明与工具页，近期提交多为 README 指向新库。",
+      "reason": "因上游迁移，用户要求把 XOS 移出上游看门，不再跟踪其提交；迁移后的新仓库同样未纳入看门（避免把 playbook 的构建流水当成调优信号）。本条目仅作署名与历史留档，不按 blocked 处理。",
       "adopted_record": "已吸收的 TimerCoalescing 防合并 / PageCombining 禁用 / GPU TdrDelay / DWM 滚轮即时响应 / PCIe MSI 中断模式思路已固化在 Modules/Registry.ps1 与 Modules/Msi.ps1，来源署名保留在 README 上游采纳表。"
     }
   }
