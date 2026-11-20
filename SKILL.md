@@ -116,6 +116,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 - 模块 18 需要完整仓库 ZIP：单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon\PresentMon.exe`；测量为单轮 MVP，必须在同场景、同画质、同路线下重复 3 次再下结论。
 - 模块 19 只对有线物理网卡（`*PhysicalMediaType` 14 / 802.3）生效；检测到电池或机箱类型属便携设备时整段跳过（`[SKIP]`，退出码仍为 0），无线/虚拟网卡不纳管；只改已存在的 REG_DWORD，REG_SZ 等记 skip 不硬写。
 - 模块 20 不批量执行：每次只应用一个 B 项，`-Action 20=5` 这类写法只跑 B05。B03 的 HVCI 由模块 10 负责、B07 指向模块 1→3，均不重复写；B13 的系统级缓解走 `Set-ProcessMitigation -System`，逐进程 IFEO 写 `0x22`，快照里保存 `Get-ProcessMitigation -RegistryConfigFilePath` 的 XML，恢复用 `Set-ProcessMitigation -PolicyFilePath`。
+- 新增 `Modules/*.ps1` 必须保存为 **UTF-8 with BOM**：Windows PowerShell 5.1 会把无 BOM 文件按系统 ANSI 解析，中文 `throw` 字符串会吞掉引号，Loader 直接以退出码 3 失败；pwsh 7 下正常，只有 CI 的 `smoke-windows-powershell` 会抓到。新增模块还必须登记进 `tweakbyjie.ps1` 的 `$__tweakModules`（`Test-CrossRepoCoverage` 会校验孤儿模块）。
 - 退出码 `5` 是部分失败：逐项读输出，不要盲目重试。
 
 ## Verification
