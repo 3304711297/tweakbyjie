@@ -247,7 +247,8 @@ Invoke-Pester -Path .\tests\
 
 > 上游清单（含同步的 commit 与版本号）以机器可读格式维护在 `tools/upstream-sources.json`。新增采纳来源时需同步更新该文件并接入看门 CI，保持文档、清单与 CI 三方一致。
 
-### 🚫 已拉黑来源
+<details>
+<summary><strong>🚫 已拉黑来源（默认折叠，点击展开）</strong></summary>
 
 下列仓库经人工核验后**永久拒绝**：只登记在 `tools/upstream-sources.json` 的 `blocked` 字段（不进 `sources`），看门 CI 巡检时显式跳过并打印 `⛔` 提示，避免日后被"看起来像同类优化工具"骗进采纳清单。
 
@@ -256,6 +257,8 @@ Invoke-Pester -Path .\tests\
 | `Badgenyamultiplexer/pc-game-fps-doctor`<br>（**仓库与作者账号均已删除**） | 2026-11-08 初核<br>2026-11-20 复核 | 冒名投放仓库：README 自称 Rust + Tauri 的 VALORANT 一键卡顿诊断/修复工具，仓库内既无 Tauri crate 也无任何触碰 Windows 的实现（`cargo tauri build` 无法构建），`app/ui/app.js` 是只用 `setTimeout` 把 118 FPS 播成 231 FPS 的演示稿；发布物同样对不上——v1.2.3 资产是改名后的 Notepad++ 更新器 WinGup 5.31（带合法 DigiCert 签名）+ `libcurl.dll` 下载器，v1.2.4 是 `vercel/pkg` 打包的 Node 22 单文件（无签名），内含 4×14 MiB 不透明分块载荷；提交与 CHANGELOG 日期早于仓库创建时间，历史为伪造。**禁止下载、禁止运行、禁止吸收任何所谓调优项**。**2026-11-20 复核：`repos/Badgenyamultiplexer/pc-game-fps-doctor` 与 `users/Badgenyamultiplexer` 均返回 404 —— 仓库已删库、作者账号已注销** |
 
 > **关于已删库来源**：上表条目已从 GitHub 消失（仓库与作者账号均返回 404），因此不再保留可点击链接。**拉黑结论不因上游消失而解除**——同名仓库若日后重新出现，视为**另一个主体**，须按首次核验流程重新取证（发布物与源码是否对得上、签名主体、提交历史真实性），不得直接采信，也不得因「原链接已 404」就当作已失效；`tools/upstream-sources.json` 的 `blocked` 条目同样永久保留，看门逻辑不依赖上游是否可达（仓库 404 时巡检仅跳过、不会误判为「分支消失」）。
+
+</details>
 
 ---
 
