@@ -127,6 +127,7 @@
     "pc-game-fps-doctor": {
       "repo": "Badgenyamultiplexer/pc-game-fps-doctor",
       "blocked_at": "2026-11-08",
+      "upstream_status": "2026-11-20 复核：仓库（github.com/Badgenyamultiplexer/pc-game-fps-doctor）与作者账号（github.com/Badgenyamultiplexer）均返回 404 —— 已删库、账号已注销。拉黑结论永久保留：看门逻辑不依赖上游可达性（仓库 404 时仅跳过巡检），同名仓库若再现视为另一主体，须重新核验。",
       "verdict": "禁止下载、禁止运行、禁止吸收任何所谓调优项",
       "reason": "冒名投放仓库：README 自称 Rust 1.85 + Tauri 的 VALORANT 一键卡顿诊断/修复工具，源码里没有任何触碰 Windows 的实现，UI 是定时器伪造结果的演示页；发布物与仓库同样对不上，一份是改名后的 Notepad++ 更新器（WinGup 5.31，带合法签名）+ libcurl 下载器，另一份是 vercel/pkg 打包的 Node 22 单文件，内含 4×14 MiB 不透明分块载荷。",
       "evidence": [
