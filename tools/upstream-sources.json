@@ -146,7 +146,13 @@
       "migrated_to": "imribiy/xos-playbook",
       "migration_note": "作者已把项目拆分迁移：优化规则与发布物由 imribiy/xos-playbook（AME Wizard playbook + Releases）承载，另设 imribiy/xos-beta（开发者预览构建）与 imribiy/xos-toolkit（逐项应用/撤销的桌面工具）；imribiy/XOS 保留为说明与工具页，近期提交多为 README 指向新库。",
       "reason": "因上游迁移，用户要求把 XOS 移出上游看门，不再跟踪其提交；迁移后的新仓库同样未纳入看门（避免把 playbook 的构建流水当成调优信号）。本条目仅作署名与历史留档，不按 blocked 处理。",
-      "adopted_record": "已吸收的 TimerCoalescing 防合并 / PageCombining 禁用 / GPU TdrDelay / DWM 滚轮即时响应 / PCIe MSI 中断模式思路已固化在 Modules/Registry.ps1 与 Modules/Msi.ps1，来源署名保留在 README 上游采纳表。"
+      "adopted_record": "已吸收的 TimerCoalescing 防合并 / PageCombining 禁用 / GPU TdrDelay / DWM 滚轮即时响应 / PCIe MSI 中断模式思路已固化在 Modules/Registry.ps1 与 Modules/Msi.ps1，来源署名保留在 README 上游采纳表。",
+      "migration_review": {
+        "reviewed_at": "2026-11-20",
+        "consistency": "不一致：imribiy/XOS 现仅 8 个 blob（README + LICENSE + 壁纸 + XOS.psd，无脚本）；imribiy/xos-playbook 36 个 blob（Configuration/custom.yml 171KB、Executables/*.ps1|bat、playbook.conf），优化规则与实现已整体迁入 playbook。",
+        "adopted_mechanisms_recheck": "五个已吸收机制在 playbook 中仍全部存在：TimerCoalescing=0（另有 DefaultTriggerCoalescingTime=0 未吸收）、DisablePageCombining=1（本仓 MMAgent 口径更严）、TdrDelay 由 10 改 12（本仓保留 10，不跟随）、DWM MousewheelAnimationDurationMs=0（一致）、MSISupported=1（新增删除 Affinity Policy\\DevicePriority，可吸收）。",
+        "candidates_pending": "待拍板的候选吸收项：①每接口 TcpAckFrequency/TCPNoDelay（仅有线、插电、回滚删值）；②网卡/PCI/USB 节能关闭（只改已存在值，先落盘回滚脚本）；③PowerThrottlingOff + EnergyEstimationEnabled=0（桌面门禁、默认不勾）；④任务栏悬停 250ms + SmoothScroll=0；⑤Segment Heap 只读检测（上游写法错位，不照抄）。"
+      }
     }
   }
 }
