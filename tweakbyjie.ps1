@@ -23,10 +23,11 @@
 #   输入 18 回车 = 帧率测量（PresentMon 基线/变更后/对比；缺失时可自动下载）
 #   输入 19 回车 = 网络低延迟与网卡/PCI/USB 节能关闭（仅有线网卡 + 无电池设备，先快照可还原）
 #   输入 20 回车 = 安全削弱（XOS B 组 13 项，逐项选择，先快照可整体还原）
+#   输入 21 回车 = 可选偏好与系统行为（XOS 第 4 节 6 项候选，逐项选择，先快照可还原）
 #   修改完成后只标记待重启；退出主菜单时统一询问是否重启。
 
 param(
-    # 非交互执行指定模块：编号 0-20，支持逗号分隔；需要子操作的模块必须同时提供 -Action。
+    # 非交互执行指定模块：编号 0-21，支持逗号分隔；需要子操作的模块必须同时提供 -Action。
     [string]$RunModule = '',
     # 动作映射，格式为 <模块编号>=<子操作>，多个映射用逗号分隔，例如：12=1,8=0。
     [string]$Action = '',
@@ -127,6 +128,7 @@ $script:testModeDebuggerBackupFile = Join-Path $PSScriptRoot 'testmode-debugger-
 $script:serviceBackupFile = Join-Path $PSScriptRoot 'service-backup.json'
 $script:securityMitigationBackupFile = Join-Path $PSScriptRoot 'security-mitigation-backup.json'
 $script:securityWeakeningBackupFile = Join-Path $PSScriptRoot 'security-weakening-backup.json'
+$script:preferencesBackupFile = Join-Path $PSScriptRoot 'preferences-backup.json'
 $script:securityMitigationValues = @(
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverride' },
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; Name = 'FeatureSettingsOverrideMask' }
@@ -162,6 +164,7 @@ $__tweakModules = @(
     'Modules/Backup.Bcd.ps1',
     'Modules/Backup.Service.ps1',
     'Modules/Backup.SecurityMitigation.ps1',
+    'Modules/Backup.TypedValues.ps1',
     'Modules/Backup.SecurityWeakening.ps1',
     'Modules/Backup.DriverBlocklist.ps1',
     'Modules/Backup.Nvme.ps1',
@@ -183,6 +186,7 @@ $__tweakModules = @(
     'Modules/Network.ps1',
     'Modules/Hibernate.ps1',
     'Modules/SecurityWeakening.ps1',
+    'Modules/Preferences.ps1',
     'Modules/Diagnostics.ps1',
     'Modules/Pagefile.ps1',
     'Modules/ShaderCache.ps1',
@@ -216,7 +220,7 @@ function ConvertTo-TweakActionMap {
     if ([string]::IsNullOrWhiteSpace($ActionText)) { return $map }
     foreach ($token in ($ActionText -split '[,;，；\s]+')) {
         if ([string]::IsNullOrWhiteSpace($token)) { continue }
-        if ($token -notmatch '^(?<module>0|[1-9]|1[0-9]|20)\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
+        if ($token -notmatch '^(?<module>0|[1-9]|1[0-9]|2[01])\s*[=:]\s*(?<action>[^=:,;，；\s]+)$') {
             throw "无效 -Action 项 '$token'；格式应为 <模块编号>=<子操作>，例如 12=1"
         }
         $module = $Matches['module']
@@ -230,7 +234,7 @@ function ConvertTo-TweakActionMap {
 function Get-TweakActionRequiredModules {
     # 这些入口内部还有 Read-Host 子菜单；CLI 必须明确给出动作，否则直接失败而不是挂起。
     # 3/4 虽然只有单一路径，也要求显式动作，防止无人值守队列误触发 BCD 安全修改。
-    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17','18','19','20')
+    return @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17','18','19','20','21')
 }
 
 if ($__isScript) {
@@ -262,7 +266,7 @@ if ($__isScript) {
     }
     $script:TweakAcceptDefaults = [bool]$AcceptDefaults
     $script:TweakNonInteractive = [bool]($NonInteractive -or ($RunModule -and $RunModule.Trim()))
-    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20')
+    $__validModules = @('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21')
     $__requested = @($RunModule -split '[,，\s]+' | Where-Object { $_ } | ForEach-Object { $_.Trim() })
     if ($__requested.Count -eq 0) {
         try {
@@ -277,7 +281,7 @@ if ($__isScript) {
     }
     $__bad = @($__requested | Where-Object { $__validModules -notcontains $_ })
     if ($__bad.Count -gt 0) {
-        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-20）" -ForegroundColor Red
+        Write-Host "[ERROR] 无效模块编号: $($__bad -join ',')（有效范围 0-21）" -ForegroundColor Red
         try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch [System.InvalidOperationException] { $null = $_ }
         exit (Get-TweakExitCode -InvalidInput)
     }

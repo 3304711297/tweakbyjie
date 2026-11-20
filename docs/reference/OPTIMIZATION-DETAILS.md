@@ -987,6 +987,34 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 21：可选偏好与系统行为（选项 21，XOS 第 4 节候选）
+
+把 `docs/reference/XOS-PLAYBOOK-INVENTORY.md` 第 4 节的 6 个候选重构为逐项开关，默认什么都不做；第 4 节末尾「明确不建议纳入」的疑似候选（SvcHostSplit*、MiracastForceDisable、WarpSupportsResourceResidency、DisableProjectedShadows/DisableGlobalAnimations、NoLazyMode）没有实现。
+
+| 项 | 内容 | 目标与说明 |
+|---|---|---|
+| P1 | 关闭鼠标加速 | `HKCU\Control Panel\Mouse` 的 `MouseSpeed` / `MouseThreshold1` / `MouseThreshold2` 写 REG_SZ `0`；需重新登录或重启 explorer |
+| P2 | 关闭 FTH | `HKLM\SOFTWARE\Microsoft\FTH\Enabled=0`；FTH 在进程反复崩溃后注入 shim，不执行 `rundll32 fthsvc` |
+| P3 | 启用长路径 | `Control\FileSystem\LongPathsEnabled=1`；系统能力开关，应用还需 manifest 声明 |
+| P4 | PrtSc 直接截图 | `HKCU\Control Panel\Keyboard\PrintScreenKeyForSnippingEnabled=0`（REG_DWORD，实测类型） |
+| P5 | 关闭输入应用预加载 | 只写 HKCU `Software\Microsoft\Input\IsInputAppPreloadEnabled=0`，不写 HKLM 模板 |
+| P6 | 关闭壁纸主色提取 | `HKCU\Control Panel\Desktop\AutoColorization=0` |
+
+**备份与还原（`preferences-backup.json`）**
+- 与菜单 20 共用 `Modules/Backup.TypedValues.ps1` 的逐值快照：记录「路径 / 值名 / 原本是否存在 / 原类型 / 原值」，首次快照不覆盖，跨机或结构损坏直接失败；
+- 还原时原本不存在 → 删值，原本存在 → 按原类型写回原值（写入后回读校验）；
+- 单项写入失败 → 立即按快照回滚并返回失败。
+
+| 子选项 | 内容 |
+|---|---|
+| 0 | 只读查看 6 项当前值与快照就绪状态 |
+| 1–6 | 逐项应用（对应 P1–P6） |
+| r | 按 `preferences-backup.json` 整体还原 |
+
+**边界**：只改 HKCU 与低风险 HKLM 偏好，不新增服务、不碰驱动；无高风险短语（与菜单 1 的普通调优项一致），但每条都先落快照；鼠标加速与输入预加载需重新登录或重启 explorer 才完全生效。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。

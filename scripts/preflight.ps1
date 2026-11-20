@@ -89,13 +89,13 @@ function Get-TweakModuleAvailability {
           10  VBS/Hyper-V    : Windows 构建必须明确可读，避免在未知平台误改可选功能
         5/Defender、3/4 测试模式：安全边界检测未知时阻止高风险入口。
         普通调优模块（1/6/7/11/12/13/14/15）不受这些安全检测未知影响。
-        返回：hashtable，键 '1'..'20'，值 @{ Available = [bool]; Reason = [string] }
+        返回：hashtable，键 '1'..'21'，值 @{ Available = [bool]; Reason = [string] }
     #>
     param($Preflight)
 
     $p = if ($Preflight) { $Preflight } else { Get-TweakPreflight }
     $avail = @{}
-    for ($i = 1; $i -le 20; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
+    for ($i = 1; $i -le 21; $i++) { $avail[[string]$i] = @{ Available = $true; Reason = '' } }
 
     if ($p.SecureBoot -eq $true) {
         foreach ($n in @('3', '4')) {

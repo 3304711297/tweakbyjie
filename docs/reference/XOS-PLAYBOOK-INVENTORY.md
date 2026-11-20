@@ -354,6 +354,8 @@ dev 只改了 3 个文件：`Configuration/custom.yml` +9/−4、`Executables/Re
 
 > 从 D 组里挑出的**真调优项**：有明确系统行为依据、可回滚、与本仓定位（PowerShell 调优工具，带快照与回读）一致。均已用 `rg` 确认本仓无对应写入点（`Modules/` + `tweakbyjie.ps1` 0 命中）。
 
+> **2026-11-20 增补：本节 6 个候选已全部吸纳为菜单 21（`Modules/Preferences.ps1` + `Modules/Backup.TypedValues.ps1`，快照 `preferences-backup.json`）。** 逐项执行、默认不做。下面「明确不建议纳入的疑似候选」按原判据继续不纳入。
+
 
 | 候选 | 上游位置 | 为什么值得做 | 本仓现状与落地建议 |
 |---|---|---|---|
@@ -364,6 +366,17 @@ dev 只改了 3 个文件：`Configuration/custom.yml` +9/−4、`Executables/Re
 | 关闭输入应用预加载（IsInputAppPreloadEnabled=0） | custom.yml:347,429 | 输入法/输入应用预加载会常驻内存；关掉对低内存机器有实际收益，且不影响正常输入 | `rg IsInputAppPreload` 0 命中。建议只写 HKCU 侧（:429），HKLM 侧会影响所有用户 |
 | 关闭壁纸主色自动提取（AutoColorization=0） | custom.yml:423 | 换壁纸时系统会算主色并刷新强调色，属一次性卡顿源；关掉后强调色固定 | `rg AutoColorization` 0 命中。收益小但零风险，可并入「视觉」可选组 |
 
+
+**落地映射（菜单 21，2026-11-20）**
+
+| 候选 | 菜单 21 | 落地内容 |
+|---|---|---|
+| 关闭鼠标加速 | P1 | `HKCU\Control Panel\Mouse` 的 `MouseSpeed` / `MouseThreshold1` / `MouseThreshold2` 均写 REG_SZ `0`；需重新登录或重启 explorer |
+| 关闭 Fault Tolerant Heap | P2 | `HKLM\SOFTWARE\Microsoft\FTH\Enabled=0`；不执行 `rundll32 fthsvc.dll,FthSysprepSpecialize` |
+| LongPathsEnabled=1 | P3 | `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled=1`；系统能力开关，不是性能项 |
+| PrintScreen 直接截屏 | P4 | `HKCU\Control Panel\Keyboard\PrintScreenKeyForSnippingEnabled=0`；实测该值为 **REG_DWORD**，按实际类型写 |
+| 关闭输入应用预加载 | P5 | 只写 HKCU 侧 `HKCU\Software\Microsoft\Input\IsInputAppPreloadEnabled=0`，不写 HKLM 模板 |
+| 关闭壁纸主色自动提取 | P6 | `HKCU\Control Panel\Desktop\AutoColorization=0`；实测路径在 `Control Panel\Desktop`，不是 Themes\Personalize |
 
 **明确不建议纳入的"疑似候选"**（本轮已核，属无效或负收益）：
 

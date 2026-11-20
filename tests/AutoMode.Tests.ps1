@@ -14,18 +14,19 @@ Describe "Non-interactive module execution" {
 
 Describe "Non-interactive action contract" {
     It "requires explicit actions for every menu with a sub-operation" {
-        @((Get-TweakActionRequiredModules)) | Should -Be @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17','18','19','20')
+        @((Get-TweakActionRequiredModules)) | Should -Be @('1','2','3','4','5','6','7','8','9','10','11','12','13','14','16','17','18','19','20','21')
     }
 
     It "parses module actions without allowing duplicates or out-of-range modules" {
-        $map = ConvertTo-TweakActionMap '1=3-2,12=1,14=1,19=1,20=3'
+        $map = ConvertTo-TweakActionMap '1=3-2,12=1,14=1,19=1,20=3,21=1'
         $map['1'] | Should -Be '3-2'
         $map['12'] | Should -Be '1'
         $map['14'] | Should -Be '1'
         $map['19'] | Should -Be '1'
         $map['20'] | Should -Be '3'
+        $map['21'] | Should -Be '1'
         { ConvertTo-TweakActionMap '1=1,1=2' } | Should -Throw
-        { ConvertTo-TweakActionMap '21=1' } | Should -Throw
+        { ConvertTo-TweakActionMap '22=1' } | Should -Throw
     }
 
     It "does not ask for a module action in non-interactive menu mode" {

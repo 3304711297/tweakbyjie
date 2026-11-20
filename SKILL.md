@@ -96,6 +96,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 18 | 帧率测量（PresentMon） | 是 | 1=基线 2=变更后 3=对比 4=状态；PresentMon 随仓库分发，不下载 |
 | 19 | 网络低延迟与网卡/PCI/USB 节能关闭 | 是 | 1=应用 2=还原 0=状态；仅有线物理网卡 + 无电池设备；无线/虚拟网卡与笔记本整段跳过；修改前 `network-backup.json` |
 | 20 | 安全削弱（XOS B 组 13 项） | 是 | 0=状态 1-13=逐项应用 r=还原；逐项 `I-UNDERSTAND-RISK`（B13 用 `I-UNDERSTAND-MITIGATIONS-OFF`）；修改前 `security-weakening-backup.json`（含进程缓解 XML） |
+| 21 | 可选偏好与系统行为（XOS 第 4 节 6 项） | 是 | 0=状态 1-6=逐项应用 r=还原；修改前 `preferences-backup.json`；鼠标加速/输入预加载需重新登录或重启 explorer |
 
 ## Red Lines
 
@@ -108,7 +109,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 
 ## Pitfalls
 
-- 非交互模式下，模块 1-14、16-20 必须给 `-Action`；模块 15 不需要。
+- 非交互模式下，模块 1-14、16-21 必须给 `-Action`；模块 15 不需要。
 - `-Detect` 不能与 `-RunModule` / `-Action` / `-NonInteractive` / `-AcceptDefaults` 组合；`-Json` 只能与 `-Detect` 组合。
 - 快照与 `MachineGuid` 绑定，跨机器复制会被拒绝。
 - 模块 1 的还原会跳过“优化后又被其他程序修改”的项并保留当前值；`-Force` 只应在用户明确要求覆盖时使用（菜单未开放）。
@@ -117,6 +118,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 - 模块 19 只对有线物理网卡（`*PhysicalMediaType` 14 / 802.3）生效；检测到电池或机箱类型属便携设备时整段跳过（`[SKIP]`，退出码仍为 0），无线/虚拟网卡不纳管；只改已存在的 REG_DWORD，REG_SZ 等记 skip 不硬写。
 - 模块 20 不批量执行：每次只应用一个 B 项，`-Action 20=5` 这类写法只跑 B05。B03 的 HVCI 由模块 10 负责、B07 指向模块 1→3，均不重复写；B13 的系统级缓解走 `Set-ProcessMitigation -System`，逐进程 IFEO 写 `0x22`，快照里保存 `Get-ProcessMitigation -RegistryConfigFilePath` 的 XML，恢复用 `Set-ProcessMitigation -PolicyFilePath`。
 - 新增 `Modules/*.ps1` 必须保存为 **UTF-8 with BOM**：Windows PowerShell 5.1 会把无 BOM 文件按系统 ANSI 解析，中文 `throw` 字符串会吞掉引号，Loader 直接以退出码 3 失败；pwsh 7 下正常，只有 CI 的 `smoke-windows-powershell` 会抓到。新增模块还必须登记进 `tweakbyjie.ps1` 的 `$__tweakModules`（`Test-CrossRepoCoverage` 会校验孤儿模块）。
+- 模块 21 只做 HKCU 与低风险 HKLM 偏好；逐项执行、无高风险短语，但每条都先落 `preferences-backup.json`。第 4 节末尾「明确不建议纳入」的 5 个疑似候选（SvcHostSplit*、MiracastForceDisable、WarpSupportsResourceResidency、DisableProjectedShadows/DisableGlobalAnimations、NoLazyMode）按原判据没有实现。
 - 退出码 `5` 是部分失败：逐项读输出，不要盲目重试。
 
 ## Verification

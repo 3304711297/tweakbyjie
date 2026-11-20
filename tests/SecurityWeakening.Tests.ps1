@@ -140,7 +140,7 @@ Describe "Security weakening backup schema" {
             Version               = 1
             Binding               = (Get-BackupMachineId)
             CreatedAt             = (Get-Date).ToString('o')
-            ProcessMitigationXml  = '<root />'
+            ExtraXml              = '<root />'
             Entries               = @(
                 [pscustomobject]@{ Path = 'HKLM:\X'; Name = 'EnableLUA'; Existed = $true; Kind = 'DWord'; Value = 1 },
                 [pscustomobject]@{ Path = 'HKLM:\Y'; Name = 'ExecutionPolicy'; Existed = $true; Kind = 'String'; Value = 'RemoteSigned' },
@@ -229,7 +229,7 @@ Describe "Security weakening backup and restore round-trip (HKCU sandbox)" {
         $plan2 = [pscustomobject]@{ Operations = $script:RtOps; Skips = @(); IncludeProcessMitigations = $true }
         Ensure-SecurityWeakeningBackup -BackupFile $script:RtBackup -Plan $plan2 -ProcessMitigationXml '<changed />' | Should -BeTrue
         $backup = Get-Content -LiteralPath $script:RtBackup -Raw | ConvertFrom-Json
-        $backup.ProcessMitigationXml | Should -Be '<mitigation />'
+        $backup.ExtraXml | Should -Be '<mitigation />'
 
         Mock Set-ProcessMitigation { }
         Restore-SecurityWeakeningBackup -BackupFile $script:RtBackup | Should -BeTrue
