@@ -123,3 +123,23 @@ Describe "Registry new system tweaks contract" {
         Remove-Item -Path 'HKCU:\Software\TweakByjieTest' -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+Describe "TdrDelay follows upstream 12 second timeout" {
+    It "writes TdrDelay = 12 in the core optimization path" {
+        $scriptText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Modules/Registry.ps1') -Raw -Encoding UTF8
+        $scriptText | Should -Match 'Set-RegDword\s+["'']HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers["'']\s+["'']TdrDelay["'']\s+12\b'
+        $scriptText | Should -Not -Match '["'']TdrDelay["'']\s+10\b'
+    }
+
+    It "verifies TdrDelay against the same 12 second value" {
+        $scriptText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Modules/Registry.ps1') -Raw -Encoding UTF8
+        $scriptText | Should -Match 'Verify-RegDword\s+["'']HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers["'']\s+["'']TdrDelay["'']\s+12\b'
+        $scriptText | Should -Match 'TdrDelay = 12'
+    }
+
+    It "documents the 12 second snapshot description" {
+        $backupText = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Modules/Backup.Registry.ps1') -Raw -Encoding UTF8
+        $backupText | Should -Match 'TdrDelay.{0,80}12 秒'
+        $backupText | Should -Not -Match 'TdrDelay.{0,80}10 秒'
+    }
+}

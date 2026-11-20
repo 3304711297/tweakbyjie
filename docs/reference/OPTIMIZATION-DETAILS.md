@@ -144,6 +144,11 @@
 |---|---|---|
 | 系统命令 | `fsutil behavior set DisableDeleteNotify 0` | 确保 SSD TRIM 已启用 |
 
+#### 20 GPU TdrDelay（12 秒）
+
+对应 XOS/xos-playbook 的 GPU 防崩机制：`HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\TdrDelay` 写 **12**（DWORD）。
+TDR（Timeout Detection and Recovery）默认约 2 秒；上调到 12 秒可避免重载/编译着色器瞬时卡顿触发驱动重置（黑屏、驱动重启），代价是真正挂死的驱动要等更久才被恢复。**2026-11-20 起跟随上游由 10 秒改为 12 秒**，写入后 `Verify-RegDword` 期望值同步为 12，快照描述同步为 12 秒。
+
 #### 高级 BCD 已移至 Part 2
 
 核心优化不再直接写入计时器、NX、TPM Boot Entropy 或 nointegritychecks；请使用选项 2。
@@ -802,7 +807,12 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 **操作与恢复**：
 - **子选项 0**：只读查看当前白名单设备的 MSI 状态与消息上限；
 - **子选项 1**：确保快照后，对受支持的 GPU、网卡、NVMe 设备启用 `MSISupported = 1`，GPU 与网卡规范化消息数为 1，NVMe 保持其多队列原生上限；回读逐项验证，失败自动回滚；
-- **子选项 2**：按 `msi-backup.json` 精准还原每个设备的原始 `MSISupported` 与 `MessageNumberLimit`。
+- **子选项 2**：按 `msi-backup.json` 精准还原每个设备的原始 `MSISupported`、`MessageNumberLimit` 与 `Affinity Policy\DevicePriority`（原本不存在时删除）。
+
+**`Affinity Policy\DevicePriority` 清理（吸收自 xos-playbook）**：
+- 历史调优工具会在 `...\Device Parameters\Interrupt Management\Affinity Policy` 写死 `DevicePriority`（通常 `REG_SZ = High`），把该设备的中断/MSI 消息绑在单核上，反而挤占 MSI 多队列的分配收益；
+- 本模块在确认 `MSISupported = 1` 后删除该值；**删除前必须先把原值与原类型写入 `msi-backup.json`**，还原时按原类型写回，原本不存在则删除（不允许用 0 冒充“还原”）；
+- 仅当设备本身就是受管白名单设备时才清理，绝不扫描或改写无关设备的中断亲和性配置。
 
 ---
 
@@ -895,6 +905,42 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 - 只采集，不改任何设置；`measure-*.json/csv` 不进入备份快照；
 - 需要完整仓库 ZIP；单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon`；
 - PresentMon 需要“Performance Log Users”权限；若提示 access denied，按官方 README 把当前用户加入该组后重新登录。
+
+---
+
+### Part 19：网络低延迟与网卡/PCI/USB 节能关闭（选项 19）
+
+吸收自 `imribiy/xos-playbook`（`Executables/network.bat`、`Executables/laptop-desktop.bat`、`Configuration/custom.yml`）的两项机制，并按本仓「快照 → 写入 → 回读 → 可还原」模型重构。
+
+**① 每接口 TCP 低延迟（仅有线物理网卡）**
+- 对有线物理网卡对应的 `HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{GUID}` 写 `TcpAckFrequency = 1`（DWORD）与 `TCPNoDelay = 1`（DWORD）；
+- `TcpAckFrequency=1` 关闭延迟确认（每包立即 ACK），`TCPNoDelay=1` 关闭 Nagle 合并；两者都会提高小包发送频率，**只对延迟敏感型对局有意义**，对吞吐/大文件传输无收益甚至略增开销。
+
+**② 网卡 / PCI / USB 节能关闭**
+- 无线适配器节能托管策略：`HKLM\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\Local` 与 `...\WcmSvc\GroupPolicy` 的 `fDisablePowerManagement = 1`；
+- 网卡类键 `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\<NNNN>`：**只把已存在的 REG_DWORD** `AdvancedEEE` / `EnableAspm` / `EnableGreenEthernet` / `EnablePME` / `PowerSaveEnable` / `ReduceSpeedOnPowerDown` 置 0，并写 `PnPCapabilities = 24`（禁用“允许计算机关闭此设备以节约电源”相关位）；
+- Enum 设备实例键上的 `EnhancedPowerManagementEnabled` / `AllowIdleIrpInD3` / `EnableSelectiveSuspend` / `WdfDirectedPowerTransitionEnable` 置 0（同样只改已存在的 REG_DWORD）；
+- `HKLM\SYSTEM\CurrentControlSet\Services\USBHUB3\Parameters` 的 `DisableLPM = 1`；`pci` 与 `usbccgp` 的 `Parameters\D3ColdSupported = 0`。
+
+**硬门禁（与上游一致，且有测试）**
+- **无线 / 虚拟网卡跳过**：`*PhysicalMediaType` 必须是 14（NDIS 802.3）或字面量 `802.3`；9（无线）、10（蓝牙）、0（未指定）一律不碰，描述命中 Wi-Fi / Wireless / Hyper-V / VMware / VirtualBox / TAP / WAN Miniport / VPN / Kernel Debug 等关键词同样跳过；
+- **检测到电池（笔记本/掌机）整段不写**：`Win32_Battery` 有电池即 `[SKIP]` 并直接返回；机箱类型属便携设备（8/9/10/11/12/14/18/21/30/31/32）同样拦截；电池状态无法确认时按 fail-closed 跳过；
+- **只改已存在的 REG_DWORD**：目标位置已有的 `REG_SZ` / `REG_EXPAND_SZ` / `REG_BINARY` 等一律记 `[SKIP]`，绝不硬写，也不中断其余写入；
+- 上游用 `REG_SZ "0"` 覆盖网卡节能值的写法**未照抄**（类型不符会破坏驱动读取语义）。
+
+**备份与还原（`network-backup.json`）**
+- 首次应用前由 `Ensure-NetworkBackup` 按同一份写入计划逐值记录「路径 / 值名 / 原本是否存在 / 原类型 / 原值」；
+- 快照已存在时只追加新发现的目标，**绝不覆盖首次记录**；结构损坏或跨机（`MachineGuid` 绑定不匹配）直接失败并阻止写入；
+- 还原时：原本不存在 → 删值；原本存在 → 按原类型写回原值（写入后回读校验），不用 0 冒充“恢复默认”；
+- 入口与其它模块一致：`Invoke-NetworkModule -Action restore`（菜单 19 → 2）。
+
+| 子选项 | 内容 |
+|---|---|
+| 0 | 只读查看平台门禁、有线网卡、每接口 TCP 参数、WcmSvc 策略与快照就绪状态 |
+| 1 | 备份并应用（电池/无线门禁不通过时整段跳过，不写任何值） |
+| 2 | 按 `network-backup.json` 逐值还原（无快照时失败关闭） |
+
+**边界**：只改注册表，不碰网卡驱动二进制、不装 WinDivert/抓包驱动、不改 QoS 策略（菜单 12 负责）；`TcpAckFrequency/TCPNoDelay` 需重启或重新启用网卡后生效，网卡节能开关通常重启后完全生效。
 
 ---
 

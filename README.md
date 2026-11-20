@@ -73,12 +73,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tweakbyjie.ps1       # PowerShel
 | **10** | **虚拟化 / VBS / Hyper-V** | 独立查看、关闭或配置 VBS 与 Hyper-V 虚拟化环境 | [VBS 与系统安全缓解](https://3304711297.github.io/youshouldknow/系统调优与安全/VBS与系统安全缓解/) |
 | **11** | **MPO (多平面叠加) 管理** | 提供 3 种互斥的社区防掉帧/防闪烁排障模式，按首次快照恢复（无快照时失败关闭） | [GPU 调度与显示管线](https://3304711297.github.io/youshouldknow/项目导航/GPU调度与显示管线/) |
 | **12** | **竞技游戏网络 QoS 策略管理** | 为游戏流量配置 DSCP 46 优先标记与网络 QoS 策略（吸收自 Kiwi-Tweaks 与 ALit-NetworkOptimizer），操作前自动落盘策略快照 | [Windows 游戏网络 QoS 策略与 DSCP 原理](https://3304711297.github.io/youshouldknow/网络通信/Windows游戏网络QoS策略与DSCP原理/) |
-| **13** | **PCIe 设备 MSI 中断管理** | 为 GPU、网卡、NVMe 存储启用消息信号中断（MSI）模式，消除传统 IRQ 冲突，内置白名单安全隔离 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
+| **13** | **PCIe 设备 MSI 中断管理** | 为 GPU、网卡、NVMe 存储启用消息信号中断（MSI）模式，消除传统 IRQ 冲突，内置白名单安全隔离；启用后清理历史工具写死的 `Affinity Policy\DevicePriority` 中断绑核（删除前先快照） | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 | **14** | **系统休眠与快速启动管理** | 安全关闭休眠（powercfg -h off 并删除 C:\hiberfil.sys 释放数十 GB 磁盘空间），规避快速启动硬件热重启脏缓存，支持一键恢复与快照 | [社区降延迟调机清单辨析](https://3304711297.github.io/youshouldknow/系统调优与安全/社区降延迟调机清单辨析/) |
 | **15** | **系统体检与虚拟内存建议** | 只读体检 PCIe 链路（x4/x8/x16）、VC++ v14 运行库缺失、内存当前/标称频率与 NVIDIA App 自动优化；另含虚拟内存分配建议与手动向导，全程只读不代改 | [Windows 虚拟内存设置指南](https://3304711297.github.io/youshouldknow/系统知识/Windows虚拟内存设置指南/) |
 | **16** | **着色器缓存扫描与清理** | 扫描 DirectX / NVIDIA / AMD / Intel 缓存目录，逐文件删除（不跟随目录联接、保留目录）；缓存可再生，不产生备份、不可还原 | [着色器缓存与清理边界](https://3304711297.github.io/youshouldknow/显卡优化/着色器缓存与清理边界/) |
 | **17** | **游戏 exe 配置** | 为指定游戏写入禁用全屏优化、高性能 GPU 首选项与 IFEO CPU 高优先级；只设 CPU（IFEO 的 IoPriority 只支持 Normal 及以下），写入前保存三项原值、可还原 | [全屏优化、窗口化游戏优化与 GPU 首选项](https://3304711297.github.io/youshouldknow/显卡优化/全屏优化与窗口化游戏优化/) |
 | **18** | **帧率测量（PresentMon）** | 仓库内置 PresentMon v2.6.0（Intel 签名，MIT），采集同一场景的基线/变更后帧时间，比较平均 FPS、1% Low、P99 与卡顿；单轮 MVP 明确提示噪声 | [游戏性能验证流程](https://3304711297.github.io/youshouldknow/项目导航/游戏性能验证流程/) |
+| **19** | **网络低延迟与网卡/PCI/USB 节能关闭** | 有线物理网卡每接口 `TcpAckFrequency=1`/`TCPNoDelay=1`；WcmSvc 无线节能策略、网卡类 DWORD 节能值归零与 `PnPCapabilities=24`、Enum 设备电源管理值、`USBHUB3`/`pci`/`usbccgp` 节能开关。检测到电池（笔记本/掌机）或无线/虚拟网卡时整段跳过，写入前落 `network-backup.json`（吸收自 xos-playbook ①②） | [Windows 游戏网络 QoS 策略与 DSCP 原理](https://3304711297.github.io/youshouldknow/网络通信/Windows游戏网络QoS策略与DSCP原理/) |
 
 ---
 
@@ -133,7 +134,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -Detect -Json
 2. **硬件与系统标识绑定（Machine Binding）**：带 `Binding` 字段的 JSON 快照通过 `Get-BackupMachineId` 注入基于本机注册表 `MachineGuid` 的加盐 SHA256 签名。回滚时严格进行版本号与机器标识双重验证；电源 `.pow` 与游戏 QoS 快照使用各自的格式/名称校验，不能把任意快照跨机器当作精确恢复依据。
 3. **Fail-Closed 闭环恢复**：找不到快照、文件损坏或结构校验未通过时，立即拒绝并阻断操作，绝不伪造成功假象。
 
-仓库已内置 12 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
+仓库已内置 13 个独立的 `Modules/Backup.*.ps1` 备份恢复模块，全面覆盖各关键调优层：
 
 | 备份恢复模块 | 快照存储文件 | 备份与回滚覆盖范围 | 核心导出函数 |
 | :--- | :--- | :--- | :--- |
@@ -147,7 +148,8 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -Detect -Json
 | **Backup.Vbs.ps1** | `vbs-backup.json` | 虚拟化 / VBS / Hyper-V 配置（Device Guard 注册表、BCD `hypervisorlaunchtype` 与可选功能） | `Ensure-VbsBackup`<br>`Restore-VbsBackup` |
 | **Backup.Mpo.ps1** | `mpo-backup.json` | 多平面叠加 (MPO) 显示管线排障状态（DWM `OverlayTestMode`、`OverlayMinFPS` 等配置） | `Ensure-MpoBackup`<br>`Restore-MpoBackup` |
 | **Backup.GameQos.ps1** | `$env:TEMP\gameqos-backup.json` | 竞技游戏 QoS 策略（DSCP 46）；首次快照不覆盖、严格名称校验、写入后回读与失败回滚 | `Ensure-GameQosBackup`<br>`Restore-GameQosBackup` |
-| **Backup.Msi.ps1** | `msi-backup.json` | 核心硬件 PCIe 设备 MSI 中断配置与消息上限（白名单排除声卡与桥芯片） | `Ensure-MsiBackup`<br>`Restore-MsiBackup` |
+| **Backup.Msi.ps1** | `msi-backup.json` | 核心硬件 PCIe 设备 MSI 中断配置、消息上限与 `Affinity Policy\DevicePriority` 中断绑核（白名单排除声卡与桥芯片） | `Ensure-MsiBackup`<br>`Restore-MsiBackup` |
+| **Backup.Network.ps1** | `network-backup.json` | 网络低延迟与网卡/PCI/USB 节能开关（逐值记录原值/原类型/原本不存在；无线与虚拟网卡不纳管） | `Ensure-NetworkBackup`<br>`Restore-NetworkBackup`<br>`Test-NetworkBackupSchema` |
 | **Backup.Hibernate.ps1** | `hibernate-backup.json` | 系统休眠开关与快速启动注册表状态（`HibernateEnabled`、`HiberbootEnabled`，含结构校验） | `Ensure-HibernateBackup`<br>`Restore-HibernateBackup`<br>`Test-HibernateBackupSchema` |
 
 *(注：电源计划模块 `Modules/Power.ps1` 亦内置原生 `power-backup.pow` 方案导出与精准回滚机制)*
@@ -167,7 +169,8 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -Detect -Json
   Restore-VbsBackup                     # 恢复虚拟化与 VBS 配置
   Restore-MpoBackup                     # 按首次快照恢复 MPO 显示管线（无快照时失败关闭）
   Restore-GameQosBackup                 # 恢复网络 QoS 策略
-  Restore-MsiBackup                     # 恢复 PCIe 设备 MSI 中断配置
+  Restore-MsiBackup                     # 恢复 PCIe 设备 MSI 中断配置（含 Affinity Policy\DevicePriority）
+  Restore-NetworkBackup                 # 恢复网络低延迟与网卡/PCI/USB 节能开关（无快照时失败关闭）
   Restore-HibernateBackup               # 恢复系统休眠与快速启动配置
   ```
 
@@ -183,7 +186,7 @@ tweakbyjie/
 ├── Modules/                 # 模块化实现目录 (纯调度 + 独立功能模块)
 │   ├── Common.ps1           # 日志、退出码与基础通用工具库
 │   ├── Adapters.ps1         # 注册表与系统调用副作用隔离适配器
-│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 12 个
+│   ├── Backup.*.ps1         # 各模块独立快照保存与恢复闭环，共 13 个
 │   ├── Registry.ps1         # 模块 1: 核心优化
 │   ├── Bcd.ps1              # 模块 2/3/4: BCD 启动与测试模式
 │   ├── Defender.ps1         # 模块 5: 安全中心策略
@@ -194,13 +197,14 @@ tweakbyjie/
 │   ├── Mpo.ps1              # 模块 11: MPO 管理
 │   ├── GameQos.ps1          # 模块 12: 竞技游戏网络 QoS 策略
 │   ├── Msi.ps1              # 模块 13: PCIe 设备 MSI 中断模式管理
+│   ├── Network.ps1          # 模块 19: 网络低延迟与网卡/PCI/USB 节能关闭（仅有线 + 无电池）
 │   ├── Hibernate.ps1        # 模块 14: 系统休眠与快速启动管理
 │   ├── Diagnostics.ps1      # 模块 15 只读体检: PCIe / VC++ v14 / 内存频率 / NVIDIA App 自动优化
 │   ├── Pagefile.ps1         # 模块 15: 虚拟内存只读诊断与调优建议指引
 │   ├── ShaderCache.ps1      # 模块 16: 着色器缓存扫描与清理（维护项，不可还原）
 │   ├── GameExe.ps1          # 模块 17: 游戏 exe 配置（FSO / GPU 首选项 / IFEO CPU 优先级）
 │   ├── PresentMon.ps1       # 模块 18: 帧率测量（PresentMon 采集 / 基线对比）
-│   └── Menu.ps1             # 104 行高内聚纯菜单调度链
+│   └── Menu.ps1             # 114 行高内聚纯菜单调度链
 ├── tools/
 │   └── PresentMon/          # 模块 18 内置 PresentMon v2.6.0（Intel 签名，MIT）
 ├── scripts/preflight.ps1    # 启动前置条件只读探测器
@@ -234,7 +238,7 @@ Invoke-Pester -Path .\tests\
 | **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
 | **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
 | **ALit-NetworkOptimizer** (master) | [xiaoX-bgs11/ALit-NetworkOptimizer](https://github.com/xiaoX-bgs11/ALit-NetworkOptimizer) | Minecraft Java（`javaw.exe`）与基岩版（`Minecraft.Windows.exe`）QoS 策略画像 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，纯组策略注册表落地，坚决排除其 WinDivert 内核劫持与单向发包轰炸） |
-| **XOS** (main，2026-11-20 起已移出看门) | [imribiy/XOS](https://github.com/imribiy/XOS)（作者已迁移：优化规则与发布物现由 [imribiy/xos-playbook](https://github.com/imribiy/xos-playbook) 承载，另设 `xos-beta` / `xos-toolkit`） | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩、DWM 滚轮零延迟微调与 PCIe 设备 MSI 中断模式管理思路 → 菜单 1 / 菜单 13（`Modules/Registry.ps1` 与 `Modules/Msi.ps1`）。吸收点已固化，不再跟踪其上游提交；迁移说明、移除原因与署名留档见 `tools/upstream-sources.json` 的 `retired` 字段；2026-11-20 复核 playbook：与旧库内容不一致（旧库仅余品牌页），五个机制仍在，新增候选 5 项待拍板，详见 `retired.migration_review` |
+| **XOS / xos-playbook** (XOS 旧库 2026-11-20 起移出看门；[xos-playbook](https://github.com/imribiy/xos-playbook) 已正式纳入看门，跟踪 `dev` 分支 @ `0ed60c3`) | [imribiy/XOS](https://github.com/imribiy/XOS)（作者已迁移：优化规则与发布物现由 [imribiy/xos-playbook](https://github.com/imribiy/xos-playbook) 承载，另设 `xos-beta` / `xos-toolkit`） | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU `TdrDelay`（**已跟随上游由 10 改 12 秒**）、DWM 滚轮零延迟微调、PCIe 设备 MSI 中断模式与 `Affinity Policy\DevicePriority` 清理 → 菜单 1 / 菜单 13。**2026-11-20 本轮吸收 ①②**：① 每接口 `TcpAckFrequency`/`TCPNoDelay`（仅有线物理网卡）与 ② 网卡/PCI/USB 节能关闭（只改已存在 REG_DWORD、先快照、可逐值还原）→ 新增菜单 19「网络低延迟与网卡/PCI/USB 节能关闭」（`Modules/Network.ps1` + `Modules/Backup.Network.ps1`）。未吸收：③ PowerThrottlingOff/EnergyEstimationEnabled（全局关节能，桌面门禁外溢风险）、④ 任务栏悬停 250ms 与 SmoothScroll=0（观感类，非延迟收益）、⑤ Segment Heap 只读检测（上游写法错位，不照抄）；dev 相对 main 新增的 WaitToKillServiceTimeout / HiberbootEnabled 关闭快速启动 / Reserved Storage 未经批准，仅登记不吸收。XOS 旧库署名与移除原因留档于 `tools/upstream-sources.json` 的 `retired` 字段，`migration_review.candidates_pending` 已标注 ①② 落地 |
 | **Delta Force Graphics Optimizer** (公开源码 v0.23.0.13 / Release v0.23.0.52) | [Leonard8818/-Delta-Force-Graphics-Optimizer](https://github.com/Leonard8818/-Delta-Force-Graphics-Optimizer) | 选择性还原的冲突检测设计（记录工具写入值，还原前比对，检测到后续修改则拒绝覆盖）→ `Modules/Backup.Registry.ps1`；四项只读体检的实现思路（PCIe 链路 / VC++ v14 / 内存频率 / NVIDIA App 自动优化）→ `Modules/Diagnostics.ps1`（模块 15）。未采纳显卡型号伪装、隐藏电源项与自动调优状态机；公开源码停在 v0.23.0.13，Release 已到 v0.23.0.52，只按公开源码吸收机制，不运行其二进制 |
 | **Win11Tuned**（af76b2c→859676c 评估记录） | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | **判定：7 项提交全部不采纳、0 项吸收**（区间头 SHA `859676c`；评估日期 2026-11-11；issue #13）。原因：`d6ce323` 迁移 MSTest v4 与 `bda538d` 升级依赖属上游自身测试框架 / NuGet 基建，与本仓 PowerShell 模块化脚本无关；`83fc7ce` 停用 Ndu 驱动、`8046b01` 停用 CldFlt 云文件过滤服务、`ab75947` 从网卡解绑 `ms_pacer`（QoS Packet Scheduler，与菜单 12 DSCP 46 策略冲突）、`859676c` 关闭 LLMNR 协议与 OneSettings 连接、`fe216be` 禁用 FeatureConfig/UsageData 三个遥测计划任务，均属粗暴停用核心系统服务 / 驱动 / 协议 / 计划任务且无本仓快照回滚保障，按『排除破坏性 / 玄学修改』铁律不吸收进模块化脚本。基线已由 `af76b2c` 推进至 `859676c`，评估结论同步登记于 `tools/upstream-sources.json` 的 `note` 字段 |
 

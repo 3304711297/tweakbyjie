@@ -21,7 +21,7 @@ $script:registryCoreValues = @(
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games'; Name = 'SFIO Priority'; Desc = 'Games SFIO Priority' },
     @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AutoGameModeEnabled'; Desc = 'AutoGameModeEnabled' },
     @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AllowAutoGameMode'; Desc = 'AllowAutoGameMode' },
-    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'TdrDelay'; Desc = 'GPU TdrDelay (放宽 TDR 超时阈值至 10 秒防崩溃)' }
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'; Name = 'TdrDelay'; Desc = 'GPU TdrDelay (放宽 TDR 超时阈值至 12 秒防崩溃)' }
 )
 
 $script:registrySystemValues = @(

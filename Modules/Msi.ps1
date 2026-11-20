@@ -8,7 +8,7 @@ function Invoke-MsiModule {
     Write-Host "============ [Part 13] PCIe 设备 MSI 中断模式管理 / PCIe MSI Mode ============" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  0. 查看当前 PCI 设备 MSI 支持与配置状态（只读）" -ForegroundColor White
-    Write-Host "  1. 优化受支持的核心硬件 MSI 模式（GPU/网卡/NVMe 开启 MSISupported=1；修改前自动备份）" -ForegroundColor White
+    Write-Host "  1. 优化受支持的核心硬件 MSI 模式（GPU/网卡/NVMe 开启 MSISupported=1；清理 Affinity Policy\DevicePriority；修改前自动备份）" -ForegroundColor White
     Write-Host "  2. 按快照恢复 PCIe MSI 原始配置（msi-backup.json）" -ForegroundColor White
     Write-Host "  0. 返回主菜单" -ForegroundColor White
 
@@ -64,6 +64,15 @@ function Invoke-MsiModule {
                     if ($d.Class -in @('Display', 'Net') -and ($null -eq $d.MessageLimit -or $d.MessageLimit -eq 0)) {
                         $null = Set-RegDword $d.RegPath 'MessageNumberLimit' 1 "$($d.DeviceDesc) MessageNumberLimit = 1"
                     }
+
+                    # 3. 清理历史工具写死的中断绑核：Affinity Policy\DevicePriority 会把 MSI 消息挤在单核
+                    #    （删除前的原值已由 Ensure-MsiBackup 记录进 msi-backup.json）
+                    $affinityPath = if ($d.PSObject.Properties['AffinityPath'] -and $d.AffinityPath) {
+                        [string]$d.AffinityPath
+                    } else {
+                        Get-MsiAffinityPath -InstanceId ([string]$d.InstanceId)
+                    }
+                    $null = Remove-MsiAffinityDevicePriority -AffinityPath $affinityPath -DeviceDesc $d.DeviceDesc
                 } catch {
                     Write-Host "[FAIL] 配置 $($d.DeviceDesc) MSI 异常：$($_.Exception.Message)" -ForegroundColor Red
                     $script:fail++

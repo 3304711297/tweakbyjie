@@ -383,3 +383,137 @@ function Get-MergedSettingsPageVisibility {
         return $val
     }
 }
+
+function ConvertTo-TweakRegistryPsPath {
+    # 把 RegistryKey.PSPath（Microsoft.PowerShell.Core\Registry::HKEY_CURRENT_USER\...）
+    # 归一成 HKCU:\... / HKLM:\...，供快照 JSON 与路径比较使用。
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+    $normalized = $Path -replace '^(?i)Microsoft\.PowerShell\.Core\\Registry::', ''
+    if ($normalized -match '^(?i)HKEY_LOCAL_MACHINE\\(.*)$') { return "HKLM:\$($Matches[1])" }
+    if ($normalized -match '^(?i)HKEY_CURRENT_USER\\(.*)$') { return "HKCU:\$($Matches[1])" }
+    if ($normalized -match '^(?i)HKEY_CLASSES_ROOT\\(.*)$') { return "HKCR:\$($Matches[1])" }
+    if ($normalized -match '^(?i)HKEY_USERS\\(.*)$') { return "HKU:\$($Matches[1])" }
+    if ($normalized -match '^(?i)HKEY_CURRENT_CONFIG\\(.*)$') { return "HKCC:\$($Matches[1])" }
+    return $Path
+}
+
+function Open-TweakRegistryKey {
+    <#
+        按 PowerShell 注册表路径打开可写/只读 RegistryKey。
+        Get-Item 返回的密钥在 PowerShell 7 下是只读的（SetValue 会抛
+        "Cannot write to the registry key"），所以写入/删除必须显式 OpenSubKey($true)。
+        路径不存在返回 $null；调用方负责 Dispose。
+    #>
+    param([string]$Path, [switch]$Writable, [switch]$Create)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+    $normalized = $Path -replace '^(?i)Microsoft\.PowerShell\.Core\\Registry::', ''
+    if ($normalized -notmatch '^(?i)(?<hive>HKLM|HKEY_LOCAL_MACHINE|HKCU|HKEY_CURRENT_USER|HKCR|HKEY_CLASSES_ROOT|HKU|HKEY_USERS|HKCC|HKEY_CURRENT_CONFIG)[:\\](?<sub>.+)$') {
+        throw "不支持的注册表路径：$Path"
+    }
+    $hiveName = $Matches['hive'].ToUpperInvariant()
+    $subKey = $Matches['sub'].TrimStart('\')
+    $hive = switch ($hiveName) {
+        'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }
+        'HKEY_LOCAL_MACHINE' { [Microsoft.Win32.Registry]::LocalMachine }
+        'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }
+        'HKEY_CURRENT_USER' { [Microsoft.Win32.Registry]::CurrentUser }
+        'HKCR' { [Microsoft.Win32.Registry]::ClassesRoot }
+        'HKEY_CLASSES_ROOT' { [Microsoft.Win32.Registry]::ClassesRoot }
+        'HKU' { [Microsoft.Win32.Registry]::Users }
+        'HKEY_USERS' { [Microsoft.Win32.Registry]::Users }
+        'HKCC' { [Microsoft.Win32.Registry]::CurrentConfig }
+        'HKEY_CURRENT_CONFIG' { [Microsoft.Win32.Registry]::CurrentConfig }
+    }
+    if ($Create) { return $hive.CreateSubKey($subKey) }
+    return $hive.OpenSubKey($subKey, [bool]$Writable)
+}
+
+function Get-TweakRegistryValue {
+    <#
+        读取单个注册表值的「是否存在 / 原类型 / 原值」，供按值快照与还原使用。
+        不存在返回 Exists = $false（不是错误）；真正的读取异常向上抛出，
+        避免把权限不足当成「值不存在」而丢掉原始状态。
+        ExpandString 使用 DoNotExpandEnvironmentNames 保留未展开的原始文本。
+    #>
+    param([string]$Path, [string]$Name)
+    $missing = [pscustomobject]@{ Exists = $false; Kind = ''; Value = $null }
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Name)) { return $missing }
+    $key = Open-TweakRegistryKey -Path $Path
+    if (-not $key) { return $missing }
+    try {
+        if (@($key.GetValueNames()) -notcontains $Name) { return $missing }
+        $kind = $key.GetValueKind($Name).ToString()
+        $value = $key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        return [pscustomobject]@{ Exists = $true; Kind = $kind; Value = $value }
+    } catch {
+        throw "读取注册表值 $Path\$Name 失败：$($_.Exception.Message)"
+    } finally {
+        $key.Dispose()
+    }
+}
+
+function Test-TweakRegistryValueEqual {
+    # 写入后回读比较：按注册表类型归一，避免 [string] 比较把 0 与 $null 混为一谈。
+    param($Left, $Right, [string]$Kind)
+    switch ($Kind) {
+        'DWord' { return ([uint32]$Left -eq [uint32]$Right) }
+        'QWord' { return ([uint64]$Left -eq [uint64]$Right) }
+        'Binary' {
+            $l = [byte[]]@($Left)
+            $r = [byte[]]@($Right)
+            if ($l.Length -ne $r.Length) { return $false }
+            for ($i = 0; $i -lt $l.Length; $i++) { if ($l[$i] -ne $r[$i]) { return $false } }
+            return $true
+        }
+        'MultiString' { return ((@($Left) -join [string][char]0) -ceq (@($Right) -join [string][char]0)) }
+        default { return ([string]$Left -ceq [string]$Right) }
+    }
+}
+
+function Set-TweakRegistryTypedValue {
+    <#
+        按原类型写回注册表值（DWord / QWord / String / ExpandString / MultiString / Binary）。
+        写入后立即回读校验类型与数值：备份还原不允许「写过就算成功」。
+    #>
+    param([string]$Path, [string]$Name, [string]$Kind, $Value)
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Name)) {
+        throw '注册表路径与值名不能为空'
+    }
+    $key = Open-TweakRegistryKey -Path $Path -Writable -Create
+    if (-not $key) { throw "无法打开注册表键（可能权限不足）：$Path" }
+    try {
+        switch ($Kind) {
+            'DWord' { $key.SetValue($Name, [int]$Value, [Microsoft.Win32.RegistryValueKind]::DWord) }
+            'QWord' { $key.SetValue($Name, [long]$Value, [Microsoft.Win32.RegistryValueKind]::QWord) }
+            'String' { $key.SetValue($Name, [string]$Value, [Microsoft.Win32.RegistryValueKind]::String) }
+            'ExpandString' { $key.SetValue($Name, [string]$Value, [Microsoft.Win32.RegistryValueKind]::ExpandString) }
+            'MultiString' { $key.SetValue($Name, [string[]]@($Value), [Microsoft.Win32.RegistryValueKind]::MultiString) }
+            'Binary' { $key.SetValue($Name, [byte[]]@($Value), [Microsoft.Win32.RegistryValueKind]::Binary) }
+            default { throw "不支持的注册表值类型：$Kind（$Path\$Name）" }
+        }
+    } finally {
+        $key.Dispose()
+    }
+    $check = Get-TweakRegistryValue -Path $Path -Name $Name
+    if (-not $check.Exists) { throw "写入后回读失败：$Path\$Name 不存在" }
+    if ($check.Kind -ne $Kind) { throw "写入后回读类型不一致：$Path\$Name 期望 $Kind 实际 $($check.Kind)" }
+    if (-not (Test-TweakRegistryValueEqual -Left $check.Value -Right $Value -Kind $Kind)) {
+        throw "写入后回读值不一致：$Path\$Name 期望 $Value 实际 $($check.Value)"
+    }
+}
+
+function Remove-TweakRegistryValue {
+    # 删除单个值；键或值不存在返回 $false（无需还原），真正的删除异常向上抛出。
+    param([string]$Path, [string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Name)) { return $false }
+    $key = Open-TweakRegistryKey -Path $Path -Writable
+    if (-not $key) { return $false }
+    try {
+        if (@($key.GetValueNames()) -notcontains $Name) { return $false }
+        $key.DeleteValue($Name, $false)
+        return $true
+    } finally {
+        $key.Dispose()
+    }
+}

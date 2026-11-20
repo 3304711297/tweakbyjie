@@ -104,6 +104,207 @@ Describe "PCIe MSI Module Contract" {
         }
     }
 
+    Context "Affinity Policy DevicePriority cleanup" {
+        BeforeAll {
+            $script:MsiAffinitySandbox = 'HKCU:\Software\TweakByjieTest\MsiAffinity'
+            if (Test-Path $script:MsiAffinitySandbox) {
+                Remove-Item -Path $script:MsiAffinitySandbox -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            New-Item -Path $script:MsiAffinitySandbox -Force | Out-Null
+        }
+
+        AfterAll {
+            if (Test-Path $script:MsiAffinitySandbox) {
+                Remove-Item -Path $script:MsiAffinitySandbox -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It "snapshots DevicePriority (value and kind) in the MSI backup" {
+            $script:OriginalBackupFile = $script:msiBackupFile
+            $script:TestBackupFile = Join-Path $env:TEMP ("msi-dp-backup-" + [guid]::NewGuid().ToString('N') + ".json")
+            $script:msiBackupFile = $script:TestBackupFile
+            try {
+                Mock Get-MsiManagedDevices {
+                    return @(
+                        [pscustomobject]@{
+                            InstanceId     = 'PCI\TEST_GPU\001'
+                            DeviceDesc     = 'Mocked GPU'
+                            Class          = 'Display'
+                            MSISupported   = [uint32]0
+                            MessageLimit   = [uint32]1
+                            RegPath        = 'HKLM:\SYSTEM\CurrentControlSet\Enum\PCI\TEST_GPU\001\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'
+                            AffinityPath   = 'HKLM:\SYSTEM\CurrentControlSet\Enum\PCI\TEST_GPU\001\Device Parameters\Interrupt Management\Affinity Policy'
+                            DevicePriority = [pscustomobject]@{ Existed = $true; Kind = 'String'; Value = 'High' }
+                        }
+                    )
+                }
+                Ensure-MsiBackup | Should -BeTrue
+                $saved = Get-Content -LiteralPath $script:TestBackupFile -Raw | ConvertFrom-Json
+                $saved.Devices[0].DevicePriority.Existed | Should -BeTrue
+                $saved.Devices[0].DevicePriority.Kind | Should -Be 'String'
+                $saved.Devices[0].DevicePriority.Value | Should -Be 'High'
+            } finally {
+                if (Test-Path -LiteralPath $script:TestBackupFile) {
+                    Remove-Item -LiteralPath $script:TestBackupFile -Force -ErrorAction SilentlyContinue
+                }
+                $script:msiBackupFile = $script:OriginalBackupFile
+            }
+        }
+
+        It "adds DevicePriority to a legacy snapshot without overwriting recorded MSI values" {
+            $script:OriginalBackupFile = $script:msiBackupFile
+            $script:TestBackupFile = Join-Path $env:TEMP ("msi-dp-legacy-" + [guid]::NewGuid().ToString('N') + ".json")
+            $script:msiBackupFile = $script:TestBackupFile
+            try {
+                $legacy = [pscustomobject]@{
+                    Version   = 1
+                    Binding   = (Get-BackupMachineId)
+                    CreatedAt = (Get-Date).ToString('o')
+                    Devices   = @(
+                        [pscustomobject]@{
+                            InstanceId   = 'PCI\TEST_GPU\001'
+                            DeviceDesc   = 'Mocked GPU'
+                            Class        = 'Display'
+                            MSISupported = 0
+                            MessageLimit = 1
+                        }
+                    )
+                }
+                $json = ConvertTo-Json -InputObject $legacy -Depth 5
+                [System.IO.File]::WriteAllText($script:TestBackupFile, $json, [System.Text.UTF8Encoding]::new($false))
+
+                Mock Get-MsiManagedDevices {
+                    return @(
+                        [pscustomobject]@{
+                            InstanceId     = 'PCI\TEST_GPU\001'
+                            DeviceDesc     = 'Mocked GPU'
+                            Class          = 'Display'
+                            MSISupported   = [uint32]1
+                            MessageLimit   = [uint32]1
+                            DevicePriority = [pscustomobject]@{ Existed = $true; Kind = 'String'; Value = 'High' }
+                        },
+                        [pscustomobject]@{
+                            InstanceId     = 'PCI\TEST_NIC\002'
+                            DeviceDesc     = 'Mocked NIC'
+                            Class          = 'Net'
+                            MSISupported   = [uint32]0
+                            MessageLimit   = [uint32]1
+                            DevicePriority = [pscustomobject]@{ Existed = $false; Kind = ''; Value = $null }
+                        }
+                    )
+                }
+
+                Ensure-MsiBackup | Should -BeTrue
+                $saved = Get-Content -LiteralPath $script:TestBackupFile -Raw | ConvertFrom-Json
+                @($saved.Devices).Count | Should -Be 2
+                $gpu = @($saved.Devices | Where-Object { $_.InstanceId -eq 'PCI\TEST_GPU\001' })[0]
+                $gpu.DevicePriority.Existed | Should -BeTrue
+                $gpu.DevicePriority.Value | Should -Be 'High'
+                # 首次记录的 MSI 原值必须保留，不能被当前状态刷新
+                $gpu.MSISupported | Should -Be 0
+                $gpu.MessageLimit | Should -Be 1
+                $nic = @($saved.Devices | Where-Object { $_.InstanceId -eq 'PCI\TEST_NIC\002' })[0]
+                $nic.DevicePriority.Existed | Should -BeFalse
+            } finally {
+                if (Test-Path -LiteralPath $script:TestBackupFile) {
+                    Remove-Item -LiteralPath $script:TestBackupFile -Force -ErrorAction SilentlyContinue
+                }
+                $script:msiBackupFile = $script:OriginalBackupFile
+            }
+        }
+
+        It "deletes an existing DevicePriority and reports skip when absent" {
+            $affinityPath = Join-Path $script:MsiAffinitySandbox 'Affinity'
+            New-Item -Path $affinityPath -Force | Out-Null
+            Set-TweakRegistryTypedValue -Path $affinityPath -Name 'DevicePriority' -Kind 'String' -Value 'High'
+
+            Remove-MsiAffinityDevicePriority -AffinityPath $affinityPath -DeviceDesc 'Mocked GPU' | Should -BeTrue
+            (@((Get-Item -LiteralPath $affinityPath).GetValueNames()) -contains 'DevicePriority') | Should -BeFalse
+
+            Remove-MsiAffinityDevicePriority -AffinityPath $affinityPath -DeviceDesc 'Mocked GPU' | Should -BeFalse
+        }
+
+        It "restores DevicePriority with its original type and deletes when it never existed" {
+            $script:OriginalBackupFile = $script:msiBackupFile
+            $script:TestBackupFile = Join-Path $env:TEMP ("msi-dp-restore-" + [guid]::NewGuid().ToString('N') + ".json")
+            $script:msiBackupFile = $script:TestBackupFile
+            $script:MsiEnumSandbox = 'HKCU:\Software\TweakByjieTest\MsiEnum'
+            try {
+                if (Test-Path $script:MsiEnumSandbox) {
+                    Remove-Item -Path $script:MsiEnumSandbox -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                $instanceId = 'VEN_TEST\INST1'
+                $msiPath = Join-Path $script:MsiEnumSandbox "$instanceId\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties"
+                $affinityPath = Join-Path $script:MsiEnumSandbox "$instanceId\Device Parameters\Interrupt Management\Affinity Policy"
+                New-Item -Path $msiPath -Force | Out-Null
+                New-Item -Path $affinityPath -Force | Out-Null
+                Set-TweakRegistryTypedValue -Path $affinityPath -Name 'DevicePriority' -Kind 'String' -Value '0'
+
+                $backup = [pscustomobject]@{
+                    Version = 1
+                    Binding = (Get-BackupMachineId)
+                    Devices = @(
+                        [pscustomobject]@{
+                            InstanceId     = $instanceId
+                            DeviceDesc     = 'Mocked GPU'
+                            Class          = 'Display'
+                            MSISupported   = 1
+                            MessageLimit   = 1
+                            DevicePriority = [pscustomobject]@{ Existed = $true; Kind = 'String'; Value = 'High' }
+                        }
+                    )
+                }
+                $json = ConvertTo-Json -InputObject $backup -Depth 6
+                [System.IO.File]::WriteAllText($script:TestBackupFile, $json, [System.Text.UTF8Encoding]::new($false))
+
+                Restore-MsiBackup -EnumRoot $script:MsiEnumSandbox | Should -BeTrue
+                $restored = Get-TweakRegistryValue -Path $affinityPath -Name 'DevicePriority'
+                $restored.Exists | Should -BeTrue
+                $restored.Value | Should -Be 'High'
+                $restored.Kind | Should -Be 'String'
+
+                # snapshot says the value never existed -> restore must delete the tool-added value
+                Set-TweakRegistryTypedValue -Path $affinityPath -Name 'DevicePriority' -Kind 'String' -Value 'High'
+                $backup.Devices[0].DevicePriority = [pscustomobject]@{ Existed = $false; Kind = ''; Value = $null }
+                $json = ConvertTo-Json -InputObject $backup -Depth 6
+                [System.IO.File]::WriteAllText($script:TestBackupFile, $json, [System.Text.UTF8Encoding]::new($false))
+                Restore-MsiBackup -EnumRoot $script:MsiEnumSandbox | Should -BeTrue
+                (@((Get-Item -LiteralPath $affinityPath).GetValueNames()) -contains 'DevicePriority') | Should -BeFalse
+            } finally {
+                if (Test-Path -LiteralPath $script:TestBackupFile) {
+                    Remove-Item -LiteralPath $script:TestBackupFile -Force -ErrorAction SilentlyContinue
+                }
+                if (Test-Path $script:MsiEnumSandbox) {
+                    Remove-Item -Path $script:MsiEnumSandbox -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                $script:msiBackupFile = $script:OriginalBackupFile
+            }
+        }
+
+        It "removes DevicePriority for each device configured by action 1" {
+            Mock Ensure-MsiBackup { return $true }
+            Mock Get-MsiManagedDevices {
+                return @(
+                    [pscustomobject]@{
+                        InstanceId   = 'PCI\TEST_GPU\001'
+                        DeviceDesc   = 'Mocked GPU'
+                        Class        = 'Display'
+                        MSISupported = $null
+                        MessageLimit = $null
+                        RegPath      = 'HKLM:\SYSTEM\CurrentControlSet\Enum\PCI\TEST_GPU\001\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'
+                    }
+                )
+            }
+            Mock Set-RegDword { }
+            Mock Verify-RegDword { return $true }
+            Mock Request-Restart { }
+            Mock Remove-MsiAffinityDevicePriority { return $true }
+
+            Invoke-MsiModule -Action '1' | Should -BeTrue
+            Should -Invoke Remove-MsiAffinityDevicePriority -Times 1
+        }
+    }
+
     Context "Invoke-MsiModule Dispatcher" {
         BeforeAll {
             $script:OriginalBackupFile = $script:msiBackupFile

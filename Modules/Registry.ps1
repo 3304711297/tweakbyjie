@@ -95,7 +95,7 @@ function Invoke-RegistryModule {
             { Set-RegString $games "SFIO Priority" "High" "Games SFIO Priority" },
             { Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AutoGameModeEnabled" 0 "AutoGameModeEnabled" },
             { Set-RegDword "HKCU:\Software\Microsoft\GameBar" "AllowAutoGameMode" 0 "AllowAutoGameMode" },
-            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10 "TdrDelay = 10 (GPU 驱动超时容限 10 秒防崩溃)" }
+            { Set-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 12 "TdrDelay = 12 (GPU 驱动超时容限 12 秒防崩溃)" }
         )
         $operationOk = Invoke-RegistryStepSequence $steps
         if ($operationOk) {
@@ -105,7 +105,7 @@ function Invoke-RegistryModule {
             $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "HwSchMode" 2 "HwSchMode / HAGS"
         }
         if ($operationOk) {
-            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 10 "TdrDelay"
+            $operationOk = Verify-RegDword "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" "TdrDelay" 12 "TdrDelay"
         }
         if ($operationOk) { $null = Save-RegistryAppliedState -Section Core -Definitions $script:registryCoreValues }
         if (-not $operationOk) { Write-Host '[FAIL] 核心游戏优化未完整完成；将按原始快照回滚。' -ForegroundColor Red }

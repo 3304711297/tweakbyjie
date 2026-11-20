@@ -30,7 +30,7 @@ Don't use for:
 ## Prerequisites
 
 - Windows 10/11；PowerShell 5.1+（有 `pwsh` 7 时优先）。
-- 应用/还原模块 1-14、17 需要管理员；`-Detect` 是只读检测，不需要提权。
+- 应用/还原模块 1-14、17、19 需要管理员；`-Detect` 是只读检测，不需要提权。
 - 仓库必须完整解压：`tweakbyjie.ps1` 与 `Modules/`、`scripts/`、`ultimate-performance.pow` 同目录。
 
 ## How to Run
@@ -94,6 +94,7 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 16 | 着色器缓存扫描 / 清理 | 是 | 维护项；缓存可再生，不产生快照 |
 | 17 | 游戏 exe 配置（FSO/GPU/CPU） | 是 | 保存三项原值；不写无效的 IFEO IoPriority |
 | 18 | 帧率测量（PresentMon） | 是 | 1=基线 2=变更后 3=对比 4=状态；PresentMon 随仓库分发，不下载 |
+| 19 | 网络低延迟与网卡/PCI/USB 节能关闭 | 是 | 1=应用 2=还原 0=状态；仅有线物理网卡 + 无电池设备；无线/虚拟网卡与笔记本整段跳过；修改前 `network-backup.json` |
 
 ## Red Lines
 
@@ -106,12 +107,13 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 
 ## Pitfalls
 
-- 非交互模式下，模块 1-14、16、17 必须给 `-Action`；模块 15 不需要。
+- 非交互模式下，模块 1-14、16、17、19 必须给 `-Action`；模块 15 不需要。
 - `-Detect` 不能与 `-RunModule` / `-Action` / `-NonInteractive` / `-AcceptDefaults` 组合；`-Json` 只能与 `-Detect` 组合。
 - 快照与 `MachineGuid` 绑定，跨机器复制会被拒绝。
 - 模块 1 的还原会跳过“优化后又被其他程序修改”的项并保留当前值；`-Force` 只应在用户明确要求覆盖时使用（菜单未开放）。
 - 模块 1 的 Memory Compression 与 TRIM 不在注册表快照范围内；模块 16 按设计没有快照。
 - 模块 18 需要完整仓库 ZIP：单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon\PresentMon.exe`；测量为单轮 MVP，必须在同场景、同画质、同路线下重复 3 次再下结论。
+- 模块 19 只对有线物理网卡（`*PhysicalMediaType` 14 / 802.3）生效；检测到电池或机箱类型属便携设备时整段跳过（`[SKIP]`，退出码仍为 0），无线/虚拟网卡不纳管；只改已存在的 REG_DWORD，REG_SZ 等记 skip 不硬写。
 - 退出码 `5` 是部分失败：逐项读输出，不要盲目重试。
 
 ## Verification
