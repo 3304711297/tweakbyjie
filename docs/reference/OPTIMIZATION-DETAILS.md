@@ -944,6 +944,49 @@ MPO（Multi-Plane Overlay，多平面叠加）是 Windows/DWM 使用的硬件多
 
 ---
 
+### Part 20：安全削弱（选项 20，XOS B 组）
+
+把 `docs/reference/XOS-PLAYBOOK-INVENTORY.md` 3.2 节 B 组 27 条上游动作，重构为 **13 个可独立执行的项**（默认什么都不做），并按本仓「快照 → 写入 → 回读 → 可还原」模型落地。这一组不提升帧率，只降低安全边界，因此不做批量“一键全开”。
+
+| 项 | 内容 | 目标 |
+|---|---|---|
+| B01 | Defender 篡改防护关闭 | `SOFTWARE\Microsoft\Windows Defender\Features\TamperProtection=0`（受 TrustedInstaller 保护，失败如实报错） |
+| B02 | CI 信誉策略关闭 | `SYSTEM\...\Control\CI\Policy\VerifiedAndReputablePolicyState=0` |
+| B03 | System Guard 关闭 | `DeviceGuard\ConfigureSystemGuardLaunch=2`、`DeviceGuard\Scenarios\SystemGuard\Enabled=0`（HVCI 由菜单 10 负责，不重复写） |
+| B04 | 保留 Defender 但削弱云保护 | 运行时/策略两条 Spynet 路径、`DefenderApiLogger`/`DefenderAuditLogger` 的 `Start=4`（仅服务键已存在时写）、`DisableGenericRePorts=1`、`DisableScheduledSignatureUpdateOnBattery=1`、`ConfigureAppInstallControl(Enabled=0, Anywhere)` |
+| B05 | UAC 关闭 | `Policies\System` 的 `PromptOnSecureDesktop=0`、`ConsentPromptBehaviorAdmin=0`、`EnableLUA=0`（最后写） |
+| B06 | 管理代码签名校验关闭 | `Policies\System\ValidateAdminCodeSignatures=0` |
+| B07 | CPU 侧信道缓解（参考） | 已由菜单 1 → 3 提供，这里只显示状态与跳转，不重复写 |
+| B08 | svchost 缓解策略关闭 | `Control\SCMConfig\EnableSvchostMitigationPolicy=0` |
+| B09 | KeyGuard 遥测关闭 | `DeviceGuard\Scenarios\KeyGuard\DisableTelemetry=1` |
+| B10 | PowerShell 无限制执行并关审计 | 机器策略与本地机器两处 `ExecutionPolicy=Unrestricted`；`EnableModuleLogging=0`、`EnableScriptBlockLogging=0` |
+| B11 | 受保护事件日志关闭 | `Policies\...\EventLog\ProtectedEventLogging\EnableProtectedEventLogging=0` |
+| B12 | 内核 DMA 保护关闭 | `Policies\...\Kernel DMA Protection\DeviceEnumerationPolicy=2`，并把服务 `Parameters` 下**已存在**的 `DmaRemappingCompatible` REG_DWORD 改 0（非 DWORD 记 skip） |
+| B13 | 进程缓解关闭 | `Set-ProcessMitigation -System -Disable`（DEP/SEHOP/CFG/ACG 等 14 项）+ 9 个关键镜像的 IFEO `MitigationOptions`/`MitigationAuditOptions=0x22`，回读 DEP=OFF |
+
+**安全门（比上游更严）**
+- 逐项执行，每次只应用一个 B 项；默认不执行任何一项；
+- 每项执行前必须输入 `I-UNDERSTAND-RISK`；B13 另用 `I-UNDERSTAND-MITIGATIONS-OFF`；
+- 非交互模式没有 `-AcceptDefaults` 时直接失败，不会静默读 stdin 或把危险动作当成功。
+
+**备份与还原（`security-weakening-backup.json`）**
+- 写入前按同一份计划逐值记录「路径 / 值名 / 原本是否存在 / 原类型 / 原值」；
+- B13 另存 `Get-ProcessMitigation -RegistryConfigFilePath` 导出的完整 XML（首次快照不覆盖），恢复走文档化的 `Set-ProcessMitigation -PolicyFilePath`；
+- 快照已存在时只追加新目标（B12 动态发现的服务值走这条路径），绝不覆盖首次记录；跨机或结构损坏直接失败并阻止写入；
+- 任一写入失败 → 立即按快照回滚并返回失败，不留下半套状态。
+
+| 子选项 | 内容 |
+|---|---|
+| 0 | 只读查看 13 项当前值与快照就绪状态 |
+| 1–13 | 逐项应用（对应 B01–B13） |
+| r | 按 `security-weakening-backup.json` 整体还原 |
+
+**边界**：只改注册表与进程缓解配置，不删服务、不卸组件、不写计划任务自愈（上游 `XOS-*` 那套开机重试没有照抄）；B01 不做 TrustedInstaller 提权绕过；B03 与菜单 10、B07 与菜单 1→3 不重复写同一值，避免两份快照互相覆盖。
+
+**已知风险**：B05 关 UAC 后微软账号登录可能失效；B13 是整份清单最严重的一处（系统级 DEP/ASLR/CFG/SEHOP 与 lsass 等关键进程缓解）；B12 关闭 Thunderbolt/PCIe DMA 防护，只对物理接触者有意义。
+
+---
+
 ## 二、defender-removal.ps1
 
 > ⚠️ 以下所有操作均为**物理移除**（删除键/文件），不可逆。

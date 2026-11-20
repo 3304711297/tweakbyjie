@@ -101,7 +101,7 @@
     "xos-playbook": {
       "repo": "imribiy/xos-playbook",
       "last_synced_release": "",
-      "description": "xos-playbook (XOS 迁移后的 AME Wizard playbook；优化规则与 Executables 脚本的实际承载库)。**跟踪 dev 分支（开发者 beta）**，基线 0ed60c3。本轮吸收：① 每接口 TcpAckFrequency/TCPNoDelay（仅有线物理网卡）与 ② 网卡/PCI/USB 节能关闭（只改已存在 REG_DWORD、先快照、可逐值还原）→ 菜单 19 Modules/Network.ps1 + Modules/Backup.Network.ps1；另含 Affinity Policy\\DevicePriority 清理 → 菜单 13 Modules/Msi.ps1（删除前快照）；另跟随上游把 TdrDelay 由 10 改为 12。未吸收：PowerThrottlingOff/EnergyEstimationEnabled、任务栏悬停 250ms + SmoothScroll=0、Segment Heap 只读检测（上游写法错位）；dev 相对 main 新增的 WaitToKillServiceTimeout=2000、HiberbootEnabled=0（关闭快速启动）与 Reserved Storage 步骤未经用户批准，仅登记不吸收。",
+      "description": "xos-playbook (XOS 迁移后的 AME Wizard playbook；优化规则与 Executables 脚本的实际承载库)。**跟踪 dev 分支（开发者 beta）**，基线 0ed60c3。本轮吸收：① 每接口 TcpAckFrequency/TCPNoDelay（仅有线物理网卡）与 ② 网卡/PCI/USB 节能关闭（只改已存在 REG_DWORD、先快照、可逐值还原）→ 菜单 19 Modules/Network.ps1 + Modules/Backup.Network.ps1；另含 Affinity Policy\\DevicePriority 清理 → 菜单 13 Modules/Msi.ps1（删除前快照）；另跟随上游把 TdrDelay 由 10 改为 12。**2026-11-20 第二轮按用户要求把 3.2 节 B 组（安全削弱 27 条动作）全部吸纳为菜单 20**（Modules/SecurityWeakening.ps1 + Modules/Backup.SecurityWeakening.ps1，13 个逐项开关、默认不执行、先快照、可整体恢复）。未吸收：PowerThrottlingOff/EnergyEstimationEnabled、任务栏悬停 250ms + SmoothScroll=0、Segment Heap 只读检测（上游写法错位）；dev 相对 main 新增的 WaitToKillServiceTimeout=2000、HiberbootEnabled=0（关闭快速启动）与 Reserved Storage 步骤未经用户批准，仅登记不吸收。",
       "branches": [
         "dev"
       ],

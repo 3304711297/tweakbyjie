@@ -43,6 +43,7 @@ Write-Host ("  16. 着色器缓存扫描与清理（维护项，不可还原）{
 Write-Host ("  17. 游戏 exe 配置（禁用全屏优化 / 高性能 GPU / CPU 高优先级）{0}" -f (Format-MenuAvailabilitySuffix '17' $__avail)) -ForegroundColor White
 Write-Host ("  18. 帧率测量（PresentMon 基线 / 变更后 / 对比）{0}" -f (Format-MenuAvailabilitySuffix '18' $__avail)) -ForegroundColor White
 Write-Host ("  19. 网络低延迟与网卡/PCI/USB 节能关闭（仅有线 + 插电，先快照）{0}" -f (Format-MenuAvailabilitySuffix '19' $__avail)) -ForegroundColor White
+Write-Host ("  20. 安全削弱（XOS B 组 13 项，逐项选择，先快照可整体还原）{0}" -f (Format-MenuAvailabilitySuffix '20' $__avail)) -ForegroundColor Yellow
 Write-Host ""
 Write-Host "提示：一次运行可以连续执行多个模块；修改完成后统一选择是否重启。" -ForegroundColor Yellow
 Write-Host " NOTE: Multiple modules can be run in one session; restart is deferred until you choose it." -ForegroundColor Yellow
@@ -57,14 +58,14 @@ if ($__autoMode -and $__queue.Count -eq 0) {
     Write-Host ""
     Write-Host ("[AUTO] 自动执行模块 " + $choice) -ForegroundColor Cyan
 } else {
-    $choice = Read-Host "请输入 0-19 并回车 (Enter 0-19)"
+    $choice = Read-Host "请输入 0-20 并回车 (Enter 0-20)"
 }
 
 if ($choice -eq "0") {
     Invoke-FinalRestartPrompt
     break
 
-    } elseif ($choice -match '^[1-9]$|^1[0-9]$') {
+    } elseif ($choice -match '^[1-9]$|^1[0-9]$|^20$') {
         # 按模块前置条件灰掉：不可用模块在选择/队列执行时统一拒绝，不进入执行函数
         $entry = $__avail[$choice]
         if ($entry -and -not $entry.Available) {
@@ -102,13 +103,14 @@ if ($choice -eq "0") {
             '17' { Invoke-GameExeModule -Action $__action }
             '18' { Invoke-MeasureModule -Action $__action }
             '19' { Invoke-NetworkModule -Action $__action }
+            '20' { Invoke-SecurityWeakeningModule -Action $__action }
         }
         if ($__autoMode -and ($script:fail -gt $__beforeModuleFail -or @($__moduleResult | Where-Object { $_ -is [bool] -and -not $_ }).Count -gt 0)) {
             Write-Host '[AUTO] 模块执行失败，已停止后续队列，避免在失败状态下继续写入。' -ForegroundColor Red
             break
         }
     } else {
-    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-19 / Invalid input. Enter 0-19." -ForegroundColor Red
+    Write-Host "[ERROR] 无效输入：$choice 。请输入 0-20 / Invalid input. Enter 0-20." -ForegroundColor Red
 }
 }
 }

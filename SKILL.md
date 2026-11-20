@@ -95,11 +95,12 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 | 17 | 游戏 exe 配置（FSO/GPU/CPU） | 是 | 保存三项原值；不写无效的 IFEO IoPriority |
 | 18 | 帧率测量（PresentMon） | 是 | 1=基线 2=变更后 3=对比 4=状态；PresentMon 随仓库分发，不下载 |
 | 19 | 网络低延迟与网卡/PCI/USB 节能关闭 | 是 | 1=应用 2=还原 0=状态；仅有线物理网卡 + 无电池设备；无线/虚拟网卡与笔记本整段跳过；修改前 `network-backup.json` |
+| 20 | 安全削弱（XOS B 组 13 项） | 是 | 0=状态 1-13=逐项应用 r=还原；逐项 `I-UNDERSTAND-RISK`（B13 用 `I-UNDERSTAND-MITIGATIONS-OFF`）；修改前 `security-weakening-backup.json`（含进程缓解 XML） |
 
 ## Red Lines
 
 1. **不得代替用户同意**：`-AcceptDefaults` 只能放行用户已明确接受的具体风险，不能当“全部同意”。
-2. **高风险模块先解释再执行**：5（Defender）、9（EFI）、10（VBS）、3/4（测试模式）必须有明确请求与恢复方案。
+2. **高风险模块先解释再执行**：5（Defender）、9（EFI）、10（VBS）、3/4（测试模式）、20（安全削弱）必须有明确请求与恢复方案。
 3. **不要绕过脚本直接改注册表/BCD**：快照与还原是唯一安全保障。
 4. **不碰游戏目录与反作弊**：不修改游戏文件、不注入、不降反作弊进程优先级。
 5. **不自动重启**：工具只标记待重启，由用户决定。
@@ -107,13 +108,14 @@ pwsh -NoProfile -File .\tweakbyjie.ps1 -RunModule 12 -Action "12=2"
 
 ## Pitfalls
 
-- 非交互模式下，模块 1-14、16、17、19 必须给 `-Action`；模块 15 不需要。
+- 非交互模式下，模块 1-14、16-20 必须给 `-Action`；模块 15 不需要。
 - `-Detect` 不能与 `-RunModule` / `-Action` / `-NonInteractive` / `-AcceptDefaults` 组合；`-Json` 只能与 `-Detect` 组合。
 - 快照与 `MachineGuid` 绑定，跨机器复制会被拒绝。
 - 模块 1 的还原会跳过“优化后又被其他程序修改”的项并保留当前值；`-Force` 只应在用户明确要求覆盖时使用（菜单未开放）。
 - 模块 1 的 Memory Compression 与 TRIM 不在注册表快照范围内；模块 16 按设计没有快照。
 - 模块 18 需要完整仓库 ZIP：单独复制 `tweakbyjie.ps1` 会缺少 `tools\PresentMon\PresentMon.exe`；测量为单轮 MVP，必须在同场景、同画质、同路线下重复 3 次再下结论。
 - 模块 19 只对有线物理网卡（`*PhysicalMediaType` 14 / 802.3）生效；检测到电池或机箱类型属便携设备时整段跳过（`[SKIP]`，退出码仍为 0），无线/虚拟网卡不纳管；只改已存在的 REG_DWORD，REG_SZ 等记 skip 不硬写。
+- 模块 20 不批量执行：每次只应用一个 B 项，`-Action 20=5` 这类写法只跑 B05。B03 的 HVCI 由模块 10 负责、B07 指向模块 1→3，均不重复写；B13 的系统级缓解走 `Set-ProcessMitigation -System`，逐进程 IFEO 写 `0x22`，快照里保存 `Get-ProcessMitigation -RegistryConfigFilePath` 的 XML，恢复用 `Set-ProcessMitigation -PolicyFilePath`。
 - 退出码 `5` 是部分失败：逐项读输出，不要盲目重试。
 
 ## Verification

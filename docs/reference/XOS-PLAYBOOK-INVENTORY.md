@@ -80,7 +80,9 @@ dev 只改了 3 个文件：`Configuration/custom.yml` +9/−4、`Executables/Re
 | C 范围外 | 123 | 15.2% | 品牌 OEM、壁纸、AME 机制、维护流程、个性化、writeStatus |
 | D 无依据/重复/无效 | 191 | 23.6% | 含写法错误、写默认值、HKCU 重复副本、玄学值、收益未量化 |
 | E 本轮未选 | 3 | 0.4% | 任务栏悬停 250ms ×2、SmoothScroll=0 |
-| **合计** | **808** | 100% |  |
+| **合计** | **808** | 100% | |
+
+> 2026-11-20 增补：B 组 27 条已按用户要求落地为菜单 20（见 3.2.1）。本表保留审计当时的六组口径，不再回算分组；A/C/D/E 组结论不变。
 
 
 ### 1.3 类型 × 判定 交叉表
@@ -218,6 +220,11 @@ dev 只改了 3 个文件：`Configuration/custom.yml` +9/−4、`Executables/Re
 
 ### 3.2 B. 安全削弱（27 条）
 
+> **2026-11-20 增补（用户拍板）：本组 27 条已全部吸纳，落地为菜单 20「安全削弱」。**
+> 实现：`Modules/SecurityWeakening.ps1`（13 个独立项 B01–B13 的写入表与执行器）+ `Modules/Backup.SecurityWeakening.ps1`（逐值快照、进程缓解 XML 快照与恢复）。
+> 约束：默认什么都不做；每项单独执行；逐项 `I-UNDERSTAND-RISK`（B13 另用 `I-UNDERSTAND-MITIGATIONS-OFF`）；写入前落 `security-weakening-backup.json`，可整体恢复。
+> 下表保留审计当时的「未采纳原因」作为风险记录，落地位置与取舍见 3.2.1。
+
 
 | 项目/值 | 位置(file:line) | 具体内容 | 未采纳原因 |
 |---|---|---|---|
@@ -235,6 +242,28 @@ dev 只改了 3 个文件：`Configuration/custom.yml` +9/−4、`Executables/Re
 | DMA Remapping 关闭（1 条） | custom.yml:840 | DmaGuard\DeviceEnumerationPolicy 写 value=2 + 遍历所有服务 Parameters 写 DmaRemappingCompatible=0（跳过网卡） | 关内核 DMA 保护（KDP）；上游另建 XOSToolkit\DmaRemappingBackup，说明自知风险 |
 | 关全部进程缓解 + MitigationOptions=0x22（1 条） | custom.yml:926 | Set-ProcessMitigation -SYSTEM -Disable 全部；对 fontdrvhost / dwm / lsass / svchost / WmiPrvSE / winlogon / csrss / ntoskrnl / services 与 kernel 写 MitigationOptions / MitigationAuditOptions = 0x22 | 系统性关 CFG/EAF/ACG，lsass 也在名单内；全清单最严重一处 |
 
+
+#### 3.2.1 菜单 20 落地映射（2026-11-20）
+
+| 上游 B 组行 | 动作数 | 菜单 20 | 落地内容与取舍 |
+|---|---:|---|---|
+| TamperProtection = 0 | 1 | B01 | 写 `HKLM\SOFTWARE\Microsoft\Windows Defender\Features\TamperProtection=0`；该键受 TrustedInstaller 保护，写入失败如实报错，不做提权绕过 |
+| CI 信誉策略 | 1 | B02 | `Control\CI\Policy\VerifiedAndReputablePolicyState=0` |
+| HVCI / SystemGuard（3） | 3 | B03（2）+ 菜单 10（1） | SystemGuard 的 `ConfigureSystemGuardLaunch=2` 与 `Scenarios\SystemGuard\Enabled=0` 由 B03 写；`HypervisorEnforcedCodeIntegrity\Enabled=0` 已由菜单 10 的 `vbs-backup.json` 管理，不重复写，避免两份快照争同一值 |
+| 保留 Defender 仍关云保护/上报（8） | 8 | B04（10 个值） | 运行时与策略两条 Spynet 路径都写；`DefenderApiLogger`/`DefenderAuditLogger` 的 `Start` 写 **4（Disabled）** —— 上游写 0 是 boot-start，达不到关闭目的，且服务键不存在时跳过（不凭空创建服务项）；`ConfigureAppInstallControl` 同时写 Enabled=0 与 `Anywhere` |
+| UAC 关闭（3） | 3 | B05 | 三条全写，`EnableLUA` 放最后，前面失败不会留下“安全桌面已关但 UAC 还在”的半状态 |
+| ValidateAdminCodeSignatures=0 | 1 | B06 | 同名同值 |
+| FeatureSettingsOverride / Mask = 3 | 2 | B07（参考） | 已由菜单 1 → 3 提供，带 `security-mitigation-backup.json` 与回读；菜单 20 只显示状态与跳转，不重复写 |
+| EnableSvchostMitigationPolicy=0 | 1 | B08 | `Control\SCMConfig` |
+| KeyGuard DisableTelemetry=1 | 1 | B09 | `DeviceGuard\Scenarios\KeyGuard` |
+| PowerShell Unrestricted + 关审计（3） | 3 | B10（4 个值） | 机器策略与本地机器两处 `ExecutionPolicy=Unrestricted`；关 `EnableModuleLogging` / `EnableScriptBlockLogging` |
+| ProtectedEventLogging=0 | 1 | B11 | 值名按 ADMX 为 `EnableProtectedEventLogging`（上游写的 `ProtectedEventLogging` 不是策略值名） |
+| DMA Remapping 关闭 | 1 | B12 | 用文档化策略键 `Software\Policies\Microsoft\Windows\Kernel DMA Protection\DeviceEnumerationPolicy=2`；服务侧只把已存在的 `DmaRemappingCompatible` REG_DWORD 改 0，非 DWORD 记 skip（不硬改类型） |
+| 进程缓解全关 + MitigationOptions=0x22 | 1 | B13 | 系统级用 `Set-ProcessMitigation -System -Disable`（DEP/SEHOP/CFG/ACG 等 14 项）并回读 DEP=OFF；逐进程按上游 9 个镜像写 `MitigationOptions`/`MitigationAuditOptions=0x22`；快照存 `Get-ProcessMitigation -RegistryConfigFilePath` 的完整 XML，恢复走 `Set-ProcessMitigation -PolicyFilePath` |
+
+**口径**：上游 27 条动作 → 13 个可执行项（B07 为参考、B03 部分由菜单 10 覆盖）。写入目标合并去重后由同一份计划同时喂给快照与应用，保证“快照覆盖范围 = 实际写入范围”。
+
+**已知风险（不因落地而消失）**：B05 关 UAC 后微软账号登录可能失效；B13 关闭的是系统级 DEP/ASLR/CFG/SEHOP 与 lsass 等关键进程的缓解，属于本清单最严重的一处；B12 只对物理接触者有效，但会关闭 Thunderbolt/PCIe DMA 防护。以上均由逐项确认与快照回滚兜底，不做默认开启。
 
 ### 3.3 C. 范围外（123 条）
 
