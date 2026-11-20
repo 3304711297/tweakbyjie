@@ -223,7 +223,7 @@ Invoke-Pester -Path .\tests\
 
 ## 🧬 上游采纳与外部依赖
 
-本项目的部分调优项吸收自以下优秀开源项目，在叠加自身的快照备份、前置校验与回滚体系后落地为独立模块或注册表策略。仓库同时维护**上游看门 CI**（`upstream-watch`，每周一/三/五北京时间 10:00 自动巡检）：下表全部来源（含外部工具依赖）均已登记进 `tools/upstream-sources.json`，看门跟踪其**全部分支的完整提交区间**（基线到头部的每条 commit 均列入 Issue 明细）与最新 release，并自动发现远端新增/消失的分支，发现更新时自动开启 `upstream-watch` 标签 Issue 提醒，避免吸收内容随上游迭代而失联：
+本项目的部分调优项吸收自以下优秀开源项目，在叠加自身的快照备份、前置校验与回滚体系后落地为独立模块或注册表策略。仓库同时维护**上游看门 CI**（`upstream-watch`，每周一/三/五北京时间 10:00 自动巡检）：下表来源（含外部工具依赖）均已登记进 `tools/upstream-sources.json`（标注「已移出看门」者除外，其条目转入 `retired` 仅作署名与历史留档），看门跟踪其**全部分支的完整提交区间**（基线到头部的每条 commit 均列入 Issue 明细）与最新 release，并自动发现远端新增/消失的分支，发现更新时自动开启 `upstream-watch` 标签 Issue 提醒，避免吸收内容随上游迭代而失联：
 
 | 来源项目 | 仓库 | 吸收内容与落地位置 |
 | :--- | :--- | :--- |
@@ -234,7 +234,7 @@ Invoke-Pester -Path .\tests\
 | **Win11Tuned** (v1.4.0) | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | MRT 恶意软件删除工具推送阻断、文件资源管理器搜索建议禁用、Kernel-EventTracing 日志抑制与 NTFS 上次访问时间更新优化（0x80000001） → 菜单 1「系统行为优化」（`Modules/Registry.ps1`） |
 | **windows-defender-remover** (release13-rev1) | [ionuttbara/windows-defender-remover](https://github.com/ionuttbara/windows-defender-remover) | SecurityHealthService 平台服务删除、SettingsPageVisibility 策略幂等合并 → 高级物理移除脚本（`defender-removal.ps1`，排除误杀 ActionCenter GUID，严格守护系统基线） |
 | **ALit-NetworkOptimizer** (master) | [xiaoX-bgs11/ALit-NetworkOptimizer](https://github.com/xiaoX-bgs11/ALit-NetworkOptimizer) | Minecraft Java（`javaw.exe`）与基岩版（`Minecraft.Windows.exe`）QoS 策略画像 → 菜单 12「竞技游戏网络 QoS 策略管理」（`Modules/GameQos.ps1`，纯组策略注册表落地，坚决排除其 WinDivert 内核劫持与单向发包轰炸） |
-| **XOS** (main) | [imribiy/XOS](https://github.com/imribiy/XOS) | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩、DWM 滚轮零延迟微调与 PCIe 设备 MSI 中断模式管理思路 → 菜单 1 / 菜单 13（`Modules/Registry.ps1` 与 `Modules/Msi.ps1`） |
+| **XOS** (main，2026-11-20 起已移出看门) | [imribiy/XOS](https://github.com/imribiy/XOS) | TimerCoalescing 防合并、PageCombining 内存去重禁用、GPU TdrDelay 防崩、DWM 滚轮零延迟微调与 PCIe 设备 MSI 中断模式管理思路 → 菜单 1 / 菜单 13（`Modules/Registry.ps1` 与 `Modules/Msi.ps1`）。吸收点已固化，不再跟踪其上游提交；移除原因与署名留档见 `tools/upstream-sources.json` 的 `retired` 字段 |
 | **Delta Force Graphics Optimizer** (公开源码 v0.23.0.13 / Release v0.23.0.52) | [Leonard8818/-Delta-Force-Graphics-Optimizer](https://github.com/Leonard8818/-Delta-Force-Graphics-Optimizer) | 选择性还原的冲突检测设计（记录工具写入值，还原前比对，检测到后续修改则拒绝覆盖）→ `Modules/Backup.Registry.ps1`；四项只读体检的实现思路（PCIe 链路 / VC++ v14 / 内存频率 / NVIDIA App 自动优化）→ `Modules/Diagnostics.ps1`（模块 15）。未采纳显卡型号伪装、隐藏电源项与自动调优状态机；公开源码停在 v0.23.0.13，Release 已到 v0.23.0.52，只按公开源码吸收机制，不运行其二进制 |
 | **Win11Tuned**（af76b2c→859676c 评估记录） | [Kaciras/Win11Tuned](https://github.com/Kaciras/Win11Tuned) | **判定：7 项提交全部不采纳、0 项吸收**（区间头 SHA `859676c`；评估日期 2026-11-11；issue #13）。原因：`d6ce323` 迁移 MSTest v4 与 `bda538d` 升级依赖属上游自身测试框架 / NuGet 基建，与本仓 PowerShell 模块化脚本无关；`83fc7ce` 停用 Ndu 驱动、`8046b01` 停用 CldFlt 云文件过滤服务、`ab75947` 从网卡解绑 `ms_pacer`（QoS Packet Scheduler，与菜单 12 DSCP 46 策略冲突）、`859676c` 关闭 LLMNR 协议与 OneSettings 连接、`fe216be` 禁用 FeatureConfig/UsageData 三个遥测计划任务，均属粗暴停用核心系统服务 / 驱动 / 协议 / 计划任务且无本仓快照回滚保障，按『排除破坏性 / 玄学修改』铁律不吸收进模块化脚本。基线已由 `af76b2c` 推进至 `859676c`，评估结论同步登记于 `tools/upstream-sources.json` 的 `note` 字段 |
 

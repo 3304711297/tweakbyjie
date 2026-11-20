@@ -98,17 +98,6 @@
         "codex/update-v3-release": "7ed7a73"
       }
     },
-    "XOS": {
-      "repo": "imribiy/XOS",
-      "last_synced_release": "",
-      "description": "XOS Playbook (Windows 游戏与系统优化 Playbook，菜单 1 / 菜单 13 吸收其 TimerCoalescing 防合并/PageCombining 禁用/GPU TdrDelay/DWM 滚轮即时响应微调与 PCIe 设备 MSI 中断模式管理思路)",
-      "branches": [
-        "main"
-      ],
-      "last_synced_commits": {
-        "main": "50bb7f7"
-      }
-    },
     "Delta-Force-Graphics-Optimizer": {
       "repo": "Leonard8818/-Delta-Force-Graphics-Optimizer",
       "last_synced_release": "v0.23.0.53",
@@ -147,6 +136,14 @@
         "v1.2.3 资产 pc-game-fps-doctor.zip = Main.exe（WinGup 5.31 for Notepad++，Don HO，含 DigiCert 签名链，被改名）+ gup.xml + libcurl.dll",
         "v1.2.4 资产 Pitstop-1.2.3-portable-x64.exe（sha256 c1b4031b174486734495f0192b187d922ad94f541cd0ebbfaef42df9721b2f64，117 MB，无 Authenticode）：版本资源为 Node.js 22.23.1 / OriginalFilename node.exe，pkg.targets=node22-win-x64，载荷 index.js + a.js + b.js + ui/shell.js + ui/oppuqzbl/ 下 4 个各 14 MiB 加密 .bin，全文无 Pitstop/VALORANT/PresentMon 字样"
       ]
+    }
+  },
+  "retired": {
+    "XOS": {
+      "repo": "imribiy/XOS",
+      "retired_at": "2026-11-20",
+      "reason": "用户要求移出上游看门，不再跟踪其后续提交。上游仓库仍活跃（最后推送 2026-11-18），移除属看门范围收窄，不是上游停更，也不按 blocked 处理。",
+      "adopted_record": "已吸收的 TimerCoalescing 防合并 / PageCombining 禁用 / GPU TdrDelay / DWM 滚轮即时响应 / PCIe MSI 中断模式思路已固化在 Modules/Registry.ps1 与 Modules/Msi.ps1，来源署名保留在 README 上游采纳表。"
     }
   }
 }
